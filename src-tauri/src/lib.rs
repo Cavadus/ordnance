@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod compiler;
 pub mod models;
 pub mod archive;
 pub mod utils;

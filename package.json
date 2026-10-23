@@ -1,7 +1,7 @@
 {
-  "name": "ddmm",
+  "name": "ordnance",
   "version": "2.0.0-rc.17",
-  "description": "Democracy Defender Mod Manager — a source-neutral mod manager for Helldivers 2.",
+  "description": "Ordnance Mod Manager \u2014 compiles Helldivers 2 stat mods into one sealed .dl_bin swap. Fork of Democracy Defender.",
   "type": "module",
   "scripts": {
     "dev": "vite dev",

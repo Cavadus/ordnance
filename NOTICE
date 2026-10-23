@@ -6,3 +6,9 @@ This is a derivative work of Helldivers 2 Mod Manager, original work Copyright t
 Modifications made in DDMM: source-neutral mod sources, folder installs, direct-URL installs,
 archive path-traversal/symlink extraction hardening, and the rebrand from Helldivers2ModManager
 to Democracy Defender Mod Manager.
+
+Ordnance Mod Manager — https://github.com/Cavadus/ordnance
+
+This is a fork of Democracy Defender Mod Manager. Ordnance keeps DDMM's
+patch-file deploy and adds a stat-mod compiler: enabled edits are applied
+in profile order and resealed into one .dl_bin per game table.

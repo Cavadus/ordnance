@@ -1,4 +1,15 @@
-# Democracy Defender Mod Manager
+# Ordnance Mod Manager
+
+*One sealed swap. Every enabled mod.*
+
+Ordnance is a fork of [Democracy Defender Mod Manager](https://github.com/katsyk/DemocracyDefenderModManager) (Apache-2.0). Patch-file mods still deploy the way DDMM deploys them: `<hex>.patch_N` files copied into `data/`. Stat mods do not. A stat mod ships an edit list. Ordnance applies every enabled edit, in profile order, onto stock, and writes **one sealed `.dl_bin` per table** (`generated_entities`, `generated_projectile_settings`, `generated_damage_settings`, `generated_explosion_settings`). A later mod wins when two edits hit the same field. Purge restores those game files from the stock backup. It does not delete them.
+
+The compiler plan lives in `src-tauri/src/compiler`. Unsealing and resealing are the next step. This tree is still DDMM 2.0.0-rc.17 underneath the new name.
+
+The icon is a brass cartridge, crimped shut, on a black square.
+
+---
+
 
 *Your mods. Your democracy. Defended.*
 
