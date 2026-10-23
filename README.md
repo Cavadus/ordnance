@@ -4,7 +4,7 @@
 
 Ordnance is a fork of [Democracy Defender Mod Manager](https://github.com/katsyk/DemocracyDefenderModManager) (Apache-2.0). Patch-file mods still deploy the way DDMM deploys them: `<hex>.patch_N` files copied into `data/`. Stat mods do not. A stat mod ships an edit list. Ordnance applies every enabled edit, in profile order, onto stock, and writes **one sealed `.dl_bin` per table** (`generated_entities`, `generated_projectile_settings`, `generated_damage_settings`, `generated_explosion_settings`). A later mod wins when two edits hit the same field. Purge restores those game files from the stock backup. It does not delete them.
 
-The compiler plan lives in `src-tauri/src/compiler`. Unsealing and resealing are the next step. This tree is still DDMM 2.0.0-rc.17 underneath the new name.
+The edit-plan lives in `src-tauri/src/compiler`. The byte step is `compiler/apply.py`: it opens a stock `.dl_bin`, writes the edits, hash-corrects, and reseals. Proven on the Dominator projectile (record 180): speed 450, arming 15, impact explosion 216, damage type 165. This tree is still DDMM 2.0.0-rc.17 underneath the new name.
 
 Work order, locked: get the compiler deploying before touching the interface. Democracy Defender's GUI stays as it is until one deploy writes the sealed `.dl_bin` files and a patch-file mod still lands beside them. Then the GUI gets replaced. It is not the starting point.
 
