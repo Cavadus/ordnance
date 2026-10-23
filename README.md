@@ -6,6 +6,8 @@ Ordnance is a fork of [Democracy Defender Mod Manager](https://github.com/katsyk
 
 The compiler plan lives in `src-tauri/src/compiler`. Unsealing and resealing are the next step. This tree is still DDMM 2.0.0-rc.17 underneath the new name.
 
+Work order, locked: get the compiler deploying before touching the interface. Democracy Defender's GUI stays as it is until one deploy writes the sealed `.dl_bin` files and a patch-file mod still lands beside them. Then the GUI gets replaced. It is not the starting point.
+
 The icon is a brass cartridge, crimped shut, on a black square.
 
 ---
