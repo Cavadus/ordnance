@@ -14,6 +14,10 @@ use anyhow::{bail, Context};
 
 pub const BOOT_NAME: &str = "9ba626afa44a3aa3";
 
+/// `murmur64("boot")`. The engine runs this resource from the highest
+/// `9ba626afa44a3aa3.patch_N` that carries it. The archive name is not the id.
+pub const BOOT_RESOURCE: [u8; 8] = [0xfa, 0x95, 0x18, 0x69, 0x93, 0xdf, 0x76, 0xf4];
+
 const LUA_TYPE: [u8; 8] = [0xe2, 0x17, 0xd1, 0x2c, 0xfa, 0x8d, 0x4e, 0xa1];
 const SCRIPT: &str = include_str!("../../../compiler/bootmerge.py");
 
@@ -52,6 +56,10 @@ pub fn is_text_boot_script(path: &Path) -> bool {
     if data.get(0x50..0x58) != Some(&LUA_TYPE) {
         return false;
     }
+    let header = data.len().min(512);
+    if !data[..header].windows(8).any(|word| word == BOOT_RESOURCE) {
+        return false;
+    }
     let Some(size) = u32_at(&data, 0xC0) else {
         return false;
     };
@@ -68,6 +76,27 @@ pub fn is_text_boot_script(path: &Path) -> bool {
         return false;
     }
     std::str::from_utf8(source).is_ok()
+}
+
+/// A boot that is itself a mod loader. It has to deploy last: a higher boot
+/// replaces it and then no addon runs.
+pub fn is_loader_boot(path: &Path) -> bool {
+    let Ok(data) = fs::read(path) else {
+        return false;
+    };
+    let Some(size) = u32_at(&data, 0xC0) else {
+        return false;
+    };
+    let start = 200usize;
+    let Some(source) = data.get(start..start + size as usize) else {
+        return false;
+    };
+    let Ok(text) = std::str::from_utf8(source) else {
+        return false;
+    };
+    text.contains("--@@LOADER@@")
+        || (text.contains("HD2-Addon") && text.contains(BOOT_NAME))
+        || text.contains("Chef Shared Loader")
 }
 
 /// Merge `patches` (name, path), in load order, into one boot-script patch.
@@ -137,6 +166,7 @@ mod tests {
         header[8..12].copy_from_slice(&1u32.to_le_bytes());
         header[0x20..0x28].copy_from_slice(&(total as u64).to_le_bytes());
         header[0x50..0x58].copy_from_slice(&LUA_TYPE);
+        header[0x68..0x70].copy_from_slice(&BOOT_RESOURCE);
         header[0x70..0x78].copy_from_slice(&LUA_TYPE);
         header[0xA0..0xA4].copy_from_slice(&((raw.len() + 8) as u32).to_le_bytes());
         let mut body = header;
@@ -191,6 +221,18 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("ordnance-boot-lj-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         let path = pack(&dir, "lj", "\u{1b}LJnot-source\n");
+        assert!(!is_text_boot_script(&path));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_patch_that_is_not_the_boot_resource_is_left_alone() {
+        let dir = std::env::temp_dir().join(format!("ordnance-boot-id-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let path = pack(&dir, "other", "marker = true\n");
+        let mut data = fs::read(&path).unwrap();
+        data[0x68..0x70].fill(0);
+        fs::write(&path, &data).unwrap();
         assert!(!is_text_boot_script(&path));
         let _ = fs::remove_dir_all(&dir);
     }

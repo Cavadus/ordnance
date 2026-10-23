@@ -470,60 +470,72 @@ pub async fn deploy(state: State<'_, AppState>, configs: Vec<Config>) -> TAResul
 /// unreadable folder) stops the deploy before anything in the game folder
 /// is touched, so the previous deploy stays in place instead of the game
 /// being left with no mods at all.
-/// If the boot-script slot has two or more text Lua patches, replace them
-/// with one merged patch. Other patches that share the filename (meshes,
-/// banks) stay in the group and deploy beside it.
+/// The game runs one `boot` resource, from the highest patch that carries
+/// it. A loader has to be that patch. Other boots stay below it so the
+/// loader can run them. With no loader, two or more boots are joined into
+/// one so they do not erase each other.
 fn fold_boot_scripts(
     groups: &mut HashMap<String, Vec<PatchFileTriplet>>,
 ) -> anyhow::Result<Option<boot_deploy::Hold>> {
     let Some(triplets) = groups.get_mut(boot_deploy::BOOT_NAME) else {
         return Ok(None);
     };
-    let mut boot = Vec::new();
-    let mut boot_at = Vec::new();
-    for (index, triplet) in triplets.iter().enumerate() {
-        let Some(path) = &triplet.patch else {
+    let mut rest = Vec::new();
+    let mut boots = Vec::new();
+    let mut loaders = Vec::new();
+    for triplet in triplets.drain(..) {
+        let Some(path) = triplet.patch.clone() else {
+            rest.push(triplet);
             continue;
         };
-        if !boot_deploy::is_text_boot_script(path) {
+        if !boot_deploy::is_text_boot_script(&path) {
+            rest.push(triplet);
             continue;
         }
-        let name = path
-            .parent()
-            .and_then(|parent| parent.file_name())
-            .and_then(|name| name.to_str())
-            .unwrap_or("mod")
-            .to_string();
-        boot.push((name, path.clone()));
-        boot_at.push(index);
-    }
-    if boot.len() < 2 {
-        return Ok(None);
-    }
-    log::info!(
-        "Merging {} boot scripts in {} into one patch.",
-        boot.len(),
-        boot_deploy::BOOT_NAME
-    );
-    let (hold, merged) = boot_deploy::merge(&boot)?;
-    let drop_at: HashSet<usize> = boot_at.into_iter().collect();
-    let mut kept = Vec::with_capacity(triplets.len() - drop_at.len() + 1);
-    let mut placed = false;
-    for (index, triplet) in triplets.drain(..).enumerate() {
-        if drop_at.contains(&index) {
-            if !placed {
-                kept.push(PatchFileTriplet {
-                    patch: Some(merged.clone()),
-                    gpu_resources: None,
-                    stream: None,
-                });
-                placed = true;
-            }
+        if boot_deploy::is_loader_boot(&path) {
+            loaders.push(triplet);
         } else {
-            kept.push(triplet);
+            boots.push((path, triplet));
         }
     }
-    *triplets = kept;
+    if !loaders.is_empty() {
+        log::info!(
+            "A boot loader is enabled. It deploys last so it stays the boot the game runs. {} other boot script(s) stay below it.",
+            boots.len()
+        );
+        rest.extend(boots.into_iter().map(|(_, triplet)| triplet));
+        rest.extend(loaders);
+        *triplets = rest;
+        return Ok(None);
+    }
+    if boots.len() < 2 {
+        rest.extend(boots.into_iter().map(|(_, triplet)| triplet));
+        *triplets = rest;
+        return Ok(None);
+    }
+    let named: Vec<(String, PathBuf)> = boots
+        .iter()
+        .map(|(path, _)| {
+            let name = path
+                .parent()
+                .and_then(|parent| parent.file_name())
+                .and_then(|name| name.to_str())
+                .unwrap_or("mod")
+                .to_string();
+            (name, path.clone())
+        })
+        .collect();
+    log::info!(
+        "No boot loader is enabled. Merging {} boot scripts so the highest patch still runs all of them.",
+        named.len()
+    );
+    let (hold, merged) = boot_deploy::merge(&named)?;
+    rest.push(PatchFileTriplet {
+        patch: Some(merged),
+        gpu_resources: None,
+        stream: None,
+    });
+    *triplets = rest;
     Ok(Some(hold))
 }
 
@@ -986,6 +998,7 @@ mod tests {
         header[0x20..0x28].copy_from_slice(&(total as u64).to_le_bytes());
         let lua = [0xe2, 0x17, 0xd1, 0x2c, 0xfa, 0x8d, 0x4e, 0xa1];
         header[0x50..0x58].copy_from_slice(&lua);
+        header[0x68..0x70].copy_from_slice(&boot_deploy::BOOT_RESOURCE);
         header[0x70..0x78].copy_from_slice(&lua);
         header[0xA0..0xA4].copy_from_slice(&((raw.len() + 8) as u32).to_le_bytes());
         let mut body = header;
@@ -1043,6 +1056,42 @@ mod tests {
         assert!(text.contains("marker_alpha = true"));
         assert!(text.contains("marker_beta = true"));
         assert!(mesh_kept, "non-lua patch was dropped");
+    }
+
+    /// A loader owns `boot`. It deploys after every other boot script, and
+    /// those scripts are not pasted into it.
+    #[tokio::test]
+    async fn a_loader_deploys_after_other_boot_scripts() {
+        let data = tempfile::tempdir().unwrap();
+        let file_mod = tempfile::tempdir().unwrap();
+        let loader = tempfile::tempdir().unwrap();
+        write_text_boot_script(file_mod.path(), "stratagem_swap = true\n");
+        write_text_boot_script(loader.path(), "--@@LOADER@@\nChef Shared Loader\n");
+        let (file_mod, file_cfg) = legacy_mod("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", file_mod.path());
+        let (loader_mod, loader_cfg) = legacy_mod("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", loader.path());
+        // The loader is first in the profile. Deploy must still put it last.
+        let mods = vec![loader_mod, file_mod];
+        let configs = vec![loader_cfg, file_cfg];
+        do_deploy(data.path(), &no_skip_list(), pair_mods_with_configs(&mods, &configs))
+            .await
+            .unwrap();
+
+        let mut patches = Vec::new();
+        for entry in std::fs::read_dir(data.path()).unwrap() {
+            let path = entry.unwrap().path();
+            let name = path.file_name().unwrap().to_string_lossy().to_string();
+            if name.ends_with("gpu_resources") || name.ends_with(".stream") || !name.contains(".patch_") {
+                continue;
+            }
+            let index: u32 = name.split(".patch_").nth(1).unwrap().parse().unwrap();
+            patches.push((index, std::fs::read(path).unwrap()));
+        }
+        patches.sort_by_key(|(index, _)| *index);
+        let loader_at = patches.iter().position(|(_, bytes)| bytes.windows(b"Chef Shared Loader".len()).any(|w| w == b"Chef Shared Loader")).unwrap();
+        let file_at = patches.iter().position(|(_, bytes)| bytes.windows(b"stratagem_swap".len()).any(|w| w == b"stratagem_swap")).unwrap();
+        assert!(file_at < loader_at, "the loader must be the highest boot");
+        let loader_text = String::from_utf8_lossy(&patches[loader_at].1);
+        assert!(!loader_text.contains("stratagem_swap"), "the file mod was pasted into the loader");
     }
 
     fn legacy_mod(guid: &str, dir: &std::path::Path) -> (Mod, Config) {
