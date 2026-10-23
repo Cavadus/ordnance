@@ -22,18 +22,18 @@
 </script>
 
 <div
-    class="h-16 flex items-center justify-between pl-1 pb-1 bg-zinc-800 border-zinc-500 border-b-2"
+    class="h-16 flex items-center justify-between pl-1 pb-1 bg-black border-amber-600 border-b-2"
     data-tauri-drag-region
 >
     <div class="flex self-stretch">
         <img
-            class="w-40"
-            src="images/hd2_logo.png"
-            alt="HD2 logo"
+            class="w-14 h-14 object-contain"
+            src="images/ordnance.png"
+            alt="Ordnance"
             data-tauri-drag-region
         />
         <span
-            class="text-6xl text-zinc-100 font-blockletter"
+            class="text-5xl text-amber-400 font-blockletter tracking-wide"
             data-tauri-drag-region>{t("app.title")}</span
         >
     </div>
