@@ -6,8 +6,11 @@
 //! `.dl_bin`. [`compile`] applies every enabled mod, in profile order, onto
 //! one swap per table. Later mods win when two edits hit the same field.
 //!
-//! Unsealing, applying the bytes, hash-correcting, and resealing are the next
-//! step. This module is the plan those steps will execute.
+//! Unsealing a `.dl_bin` edit list is `compiler/apply.py`. Several mods that
+//! each replace boot script `9ba626afa44a3aa3` are joined by
+//! `compiler/bootmerge.py` (one script, installers chained, Bingus option
+//! modules kept out of that slot). Deploy still copies `patch_N` files and
+//! does not call either tool yet.
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;

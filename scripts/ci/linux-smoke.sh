@@ -244,10 +244,10 @@ if ! command -v dbus-run-session >/dev/null && [ "$family" = suse ]; then
 fi
 start_xvfb
 
-appimage=$(find "$dist" -name 'DDMM-*-linux-x86_64.AppImage' | head -n1)
-tarball=$(find "$dist" -name 'DDMM-*-linux-x64.tar.gz' | head -n1)
-deb=$(find "$dist" -name 'DDMM-*-linux-amd64.deb' | head -n1)
-rpm=$(find "$dist" -name 'DDMM-*-linux-x86_64.rpm' | head -n1)
+appimage=$(find "$dist" -name 'Ordnance-*-linux-x86_64.AppImage' | head -n1)
+tarball=$(find "$dist" -name 'Ordnance-*-linux-x64.tar.gz' | head -n1)
+deb=$(find "$dist" -name 'Ordnance-*-linux-amd64.deb' | head -n1)
+rpm=$(find "$dist" -name 'Ordnance-*-linux-x86_64.rpm' | head -n1)
 
 case $mode in
 portable)

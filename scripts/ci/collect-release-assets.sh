@@ -48,12 +48,12 @@ mkdir -p "$release_dir"
 # build-linux) + 2 browser-extension zips (from build-extension: Chrome and
 # Firefox, see extension/scripts/build.mjs) = 8 files total.
 patterns=(
-    'DDMM-*-windows-x64-setup.exe'
-    'DDMM-*-windows-x64-portable.zip'
-    'DDMM-*-linux-x86_64.AppImage'
-    'DDMM-*-linux-amd64.deb'
-    'DDMM-*-linux-x86_64.rpm'
-    'DDMM-*-linux-x64.tar.gz'
+    'Ordnance-*-windows-x64-setup.exe'
+    'Ordnance-*-windows-x64-portable.zip'
+    'Ordnance-*-linux-x86_64.AppImage'
+    'Ordnance-*-linux-amd64.deb'
+    'Ordnance-*-linux-x86_64.rpm'
+    'Ordnance-*-linux-x64.tar.gz'
     'ddmm-extension-chrome-*.zip'
     'ddmm-extension-firefox-*.zip'
 )

@@ -15,6 +15,7 @@ pub mod nexus;
 pub mod bridge;
 pub mod data_folder;
 pub mod import;
+mod boot_deploy;
 
 static INDEX_REGEX: OnceLock<Regex> = OnceLock::new();
 
@@ -243,8 +244,8 @@ async fn do_purge(data_dir: &Path, settings: &Settings) -> anyhow::Result<()> {
     let mut patch_files = Vec::new();
     for f in get_patch_files_from_dir(data_dir).await? {
         if is_skip_listed_slot_zero(&f, settings) {
-            // Only delete it if DDMM wrote it and it is still exactly what
-            // DDMM wrote; otherwise it is (again) the game's own file.
+            // Only delete it if we wrote it and it is still exactly what we
+            // wrote; otherwise it is (again) the game's own file.
             let recorded = f
                 .file_name()
                 .and_then(|n| n.to_str())
@@ -254,7 +255,18 @@ async fn do_purge(data_dir: &Path, settings: &Settings) -> anyhow::Result<()> {
                 None => false,
             };
             if !ours {
-                log::info!("Keeping {:?}: its patch name is in the Skip List and it isn't a file DDMM deployed.", f);
+                log::info!("Keeping {:?}: its patch name is in the Skip List and it isn't a file we deployed.", f);
+                continue;
+            }
+        }
+        // A previous deploy recorded what we wrote. Leave every other patch
+        // (MDL's live resource copies, a hand-placed bank) in the folder.
+        // No record at all means an older manager: purge the non-skip files
+        // so the first Ordnance deploy still replaces that set.
+        if let Some(record) = &deployed {
+            let name = f.file_name().and_then(|n| n.to_str());
+            if !name.is_some_and(|n| record.contains_key(n)) {
+                log::info!("Keeping {:?}: not written by the last Ordnance deploy.", f);
                 continue;
             }
         }
@@ -458,6 +470,63 @@ pub async fn deploy(state: State<'_, AppState>, configs: Vec<Config>) -> TAResul
 /// unreadable folder) stops the deploy before anything in the game folder
 /// is touched, so the previous deploy stays in place instead of the game
 /// being left with no mods at all.
+/// If the boot-script slot has two or more text Lua patches, replace them
+/// with one merged patch. Other patches that share the filename (meshes,
+/// banks) stay in the group and deploy beside it.
+fn fold_boot_scripts(
+    groups: &mut HashMap<String, Vec<PatchFileTriplet>>,
+) -> anyhow::Result<Option<boot_deploy::Hold>> {
+    let Some(triplets) = groups.get_mut(boot_deploy::BOOT_NAME) else {
+        return Ok(None);
+    };
+    let mut boot = Vec::new();
+    let mut boot_at = Vec::new();
+    for (index, triplet) in triplets.iter().enumerate() {
+        let Some(path) = &triplet.patch else {
+            continue;
+        };
+        if !boot_deploy::is_text_boot_script(path) {
+            continue;
+        }
+        let name = path
+            .parent()
+            .and_then(|parent| parent.file_name())
+            .and_then(|name| name.to_str())
+            .unwrap_or("mod")
+            .to_string();
+        boot.push((name, path.clone()));
+        boot_at.push(index);
+    }
+    if boot.len() < 2 {
+        return Ok(None);
+    }
+    log::info!(
+        "Merging {} boot scripts in {} into one patch.",
+        boot.len(),
+        boot_deploy::BOOT_NAME
+    );
+    let (hold, merged) = boot_deploy::merge(&boot)?;
+    let drop_at: HashSet<usize> = boot_at.into_iter().collect();
+    let mut kept = Vec::with_capacity(triplets.len() - drop_at.len() + 1);
+    let mut placed = false;
+    for (index, triplet) in triplets.drain(..).enumerate() {
+        if drop_at.contains(&index) {
+            if !placed {
+                kept.push(PatchFileTriplet {
+                    patch: Some(merged.clone()),
+                    gpu_resources: None,
+                    stream: None,
+                });
+                placed = true;
+            }
+        } else {
+            kept.push(triplet);
+        }
+    }
+    *triplets = kept;
+    Ok(Some(hold))
+}
+
 async fn do_deploy(data_dir: &Path, settings: &Settings, mods: Vec<(&Mod, &Config)>) -> anyhow::Result<()> {
     log::info!("Grouping files...");
     let mut groups: HashMap<String, Vec<PatchFileTriplet>> = HashMap::new();
@@ -472,6 +541,11 @@ async fn do_deploy(data_dir: &Path, settings: &Settings, mods: Vec<(&Mod, &Confi
         }
     }
 
+    // Two text Lua patches of the boot script would otherwise deploy as
+    // patch_N and patch_N+1, and the higher one would replace the lower.
+    // Merge them before purge so a failed merge leaves the game untouched.
+    let _boot_hold = fold_boot_scripts(&mut groups)?;
+
     do_purge(data_dir, settings).await?;
 
     log::info!("Deploying...");
@@ -485,7 +559,9 @@ async fn do_deploy(data_dir: &Path, settings: &Settings, mods: Vec<(&Mod, &Confi
     // each group's triplets were collected in that order. The first gets
     // `<name>.patch_0` (after an optional skip-list offset), the next
     // `.patch_1`, and so on. Helldivers 2 applies higher patch numbers over
-    // lower ones, so the mod LOWEST in the list wins a conflict.
+    // lower ones, so the mod LOWEST in the list wins a conflict. Text Lua
+    // patches of `9ba626afa44a3aa3` are the exception: those were reduced
+    // to one file by `fold_boot_scripts`.
     let mut written = Vec::new();
     for (name, triplets) in &groups {
         let offset = if settings.has_skip_entry(name) { 1 } else { 0 };
@@ -897,6 +973,76 @@ mod tests {
         for name in purged {
             assert!(!data.path().join(name).exists(), "{name} must be purged");
         }
+    }
+
+    fn write_text_boot_script(dir: &std::path::Path, source: &str) {
+        let raw = source.as_bytes();
+        let pad = (16 - ((200 + raw.len()) % 16)) % 16;
+        let total = 200 + raw.len() + pad;
+        let mut header = vec![0u8; 192];
+        header[0..4].copy_from_slice(&0xF000_0011u32.to_le_bytes());
+        header[4..8].copy_from_slice(&1u32.to_le_bytes());
+        header[8..12].copy_from_slice(&1u32.to_le_bytes());
+        header[0x20..0x28].copy_from_slice(&(total as u64).to_le_bytes());
+        let lua = [0xe2, 0x17, 0xd1, 0x2c, 0xfa, 0x8d, 0x4e, 0xa1];
+        header[0x50..0x58].copy_from_slice(&lua);
+        header[0x70..0x78].copy_from_slice(&lua);
+        header[0xA0..0xA4].copy_from_slice(&((raw.len() + 8) as u32).to_le_bytes());
+        let mut body = header;
+        body.extend_from_slice(&(raw.len() as u32).to_le_bytes());
+        body.extend_from_slice(&2u32.to_le_bytes());
+        body.extend_from_slice(raw);
+        body.extend(std::iter::repeat(0u8).take(pad));
+        std::fs::write(dir.join("9ba626afa44a3aa3.patch_0"), body).unwrap();
+    }
+
+    /// Two enabled mods that each replace the boot script deploy as one
+    /// file that still contains both sources. A non-Lua patch that shares
+    /// the filename is copied beside it.
+    #[tokio::test]
+    async fn two_boot_scripts_deploy_as_one_file() {
+        let data = tempfile::tempdir().unwrap();
+        let alpha = tempfile::tempdir().unwrap();
+        let beta = tempfile::tempdir().unwrap();
+        let mesh = tempfile::tempdir().unwrap();
+        write_text_boot_script(alpha.path(), "marker_alpha = true\n");
+        write_text_boot_script(beta.path(), "marker_beta = true\n");
+        // Same filename, not a Lua boot script.
+        std::fs::write(mesh.path().join("9ba626afa44a3aa3.patch_0"), b"MESH-NOT-A-BOOT-SCRIPT").unwrap();
+
+        let (alpha_mod, alpha_cfg) = legacy_mod("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", alpha.path());
+        let (beta_mod, beta_cfg) = legacy_mod("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", beta.path());
+        let (mesh_mod, mesh_cfg) = legacy_mod("cccccccc-cccc-4ccc-8ccc-cccccccccccc", mesh.path());
+        let mods = vec![alpha_mod, beta_mod, mesh_mod];
+        let configs = vec![alpha_cfg, beta_cfg, mesh_cfg];
+
+        do_deploy(data.path(), &no_skip_list(), pair_mods_with_configs(&mods, &configs))
+            .await
+            .unwrap();
+
+        let mut boot = Vec::new();
+        let mut mesh_kept = false;
+        for entry in std::fs::read_dir(data.path()).unwrap() {
+            let path = entry.unwrap().path();
+            let name = path.file_name().unwrap().to_string_lossy().to_string();
+            if name.ends_with("gpu_resources") || name.ends_with(".stream") || name.starts_with('.') {
+                continue;
+            }
+            let bytes = std::fs::read(&path).unwrap();
+            let is_boot = bytes.windows(b"marker_alpha".len()).any(|w| w == b"marker_alpha")
+                || bytes.windows(b"marker_beta".len()).any(|w| w == b"marker_beta");
+            if bytes.windows(b"MESH-NOT-A-BOOT-SCRIPT".len()).any(|w| w == b"MESH-NOT-A-BOOT-SCRIPT") {
+                mesh_kept = true;
+            }
+            if is_boot {
+                boot.push(bytes);
+            }
+        }
+        assert_eq!(boot.len(), 1, "deploy wrote more than one boot script");
+        let text = String::from_utf8_lossy(&boot[0]);
+        assert!(text.contains("marker_alpha = true"));
+        assert!(text.contains("marker_beta = true"));
+        assert!(mesh_kept, "non-lua patch was dropped");
     }
 
     fn legacy_mod(guid: &str, dir: &std::path::Path) -> (Mod, Config) {

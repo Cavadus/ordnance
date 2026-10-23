@@ -24,7 +24,7 @@ on:
       artifact:
         description: >-
           Name of an already-uploaded artifact (from the calling run) holding
-          the renamed DDMM-*-linux-* files. Empty = build them here.
+          the renamed Ordnance-*-linux-* files. Empty = build them here.
         type: string
         default: ''
 
@@ -100,13 +100,13 @@ jobs:
           set -euo pipefail
           v="${{ steps.version.outputs.version }}"
           mkdir -p dist tarball
-          cp "$(find src-tauri/target/release/bundle/appimage -name '*.AppImage' | head -n1)" "dist/DDMM-$v-linux-x86_64.AppImage"
-          bash scripts/ci/fix-appimage.sh "dist/DDMM-$v-linux-x86_64.AppImage"
-          cp "$(find src-tauri/target/release/bundle/deb -name '*.deb' | head -n1)" "dist/DDMM-$v-linux-amd64.deb"
-          cp "$(find src-tauri/target/release/bundle/rpm -name '*.rpm' | head -n1)" "dist/DDMM-$v-linux-x86_64.rpm"
+          cp "$(find src-tauri/target/release/bundle/appimage -name '*.AppImage' | head -n1)" "dist/Ordnance-$v-linux-x86_64.AppImage"
+          bash scripts/ci/fix-appimage.sh "dist/Ordnance-$v-linux-x86_64.AppImage"
+          cp "$(find src-tauri/target/release/bundle/deb -name '*.deb' | head -n1)" "dist/Ordnance-$v-linux-amd64.deb"
+          cp "$(find src-tauri/target/release/bundle/rpm -name '*.rpm' | head -n1)" "dist/Ordnance-$v-linux-x86_64.rpm"
           cp src-tauri/target/release/ddmm tarball/
           cp packaging/QUICKSTART.txt tarball/
-          tar -C tarball -czf "dist/DDMM-$v-linux-x64.tar.gz" .
+          tar -C tarball -czf "dist/Ordnance-$v-linux-x64.tar.gz" .
           ls -la dist
 
       - name: Inspect packages

@@ -77,6 +77,14 @@ jobs:
         working-directory: src-tauri
         run: cargo audit
 
+      - name: Compiler tests
+        if: runner.os == 'Linux'
+        working-directory: compiler
+        run: |
+          python3 -m pip install --user pynacl numpy
+          python3 test_bootmerge.py -q
+          python3 test_swap.py -q
+
       - name: i18n check
         run: pnpm run scan:i18n
 
