@@ -1,6 +1,5 @@
 <script lang="ts">
     import { withUniqueKeys } from "$lib/utils/eachKeys";
-    import { open } from "@tauri-apps/plugin-dialog";
     import { openPath, openUrl } from "@tauri-apps/plugin-opener";
     import { beforeNavigate, onNavigate } from "$app/navigation";
     import { onMount, tick } from "svelte";
@@ -16,6 +15,7 @@
         getNexusKeyStatus, setNexusApiKey, removeNexusApiKey,
         getNexusSignInStatus, nexusSignIn, nexusCancelSignIn, nexusSignOut,
         getDataFolderInfo, planDataFolderMove, adoptDataFolder, ackCloseRequested, forceExit,
+        pickDirectory,
         type BrowserIntegrationStatus, type NexusKeyStatus, type NexusSignInStatus, type DataFolderInfo
     } from "$lib/utils/commands";
     import type { Settings } from "$lib/models/settings";
@@ -427,10 +427,7 @@
     }
 
     async function onBrowse() {
-        const path = await open({
-            directory: true,
-            multiple: false,
-        });
+        const path = await pickDirectory();
         if (!path) return;
         gamePath = path;
     }
@@ -500,7 +497,7 @@
     }
 
     async function onChangeDataDir() {
-        const path = await open({ directory: true, multiple: false });
+        const path = await pickDirectory();
         if (!path) return;
         await startDataFolderMove(path, false);
     }
@@ -510,10 +507,7 @@
     }
 
     async function onBrowseDownloads() {
-        const path = await open({
-            directory: true,
-            multiple: false,
-        });
+        const path = await pickDirectory();
         if (!path) return;
         downloadsPath = path;
     }

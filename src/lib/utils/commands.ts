@@ -1,4 +1,5 @@
 import { invoke as tauriInvoke, type InvokeArgs } from '@tauri-apps/api/core';
+import { open } from '@tauri-apps/plugin-dialog';
 import * as log from '@tauri-apps/plugin-log';
 import { Mod, type ResolvedSource } from '../models/mod';
 import type { Config, ProfilesConfig } from '$lib/models/profile';
@@ -17,6 +18,18 @@ async function invoke<T>(cmd: string, args?: InvokeArgs): Promise<T> {
         const message = typeof ex === "string" ? ex : ex instanceof Error ? ex.message : JSON.stringify(ex);
         log.error(`\`${cmd}\` failed: ${message}`).catch(() => {});
         throw ex;
+    }
+}
+
+/** Folder picker with the same path field as Add. Falls back to the
+ *  plugin dialog if the desktop portal is unavailable. */
+export async function pickDirectory(): Promise<string | null> {
+    try {
+        return await invoke<string | null>('pick_directory');
+    } catch (ex: unknown) {
+        log.warn(`pick_directory failed, using the built-in dialog: ${ex instanceof Error ? ex.message : String(ex)}`).catch(() => {});
+        const picked = await open({ directory: true, multiple: false });
+        return typeof picked === 'string' ? picked : null;
     }
 }
 

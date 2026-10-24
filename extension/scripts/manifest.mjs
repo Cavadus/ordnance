@@ -34,10 +34,10 @@ export const BACKGROUND_LIBS = [
 function baseManifest(version) {
   return {
     manifest_version: 3,
-    name: 'DDMM: One-Click Mod Install',
-    short_description: 'Install Helldivers 2 mods from any site with one click. Your mods. Your democracy. Defended.',
+    name: 'Ordnance: One-Click Mod Install',
+    short_description: 'Install Helldivers 2 mods from any site with one click. Helldivers 2 mods, one click.',
     description:
-      "Adds an Install with DDMM button to AyakaMods, Nexus Mods, ModWorkshop, GameBanana and GitHub mod pages, so one click (or a right-click on any download link) hands the file straight to Democracy Defender Mod Manager. Every mod site is treated equally -- no site is second-class. Nothing leaves your computer except the downloads you ask for.",
+      "Adds an Install with Ordnance button to AyakaMods, Nexus Mods, ModWorkshop, GameBanana and GitHub mod pages, so one click (or a right-click on any download link) hands the file straight to Ordnance. Every mod site is treated equally -- no site is second-class. Nothing leaves your computer except the downloads you ask for.",
     version,
     icons: {
       16: 'icons/icon16.png',
@@ -46,7 +46,7 @@ function baseManifest(version) {
       128: 'icons/icon128.png',
     },
     action: {
-      default_title: 'DDMM',
+      default_title: 'Ordnance',
       default_popup: 'popup/popup.html',
       default_icon: {
         16: 'icons/icon16.png',

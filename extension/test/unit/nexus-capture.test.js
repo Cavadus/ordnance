@@ -5,7 +5,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 // arm capture (via runtime.onMessage), and a fake native host records
 // every `install` it's sent. Covers downloads started by something other
 // than Nexus's own countdown (a userscript, a download manager, another
-// extension): they can arrive before the user clicks "Install with DDMM",
+// extension): they can arrive before the user clicks "Install with Ordnance",
 // from a CDN host with no referrer, or from a different tab.
 
 const listeners = { onMessage: [], onChanged: [] };
@@ -94,7 +94,7 @@ async function completeDownload(item) {
   await flush();
 }
 
-/** Simulate the content script's "Install with DDMM" click on a tab. */
+/** Simulate the content script's "Install with Ordnance" click on a tab. */
 async function arm(pageUrl, tabId = 11, pageVersion = null) {
   const reply = await new Promise((resolve) => {
     listeners.onMessage[0]({ type: 'ddmm:armCapture', site: 'nexus', pageUrl, pageVersion }, { tab: { id: tabId } }, resolve);
@@ -128,7 +128,7 @@ describe('Nexus downloads started by the user\'s own tools', () => {
     expect(installs[0].pageUrl).toBe(FILE_PAGE);
   });
 
-  it('captures a download that finished before the user clicked Install with DDMM', async () => {
+  it('captures a download that finished before the user clicked Install with Ordnance', async () => {
     // The userscript skipped the timer and the file finished downloading
     // before the button was even clicked.
     await completeDownload({ url: CDN_URL, finalUrl: CDN_URL, referrer: FILE_PAGE, filename: '/dl/early.zip' });

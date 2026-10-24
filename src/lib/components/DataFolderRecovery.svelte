@@ -1,11 +1,10 @@
 <script lang="ts">
-    import { open } from "@tauri-apps/plugin-dialog";
     import { ArrowRepeat, Folder2Open, ArrowCounterclockwise, XLg } from "svelte-bootstrap-icons";
     import { useLocalization } from "$lib/state/localization.svelte";
     import { usePopup } from "$lib/state/popup.svelte";
     import { ConfirmPopup } from "$lib/types/popup";
     import {
-        retryDataFolder, locateDataFolder, resetDataFolderLocation, forceExit, type DataFolderInfo
+        retryDataFolder, locateDataFolder, resetDataFolderLocation, forceExit, pickDirectory, type DataFolderInfo
     } from "$lib/utils/commands";
 
     const { t } = useLocalization();
@@ -35,7 +34,7 @@
     }
 
     async function onLocate() {
-        const folder = await open({ directory: true, multiple: false });
+        const folder = await pickDirectory();
         if (!folder) return;
         await run(() => locateDataFolder(folder));
     }

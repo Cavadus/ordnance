@@ -34,7 +34,7 @@
     startEl.hidden = true;
     if (hello && hello.ok) {
       statusEl.dataset.ok = 'true';
-      statusEl.textContent = `Connected to DDMM ${hello.appVersion}`;
+      statusEl.textContent = `Connected to Ordnance ${hello.appVersion}`;
       helpEl.hidden = true;
 
       const status = await send({ type: 'ddmm:status' });
@@ -42,13 +42,13 @@
         gameEl.hidden = false;
         gameEl.textContent = status.gameFound
           ? `Game found -- profile "${status.activeProfile}", ${status.modCount} mod(s)`
-          : 'Helldivers 2 not found. Set the game path in DDMM.';
+          : 'Helldivers 2 not found. Set the game path in Ordnance.';
       }
     } else if (hello && hello.error && hello.error.code === 'NATIVE_HOST_MISSING') {
       // The native host itself is missing: DDMM isn't installed (or not
       // set up for this browser).
       statusEl.dataset.ok = 'false';
-      statusEl.textContent = 'DDMM not found';
+      statusEl.textContent = 'Ordnance not found';
       helpEl.hidden = false;
       helpLink.href = DDMM_DOCS_INSTALL_URL;
       gameEl.hidden = true;
@@ -56,23 +56,23 @@
       // Installed but not running. Checking never starts it; this button
       // (an explicit user action) does, via `open`.
       statusEl.dataset.ok = 'false';
-      statusEl.textContent = "DDMM isn't running";
+      statusEl.textContent = "Ordnance isn't running";
       helpEl.hidden = true;
       gameEl.hidden = true;
       startEl.hidden = false;
       startButton.disabled = false;
-      startButton.textContent = 'Start DDMM';
+      startButton.textContent = 'Start Ordnance';
       startButton.onclick = async () => {
         startButton.disabled = true;
-        startButton.textContent = 'Starting DDMM…';
+        startButton.textContent = 'Starting Ordnance…';
         const opened = await send({ type: 'ddmm:open' });
         if (opened && opened.ok) {
           renderConnection();
           return;
         }
-        statusEl.textContent = "DDMM didn't start in time";
+        statusEl.textContent = "Ordnance didn't start in time";
         startButton.disabled = false;
-        startButton.textContent = 'Start DDMM';
+        startButton.textContent = 'Start Ordnance';
       };
     }
   }

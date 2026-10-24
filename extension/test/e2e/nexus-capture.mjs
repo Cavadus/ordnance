@@ -12,8 +12,8 @@
  *
  * Scenarios:
  *   A. The download starts on page load and finishes *before* the user
- *      clicks "Install with DDMM". The click must install it.
- *   B. The user clicks "Install with DDMM" first; the download then starts
+ *      clicks "Install with Ordnance". The click must install it.
+ *   B. The user clicks "Install with Ordnance" first; the download then starts
  *      in a new tab opened with `noreferrer` (so no referrer). It must be
  *      installed, and the button must show "Click Download on this page…"
  *      at once instead of waiting for the countdown.

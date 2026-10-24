@@ -1,5 +1,5 @@
 /**
- * @file Shared "Install with DDMM" button: shadow-DOM widget, state
+ * @file Shared "Install with Ordnance" button: shadow-DOM widget, state
  * rendering, and the per-page driver that wires a site adapter (see
  * content/sites/*.js) up to the background script.
  *
@@ -20,7 +20,7 @@
   /**
    * Builds a small inline version of the shield-and-chevrons emblem, drawn
    * in `currentColor` so it always matches the button's label color (dark
-   * on the yellow/green/blue/red buttons, yellow on the dark "Get DDMM"
+   * on the yellow/green/blue/red buttons, yellow on the dark "Get Ordnance"
    * one), as real SVG DOM nodes (not `innerHTML`, so
    * there's nothing here for a store reviewer -- or `web-ext lint` -- to
    * flag as an unsanitized dynamic-markup assignment, even though every
@@ -154,7 +154,7 @@
     button.appendChild(buildEmblem());
     const label = document.createElement('span');
     label.className = 'ddmm-label';
-    label.textContent = 'Install with DDMM';
+    label.textContent = 'Install with Ordnance';
     button.appendChild(label);
     wrapper.appendChild(button);
 
@@ -237,7 +237,7 @@
     }
 
     const state = new DDMM_NS.ButtonState();
-    /** Render the state, including its own hint ("DDMM will start"). */
+    /** Render the state, including its own hint ("Ordnance will start"). */
     function render() {
       widget.render(state);
       widget.setHint(state.hint);

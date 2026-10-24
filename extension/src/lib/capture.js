@@ -151,7 +151,7 @@
   const DEFAULT_ARM_WINDOW_MS = 10 * 60 * 1000;
 
   /**
-   * How far back a click on "Install with DDMM" may reach for a download
+   * How far back a click on "Install with Ordnance" may reach for a download
    * that already finished. A userscript or download manager can start the
    * file the moment the page opens (without Nexus's countdown), so it may
    * be done before the user gets to our button.

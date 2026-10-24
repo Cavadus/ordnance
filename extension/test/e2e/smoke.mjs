@@ -2,9 +2,9 @@
 /**
  * @file Playwright smoke test: loads the unpacked, test-flavored Chrome
  * build (see `pnpm build:test`) into a real Chromium against a local
- * fixture mod page, and checks that the "Install with DDMM" button
+ * fixture mod page, and checks that the "Install with Ordnance" button
  * appears and reaches a sane state. No native messaging host exists in
- * this environment, so this also asserts the "DDMM not found" path is
+ * this environment, so this also asserts the "Ordnance not found" path is
  * reached gracefully rather than hanging or throwing.
  *
  * Not part of `pnpm test` (that's the vitest unit suite) -- run explicitly
@@ -90,31 +90,31 @@ async function main() {
     // shadow-root privacy), which Playwright's locators pierce by default.
     const button = page.locator('.ddmm-btn');
     await button.waitFor({ state: 'attached', timeout: 10_000 });
-    console.log('PASS: the "Install with DDMM" button appeared on the fixture page.');
+    console.log('PASS: the "Install with Ordnance" button appeared on the fixture page.');
 
     // No native messaging host is registered in this environment, so the
-    // button must settle into the "Get DDMM" (unreachable) state instead of
-    // hanging on "Checking DDMM…" or throwing. Plain `document.querySelector`
+    // button must settle into the "Get Ordnance" (unreachable) state instead of
+    // hanging on "Checking Ordnance…" or throwing. Plain `document.querySelector`
     // (e.g. inside page.waitForFunction) never pierces a shadow root, open
     // or closed -- only Playwright's own locator engine does -- so this
     // polls the locator's `data-state` attribute directly instead.
     await expectAttributeEventually(button, 'data-state', 'unreachable', 15_000);
     const label = await button.textContent();
-    if (label !== 'Get DDMM') {
-      throw new Error(`Expected the "Get DDMM" label, got "${label}"`);
+    if (label !== 'Get Ordnance') {
+      throw new Error(`Expected the "Get Ordnance" label, got "${label}"`);
     }
-    console.log('PASS: with no native host present, the button reached the "Get DDMM" state gracefully.');
+    console.log('PASS: with no native host present, the button reached the "Get Ordnance" state gracefully.');
 
-    // "Get DDMM" is yellow on dark; the emblem must follow the label color.
+    // "Get Ordnance" is yellow on dark; the emblem must follow the label color.
     const colors = await button.evaluate((btn) => ({
       stroke: getComputedStyle(btn.querySelector('svg path')).stroke,
       color: getComputedStyle(btn).color,
       background: getComputedStyle(btn).backgroundColor,
     }));
     if (colors.stroke !== colors.color || colors.stroke === colors.background) {
-      throw new Error(`emblem not visible on "Get DDMM": ${JSON.stringify(colors)}`);
+      throw new Error(`emblem not visible on "Get Ordnance": ${JSON.stringify(colors)}`);
     }
-    console.log('PASS: the emblem is visible on the "Get DDMM" button.');
+    console.log('PASS: the emblem is visible on the "Get Ordnance" button.');
     if (process.env.SHOT_DIR) await button.screenshot({ path: path.join(process.env.SHOT_DIR, 'e2e-button-unreachable.png') });
 
     await page.waitForTimeout(500);

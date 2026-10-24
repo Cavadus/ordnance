@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-// "Install with DDMM" on a page with a direct file link (GitHub,
+// "Install with Ordnance" on a page with a direct file link (GitHub,
 // GameBanana, ModWorkshop, AyakaMods when logged in) starts the download
 // itself and leaves the button on "Installing…" until the tab hears back.
 // A download that never completes (cancelled, failed, refused) must still

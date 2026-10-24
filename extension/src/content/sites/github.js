@@ -12,7 +12,7 @@
  * DDMM only looks for direct asset links at *click* time, by which point
  * the user has had a chance to expand Assets themselves; if none are found
  * yet, the extension falls back to arming capture with a hint to expand
- * Assets and click a file -- the right-click "Install with DDMM" context
+ * Assets and click a file -- the right-click "Install with Ordnance" context
  * menu on the asset link also works here without any of this, on any site.
  *
  * Only runs on `/releases…` pages (not every page under a repo), even

@@ -235,7 +235,7 @@
   }
 
   /**
-   * A download we started for a tab's "Install with DDMM" click was
+   * A download we started for a tab's "Install with Ordnance" click was
    * cancelled or failed: tell the tab, so its button doesn't stay on
    * "Installing…" for good. The context is kept, so a download the user
    * resumes from the browser's downloads list still installs. Reported
@@ -312,7 +312,7 @@
       break;
     }
 
-    // Nobody wanted it (yet). If the user clicks "Install with DDMM" on
+    // Nobody wanted it (yet). If the user clicks "Install with Ordnance" on
     // this mod's page within a few minutes, it's picked up then.
     captureRegistry.remember(normalized);
     persistRegistry();
@@ -384,7 +384,7 @@
   }
 
   // ---------------------------------------------------------------------
-  // Context menu: "Install with DDMM" on any link, any site.
+  // Context menu: "Install with Ordnance" on any link, any site.
   // ---------------------------------------------------------------------
 
   /**
@@ -418,7 +418,7 @@
   if (api.contextMenus) {
     api.contextMenus.create({
       id: 'ddmm-install-link',
-      title: 'Install with DDMM',
+      title: 'Install with Ordnance',
       contexts: ['link'],
     });
 
@@ -463,7 +463,7 @@
         }
       }
 
-      // The popup's "Start DDMM" button: an explicit user action, so it may
+      // The popup's "Start Ordnance" button: an explicit user action, so it may
       // launch DDMM (see bridge-protocol.md).
       case 'ddmm:open': {
         try {

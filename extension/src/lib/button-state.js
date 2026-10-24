@@ -1,19 +1,19 @@
 /**
- * @file The "Install with DDMM" button's state machine, shared by every
+ * @file The "Install with Ordnance" button's state machine, shared by every
  * content-script site adapter and unit-tested independently of the DOM.
  *
  * States and their labels (see the top-level task spec):
- *   - `checking`     -> "Checking DDMM…"
- *   - `unreachable`  -> "Get DDMM" (links to the docs install page) -- only
+ *   - `checking`     -> "Checking Ordnance…"
+ *   - `unreachable`  -> "Get Ordnance" (links to the docs install page) -- only
  *                       when the native host itself is missing, never just
- *                       because DDMM isn't running
- *   - `install`      -> "Install with DDMM" (also when DDMM isn't running:
- *                       then with the hint "DDMM will start", since
+ *                       because Ordnance isn't running
+ *   - `install`      -> "Install with Ordnance" (also when Ordnance isn't running:
+ *                       then with the hint "Ordnance will start", since
  *                       clicking starts it)
- *   - `starting`     -> "Starting DDMM…" (clicked while DDMM wasn't running;
+ *   - `starting`     -> "Starting Ordnance…" (clicked while DDMM wasn't running;
  *                       the install launches it)
  *   - `installed`    -> "Installed ✓" (click -> reinstall/open)
- *   - `update`       -> "Update with DDMM"
+ *   - `update`       -> "Update with Ordnance"
  *   - `waiting`      -> "Click Download on this page…" (capture armed:
  *                       whatever archive this site downloads next -- via
  *                       the site's own button or any other tool the user
@@ -28,21 +28,21 @@
 
   /** @type {Record<string, string>} */
   const LABELS = {
-    checking: 'Checking DDMM…',
-    unreachable: 'Get DDMM',
-    install: 'Install with DDMM',
+    checking: 'Checking Ordnance…',
+    unreachable: 'Get Ordnance',
+    install: 'Install with Ordnance',
     installed: 'Installed ✓',
-    update: 'Update with DDMM',
+    update: 'Update with Ordnance',
     installing: 'Installing…',
-    starting: 'Starting DDMM…',
+    starting: 'Starting Ordnance…',
     waiting: 'Click Download on this page…',
   };
 
-  /** Shown under "Install with DDMM" when DDMM isn't running. */
-  const NOT_RUNNING_HINT = 'DDMM will start';
+  /** Shown under "Install with Ordnance" when Ordnance isn't running. */
+  const NOT_RUNNING_HINT = 'Ordnance will start';
 
   /** Shown under "Click Download on this page…" while capture is armed. */
-  const WAITING_HINT = 'DDMM installs the next mod file this site downloads.';
+  const WAITING_HINT = 'Ordnance installs the next mod file this site downloads.';
 
   /** Finite state machine for one button instance. Framework-agnostic. */
   class ButtonState {
@@ -69,7 +69,7 @@
 
     /** @returns {string} The current label to render. */
     get label() {
-      if (this.state === 'error') return this.errorMessage || 'DDMM error';
+      if (this.state === 'error') return this.errorMessage || 'Ordnance error';
       return LABELS[this.state] || LABELS.install;
     }
 
@@ -78,14 +78,14 @@
       return this.state !== 'installing' && this.state !== 'checking' && this.state !== 'starting';
     }
 
-    /** DDMM isn't reachable -> "Get DDMM". */
+    /** DDMM isn't reachable -> "Get Ordnance". */
     setUnreachable() {
       this.state = 'unreachable';
       this.errorMessage = null;
     }
 
     /**
-     * The native host answered but DDMM isn't running (APP_NOT_RUNNING, or
+     * The native host answered but Ordnance isn't running (APP_NOT_RUNNING, or
      * it didn't answer in time). Still installable -- the install starts
      * DDMM -- but whether this mod is installed is unknown, so don't guess.
      */
@@ -113,7 +113,7 @@
     }
 
     /**
-     * Transition to the mid-flight state: "Installing…", or "Starting DDMM…"
+     * Transition to the mid-flight state: "Installing…", or "Starting Ordnance…"
      * when DDMM wasn't running and this install is what launches it.
      */
     startInstalling() {

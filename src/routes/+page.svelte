@@ -18,7 +18,7 @@
         loadSettings, deploy, purge, checkSettings, classifyDownloadUrl, checkUpdates, autoDetectAndSaveGamePath,
         resolveBridgeConsent, resolveBridgeInstallCompletion, isGameRunning, forceExit, ackCloseRequested,
         setBridgeFrontendReady, getLastUpdateReport, skipUpdateVersion, browserExtensionActive,
-        detectImportSources, takePendingDeepLinks, getGuidRenames, resolveReplaceRequest, type ImportSource,
+        detectImportSources, takePendingDeepLinks, getGuidRenames, resolveReplaceRequest, pickDirectory, type ImportSource,
         type UpdateStatusEntry, type UpdateCheckReport, type BridgeConsentDecision, type BridgeSoftError,
         type ReplaceOffer, type InstalledMod
     } from "$lib/utils/commands";
@@ -1622,17 +1622,9 @@
     }
 
     async function onAddFolder() {
-        const folders = await open({
-            multiple: true,
-            directory: true
-        });
-        if (!folders) return;
-
-        if (folders.length == 1) {
-            await doAddModFolder(folders[0]);
-        } else {
-            await doAddPaths(...folders);
-        }
+        const folder = await pickDirectory();
+        if (!folder) return;
+        await doAddModFolder(folder);
     }
 
     async function onAddUrl() {

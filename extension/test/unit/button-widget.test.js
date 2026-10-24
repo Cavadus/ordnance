@@ -10,7 +10,7 @@ beforeAll(async () => {
   await import('../../src/content/common.js');
 });
 
-describe('Install with DDMM button emblem', () => {
+describe('Install with Ordnance button emblem', () => {
   it.each([false, true])('is drawn in currentColor, never the button yellow (floating: %s)', (floating) => {
     const widget = globalThis.DDMM.content.createButtonWidget({ floating });
     const svg = widget.host.shadowRoot.querySelector('.ddmm-btn svg');

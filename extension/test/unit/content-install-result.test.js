@@ -47,7 +47,7 @@ const deliver = (message) => onMessage.forEach((fn) => fn(message));
 
 describe('install results sent to every tab of a site', () => {
   it("leave another mod's tab alone, re-checking it instead", async () => {
-    expect(label()).toBe('Install with DDMM');
+    expect(label()).toBe('Install with Ordnance');
     const queries = sent.filter((t) => t === 'ddmm:query').length;
     deliver({
       type: 'ddmm:installResult',
@@ -56,12 +56,12 @@ describe('install results sent to every tab of a site', () => {
       reply: { ok: true, type: 'installed', mod: { name: 'Other Mod' } },
     });
     await flush();
-    expect(label()).toBe('Install with DDMM');
+    expect(label()).toBe('Install with Ordnance');
     expect(sent.filter((t) => t === 'ddmm:query').length).toBe(queries + 1);
 
     deliver({ type: 'ddmm:installResult', broadcast: true, pageUrl: 'https://www.nexusmods.com/helldivers2/mods/999', reply: { ok: false, error: { code: 'DECLINED' } } });
     await flush();
-    expect(label()).toBe('Install with DDMM');
+    expect(label()).toBe('Install with Ordnance');
   });
 
   it("are shown on this mod's own tab", async () => {

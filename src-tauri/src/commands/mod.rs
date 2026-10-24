@@ -15,6 +15,7 @@ pub mod nexus;
 pub mod bridge;
 pub mod data_folder;
 pub mod import;
+pub mod dialogs;
 mod boot_deploy;
 
 static INDEX_REGEX: OnceLock<Regex> = OnceLock::new();

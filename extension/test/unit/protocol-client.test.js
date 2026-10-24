@@ -135,7 +135,7 @@ describe('ProtocolClient', () => {
 
   it('reads why the port closed from port.error on Firefox (runtime.lastError is never set there)', async () => {
     // Firefox reports a missing native host only on the port: without this
-    // the button never offered "Get DDMM" on Firefox.
+    // the button never offered "Get Ordnance" on Firefox.
     const promise = client.hello({ extensionVersion: '1', browser: 'firefox' });
     port.error = { message: 'No such native application io.github.katsyk.ddmm' };
     port.simulateDisconnect();

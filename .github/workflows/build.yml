@@ -375,5 +375,5 @@ jobs:
           name: "Ordnance ${{ steps.version.outputs.version }}"
           body_path: .github/release-notes/${{ steps.version.outputs.tag }}.md
           draft: false
-          prerelease: true
+          prerelease: ${{ contains(github.ref, '-rc') }}
           files: release/*

@@ -7,21 +7,21 @@ describe('ButtonState', () => {
   it('starts in checking', () => {
     const s = new ButtonState();
     expect(s.state).toBe('checking');
-    expect(s.label).toBe('Checking DDMM…');
+    expect(s.label).toBe('Checking Ordnance…');
     expect(s.clickable).toBe(false);
   });
 
-  it('goes to unreachable -> "Get DDMM"', () => {
+  it('goes to unreachable -> "Get Ordnance"', () => {
     const s = new ButtonState();
     s.setUnreachable();
-    expect(s.label).toBe('Get DDMM');
+    expect(s.label).toBe('Get Ordnance');
     expect(s.clickable).toBe(true);
   });
 
-  it('not installed -> "Install with DDMM"', () => {
+  it('not installed -> "Install with Ordnance"', () => {
     const s = new ButtonState();
     s.setQueryResult({ installed: false, updateAvailable: null });
-    expect(s.label).toBe('Install with DDMM');
+    expect(s.label).toBe('Install with Ordnance');
   });
 
   it('installed, no update -> "Installed ✓"', () => {
@@ -30,10 +30,10 @@ describe('ButtonState', () => {
     expect(s.label).toBe('Installed ✓');
   });
 
-  it('installed with update available -> "Update with DDMM"', () => {
+  it('installed with update available -> "Update with Ordnance"', () => {
     const s = new ButtonState();
     s.setQueryResult({ installed: true, updateAvailable: true });
-    expect(s.label).toBe('Update with DDMM');
+    expect(s.label).toBe('Update with Ordnance');
   });
 
   it('installed with unknown update status is not treated as an update', () => {
@@ -73,21 +73,21 @@ describe('ButtonState', () => {
     expect(s.state).toBe('checking');
   });
 
-  it('DDMM not running -> still "Install with DDMM", with the "DDMM will start" hint', () => {
+  it('DDMM not running -> still "Install with Ordnance", with the "Ordnance will start" hint', () => {
     const s = new ButtonState();
     s.setAppNotRunning();
-    expect(s.label).toBe('Install with DDMM');
-    expect(s.hint).toBe('DDMM will start');
+    expect(s.label).toBe('Install with Ordnance');
+    expect(s.hint).toBe('Ordnance will start');
     expect(s.clickable).toBe(true);
     expect(s.updateAvailable).toBe(false);
   });
 
-  it('clicking while DDMM is not running -> "Starting DDMM…", not clickable, busy', () => {
+  it('clicking while DDMM is not running -> "Starting Ordnance…", not clickable, busy', () => {
     const s = new ButtonState();
     s.setAppNotRunning();
     s.startInstalling();
     expect(s.state).toBe('starting');
-    expect(s.label).toBe('Starting DDMM…');
+    expect(s.label).toBe('Starting Ordnance…');
     expect(s.clickable).toBe(false);
     expect(s.busy).toBe(true);
     expect(s.hint).toBeNull();
@@ -126,11 +126,11 @@ describe('ButtonState waiting (capture armed)', () => {
     expect(s.label).toBe('Installing…');
   });
 
-  it('moves to Starting DDMM… when DDMM was not running', () => {
+  it('moves to Starting Ordnance… when DDMM was not running', () => {
     const s = new ButtonState();
     s.setAppNotRunning();
     s.waitForDownload();
     s.startInstalling();
-    expect(s.label).toBe('Starting DDMM…');
+    expect(s.label).toBe('Starting Ordnance…');
   });
 });

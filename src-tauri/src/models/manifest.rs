@@ -175,8 +175,16 @@ impl<'de> Deserialize<'de> for Manifest {
 
         if let Some(version) = raw.get("Version").and_then(|v| v.as_u64()) {
             match version {
-                1 => {
-                    v1::Manifest::deserialize(raw)
+                // 4 is the same shape as 1 with the number bumped. Skip Intro
+                // (10/20/26) ships that. Read it as v1.
+                1 | 4 => {
+                    let mut body = raw;
+                    if version == 4 {
+                        if let Some(obj) = body.as_object_mut() {
+                            obj.insert(String::from("Version"), serde_json::Value::from(1u64));
+                        }
+                    }
+                    v1::Manifest::deserialize(body)
                         .map(Manifest::V1)
                         .map_err(|e| Error::custom(format!("v1 manifest deserialization failed: {}", e)))
                 }
@@ -515,6 +523,29 @@ mod tests {
         match fixture(name) {
             Ok(Manifest::V1(m)) => m,
             other => panic!("{name}: expected v1, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn version_4_is_the_v1_shape() {
+        let m = Manifest::parse(
+            br#"{
+                "Version": 4,
+                "Guid": "d9a4b449-98de-4a9e-b20e-28a188e57054",
+                "Name": "Skip Intro",
+                "Description": "Skips the intro.",
+                "IconPath": "icon.png",
+                "Options": [{ "Name": "Skip Intro", "Include": ["skipintro"] }]
+            }"#,
+            "manifest.json",
+        )
+        .unwrap();
+        match m {
+            Manifest::V1(m) => {
+                assert_eq!(m.name, "Skip Intro");
+                assert_eq!(m.options.unwrap()[0].include.as_ref().unwrap()[0].to_string_lossy(), "skipintro");
+            }
+            other => panic!("expected v1, got {other:?}"),
         }
     }
 

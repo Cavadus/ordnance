@@ -34,8 +34,8 @@
     <span class="flex-1"></span>
     <a
         class="flex flex-row gap-1 text-zinc-100 bg-zinc-900 rounded-xs px-1.5 items-center hover:text-blue-300"
-        href="https://github.com/katsyk/DemocracyDefenderModManager"
-        title="https://github.com/katsyk/DemocracyDefenderModManager"
+        href="https://github.com/Cavadus/ordnance"
+        title="https://github.com/Cavadus/ordnance"
         onclick={clickHandler}
     >
         <Github class="text-zinc-300" />

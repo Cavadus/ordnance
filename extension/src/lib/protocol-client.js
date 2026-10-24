@@ -156,7 +156,7 @@
 
     /**
      * `open` -- bring DDMM to the front, starting it if it isn't running
-     * (the popup's "Start DDMM" button). One of only two requests that may
+     * (the popup's "Start Ordnance" button). One of only two requests that may
      * launch DDMM; see bridge-protocol.md.
      * @returns {Promise<object>}
      */

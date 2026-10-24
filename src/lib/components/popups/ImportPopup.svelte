@@ -1,13 +1,12 @@
 <script lang="ts">
     import { withUniqueKeys } from "$lib/utils/eachKeys";
     import { onMount } from "svelte";
-    import { open } from "@tauri-apps/plugin-dialog";
     import PopupBase from "./PopupBase.svelte";
     import { ImportPopup } from "$lib/types/popup";
     import { useLocalization } from "$lib/state/localization.svelte";
     import { blocked } from "$lib/state/importWizard.svelte";
     import { formatBytes } from "$lib/utils/bytes";
-    import type { ImportItem, ImportSource } from "$lib/utils/commands";
+    import { pickDirectory, type ImportItem, type ImportSource } from "$lib/utils/commands";
     import { FolderSymlink, FolderPlus, Search } from "svelte-bootstrap-icons";
 
     const { t } = useLocalization();
@@ -37,8 +36,8 @@
     }
 
     async function chooseFolder() {
-        const folder = await open({ directory: true, multiple: false });
-        if (typeof folder === "string") await w.scanFolder(folder);
+        const folder = await pickDirectory();
+        if (folder) await w.scanFolder(folder);
     }
 
     function statusText(item: ImportItem): string {
