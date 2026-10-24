@@ -309,9 +309,9 @@ jobs:
 
   release:
     needs: [build-windows, build-linux, build-extension, linux-distros, verify-release-assets]
-    # Only a tag push publishes. A workflow_dispatch run (on a branch, or
-    # even on a tag ref) builds and tests everything but never releases.
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    # A tag push publishes. So does a manual run of this workflow on a tag.
+    # A manual run of a branch still builds and does not release.
+    if: startsWith(github.ref, 'refs/tags/v') && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     permissions:
       contents: write
