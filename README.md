@@ -1,127 +1,72 @@
-# Ordnance Mod Manager
+# Ordnance
 
 *One sealed swap. Every enabled mod.*
 
-Ordnance is a fork of [Democracy Defender Mod Manager](https://github.com/katsyk/DemocracyDefenderModManager) (Apache-2.0). Patch-file mods still deploy the way DDMM deploys them: `<hex>.patch_N` files copied into `data/`. Stat mods do not. A stat mod ships an edit list. Ordnance applies every enabled edit, in profile order, onto stock, and writes **one sealed `.dl_bin` per table** (`generated_entities`, `generated_projectile_settings`, `generated_damage_settings`, `generated_explosion_settings`). A later mod wins when two edits hit the same field. Purge restores those game files from the stock backup. It does not delete them.
+Ordnance is a Helldivers 2 mod manager for the game after the October 2026 Easy Anti-Cheat update. Version **0.1.0**.
 
-The edit-plan lives in `src-tauri/src/compiler`. The byte step is `compiler/apply.py`: it opens a stock `.dl_bin`, writes the edits, hash-corrects, and reseals. Proven on the Dominator projectile (record 180): speed 450, arming 15, impact explosion 216, damage type 165. This tree is still DDMM 2.0.0-rc.17 underneath the new name.
+It reads the mods you have enabled, copies their patch files into `data/`, and merges settings-table edits into **one sealed `.dl_bin` per table**. A later mod wins when two edits hit the same field. Purge restores the game files from the stock backup. It does not delete them.
 
-Work order, locked: get the compiler deploying before touching the interface. Democracy Defender's GUI stays as it is until one deploy writes the sealed `.dl_bin` files and a patch-file mod still lands beside them. Then the GUI gets replaced. It is not the starting point.
+The window mark is a brass cartridge, crimped shut, on a black square.
 
-The icon is a brass cartridge, crimped shut, on a black square.
+Linux build: [ordnance-0.1.0-linux-x64.tar.gz](https://47th.info/hd2-mods/ordnance-0.1.0-linux-x64.tar.gz). Unpack it, `chmod +x ordnance`, and run it. It needs WebKitGTK 4.1.
 
----
+## What it deploys
 
+- **Patch files.** `<hex>.patch_N`, plus the matching `.gpu_resources` and `.stream` sidecars, are copied into the game `data/` tree.
+- **Settings tables.** Edits to `generated_*.dl_bin` (entities, projectiles, damage, explosions, stratagems, and the rest) are applied onto stock, hash-corrected, and resealed. Two mods that change the same table become one file.
+- **Boot scripts.** The game runs one `boot` resource, from the highest patch that carries it. If a loader such as Chef Shared Loader is enabled, that loader stays the highest boot and the other boot scripts stay below it. With no loader, two or more boot scripts are joined into one so the highest patch still runs all of them.
 
-*Your mods. Your democracy. Defended.*
+A mesh, a bank, or a LuaJIT bundle that only shares a filename with the boot archive is copied beside it. It is not pasted into the boot script.
 
-**Works with:** AyakaMods · Nexus Mods · ModWorkshop · GameBanana · GitHub · any direct link
+## Installing mods
 
-**Docs: https://katsyk.github.io/DemocracyDefenderModManager/**
+Add a `.zip`, `.7z`, or `.rar`, a plain folder, or a direct download link. No mod-site account is required.
 
-DDMM is a source-neutral mod manager for Helldivers 2: install mods from any site, a direct download link, an
-archive, or a plain folder — no site is privileged, and no account with any mod site is ever required.
+The browser extension puts an **Install with Ordnance** button on AyakaMods, Nexus Mods, ModWorkshop, GameBanana, and GitHub mod pages.
 
-Made with love for the AyakaMods community ❤️ — one of the best homes for Helldivers 2 modding, and proudly
-DDMM's first-class citizen. [Say hi to AyakaMods](https://ayakamods.com/games/helldivers-2.119/).
+- [Chrome, Brave, and Edge](https://47th.info/hd2-mods/ordnance-extension-chrome-1.0.1.zip)
+- [Firefox](https://47th.info/hd2-mods/ordnance-extension-firefox-1.0.1.zip)
 
-## The DDMM Promise
+Load the unpacked extension. A mod page that does not serve the archive directly opens in the browser, and Ordnance picks the file up from your Downloads folder when it lands.
 
-*Every Helldiver takes an oath. This one's ours.*
-
-- **Every mod is welcome.** DDMM will never block, blacklist, or rank mods or mod sites.
-- **No account, anywhere.** No mod site's login or credentials are ever asked for.
-- **Your files, your choice.** Your mods live in a folder you control.
-- **Open source, forever.** Apache-2.0, today and always.
-- **Updates on your terms.** Update checks never run unless you ask: click **Check for Updates**, or turn on automatic checks in Settings.
-
-## Source-neutral by design
-
-Mods from any site — AyakaMods, Nexus Mods, ModWorkshop, GameBanana, GitHub, or a direct download link — or from a
-local archive or a plain folder, are all first-class.
-
-Concretely, that means:
-
-- **Any archive** (`.zip`, `.7z`, `.rar`) can be added regardless of where it came from.
-- **Plain folders** can be added directly, with no archive step, via "Add Folder" or by dragging a folder in.
-- **Direct download links** can be added via "Add URL" — the manager downloads the archive itself.
-- **Login-gated sites** (AyakaMods, Nexus Mods) never have their credentials asked for or stored. Pasting a mod
-  page link from one of these instead opens it in your browser and watches your Downloads folder for the finished
-  file, installing it automatically once it lands — the same "browser handoff" also kicks in for any other site
-  whose link doesn't serve a downloadable archive directly.
-- **Where a mod came from** is tracked without ever assuming or requiring a particular site.
-- **Archive extraction is hardened** against path traversal and symlink entries: every entry is validated before
-  extraction, and the result is double-checked afterward, regardless of which site an archive came from.
-
-### The `Sources` manifest field
-
-A mod's `manifest.json` may declare an optional, provider-neutral `Sources` array. Each entry names a `Provider`
-(well-known values are `ayakamods`, `nexus`, `modworkshop`, `github`, and `gamebanana`, but any other site name is
-accepted) and either an `Id` (used to build that provider's normal mod-page URL) or an explicit `Url` (which
-always takes precedence over the generated one):
+A mod's `manifest.json` may list where it lives:
 
 ```json
 {
-  "Version": 2,
-  "Guid": "...",
+  "Version": 1,
+  "Guid": "d9a4b449-98de-4a9e-b20e-28a188e57054",
   "Name": "Example Mod",
-  "Description": "...",
+  "Options": [{ "Name": "Default", "Include": ["files"] }],
   "Sources": [
-    { "Provider": "ayakamods", "Id": "4084", "Version": "2026-09-24" },
     { "Provider": "nexus", "Id": "123" },
-    { "Provider": "github", "Id": "someone/example-mod" },
-    { "Provider": "coolmodsite", "Url": "https://coolmodsite.example/mods/example" }
+    { "Provider": "github", "Id": "someone/example-mod" }
   ]
 }
 ```
 
-These show up as "Open on <site>" entries in a mod's menu in the manager.
+A version 4 manifest with that same shape is read as version 1. The `Guid` has to be a real UUID. The legacy `NexusData` field is still accepted.
 
-The legacy `NexusData` field (`{ "ModId": ..., "Version": "..." }`) is still read for backwards compatibility and is
-automatically treated as an additional nexus source — old manifests keep working unchanged, and existing `NexusData`
-is never removed or rewritten.
+An install from a URL records the origin in `.hd2mm-origin.json` next to the manifest. That name is kept so older tools still find it. Deleting the sidecar does not change the mod.
 
-### The `.hd2mm-origin.json` sidecar
+## Building
 
-When a mod is installed from a direct URL, or through a browser handoff, the manager records that install origin
-in a small `.hd2mm-origin.json` file next to the mod's own `manifest.json` — it never edits or overwrites the mod
-author's manifest. The filename keeps its original `hd2mm` prefix for compatibility with manifests and tooling
-written against it; it isn't user-visible and renaming it would just be churn. It looks like:
-
-```json
-{
-  "Sources": [
-    { "Provider": "url", "Url": "https://example.com/downloads/example-mod.zip" }
-  ],
-  "InstalledAt": 1745020800
-}
-```
-
-This is purely local bookkeeping so the manager can show where a mod was fetched from; it's safe to delete and has
-no effect on how the mod itself works.
-
-## Installing / building
-
-Prerequisites: [pnpm](https://pnpm.io/), a stable [Rust toolchain](https://rustup.rs/), and (Linux only) the Tauri
-system dependencies:
+[pnpm](https://pnpm.io/), a stable [Rust toolchain](https://rustup.rs/), and on Linux the Tauri packages:
 
 ```sh
 sudo apt install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 ```
-
-Then:
 
 ```sh
 pnpm install
 pnpm tauri build
 ```
 
-For local development, `pnpm tauri dev` runs the app with hot reload. The built binary is named `ddmm` (`ddmm.exe`
-on Windows).
+`pnpm tauri dev` runs it with hot reload. The crate is still named `ddmm`, so the raw build output is `ddmm` (`ddmm.exe` on Windows). The published Linux archive renames that binary to `ordnance`.
 
-## Credits & license
+## Credits and license
 
-DDMM is derived from Helldivers 2 Mod Manager by teutinsa
-(https://github.com/teutinsa/Helldivers2ModManager), licensed under Apache-2.0.
+Apache-2.0.
 
-Original project: https://teutinsa.github.io/hd2mm-site · support the original author: https://ko-fi.com/teutinsa
+Ordnance is a fork of [Democracy Defender Mod Manager](https://github.com/katsyk/DemocracyDefenderModManager) by katsyk, which is derived from [Helldivers 2 Mod Manager](https://github.com/teutinsa/Helldivers2ModManager) by teutinsa. Both are Apache-2.0.
+
+Original site: https://teutinsa.github.io/hd2mm-site · https://ko-fi.com/teutinsa
