@@ -17,6 +17,7 @@ pub mod data_folder;
 pub mod import;
 pub mod dialogs;
 mod boot_deploy;
+mod stat_deploy;
 
 static INDEX_REGEX: OnceLock<Regex> = OnceLock::new();
 
@@ -540,8 +541,69 @@ fn fold_boot_scripts(
     Ok(Some(hold))
 }
 
+const STAT_TABLE_FILES: [&str; 4] = [
+    "generated_entities.dl_bin",
+    "generated_projectile_settings.dl_bin",
+    "generated_damage_settings.dl_bin",
+    "generated_explosion_settings.dl_bin",
+];
+
+/// Collects each enabled mod's "stat-plan.json" (a JSON array of offset-based
+/// edits) in profile order. The plan applier applies them in order, so a later
+/// edit wins when two hit the same field.
+async fn collect_stat_plans(mods: &[(&Mod, &Config)]) -> anyhow::Result<Vec<serde_json::Value>> {
+    use anyhow::Context;
+    let mut plan_edits: Vec<serde_json::Value> = Vec::new();
+    for (r#mod, config) in mods {
+        if !config.enabled() {
+            continue;
+        }
+        let plan_path = r#mod.directory.join("stat-plan.json");
+        if !plan_path.is_file() {
+            continue;
+        }
+        let text = tokio::fs::read_to_string(&plan_path)
+            .await
+            .with_context(|| format!("read {:?}", plan_path))?;
+        let edits: Vec<serde_json::Value> =
+            serde_json::from_str(&text).with_context(|| format!("parse {:?}", plan_path))?;
+        plan_edits.extend(edits);
+    }
+    Ok(plan_edits)
+}
+
+/// Applies the merged stat plans against a stock backup, returning a handle
+/// that keeps the resealed output alive until it is copied into data/game/.
+/// The stock backup is seeded from the game's current files on first use, so
+/// later deploys apply to the same vanilla base (idempotent).
+async fn apply_stat_plans(
+    data_dir: &Path,
+    plan_edits: &[serde_json::Value],
+) -> anyhow::Result<Option<stat_deploy::OutHold>> {
+    use anyhow::Context;
+    if plan_edits.is_empty() {
+        return Ok(None);
+    }
+    let plan_json = serde_json::to_string(plan_edits).context("serialize merged stat plan")?;
+    let game_dir = data_dir.join("game");
+    let stock_dir = data_dir.join("ordnance-stock");
+    tokio::fs::create_dir_all(&stock_dir).await.context("create stock dir")?;
+    for fname in STAT_TABLE_FILES {
+        let src = game_dir.join(fname);
+        let dst = stock_dir.join(fname);
+        if !dst.is_file() && src.is_file() {
+            tokio::fs::copy(&src, &dst)
+                .await
+                .with_context(|| format!("seed stock {fname}"))?;
+        }
+    }
+    let out = stat_deploy::apply_plan(&plan_json, &stock_dir)?;
+    Ok(Some(out))
+}
+
 async fn do_deploy(data_dir: &Path, settings: &Settings, mods: Vec<(&Mod, &Config)>) -> anyhow::Result<()> {
     log::info!("Grouping files...");
+    let plan_edits = collect_stat_plans(&mods).await?;
     let mut groups: HashMap<String, Vec<PatchFileTriplet>> = HashMap::new();
     for (r#mod, config) in mods {
         collect_files_for_mod(r#mod, config, &mut groups).await?;
@@ -558,10 +620,24 @@ async fn do_deploy(data_dir: &Path, settings: &Settings, mods: Vec<(&Mod, &Confi
     // patch_N and patch_N+1, and the higher one would replace the lower.
     // Merge them before purge so a failed merge leaves the game untouched.
     let _boot_hold = fold_boot_scripts(&mut groups)?;
+    let stat_out = apply_stat_plans(data_dir, &plan_edits).await?;
 
     do_purge(data_dir, settings).await?;
 
     log::info!("Deploying...");
+
+    if let Some(out) = &stat_out {
+        use anyhow::Context;
+        let game_dir = data_dir.join("game");
+        for fname in STAT_TABLE_FILES {
+            let src = out.dir.join(fname);
+            if src.is_file() {
+                tokio::fs::copy(&src, game_dir.join(fname))
+                    .await
+                    .with_context(|| format!("copy resealed {fname}"))?;
+            }
+        }
+    }
 
     if groups.is_empty() {
         log::info!("Nothing to deploy.");
