@@ -38,8 +38,39 @@ fn u32_at(buf: &[u8], at: usize) -> Option<u32> {
     Some(u32::from_le_bytes(bytes))
 }
 
-/// A single-payload Lua patch whose source is text. Mesh, bank, and HD2FM
-/// archive payloads are not boot scripts.
+/// Lua source inside a single-payload patch.
+///
+/// The payload length at `0xA0` counts the 8-byte `u32 length, u32 2`
+/// prefix. That pair is not at a fixed offset: Boot Mod Loader's sits at
+/// 184, the test packs sit at 192.
+fn lua_text(data: &[u8]) -> Option<&str> {
+    let payload = u32_at(data, 0xA0)? as usize;
+    if payload < 8 || payload > data.len() {
+        return None;
+    }
+    let source_len = payload - 8;
+    let needle = (source_len as u32).to_le_bytes();
+    let two = 2u32.to_le_bytes();
+    let last = data.len().saturating_sub(8 + source_len);
+    for at in 0..=last {
+        if data.get(at..at + 4) != Some(needle.as_slice()) {
+            continue;
+        }
+        if data.get(at + 4..at + 8) != Some(two.as_slice()) {
+            continue;
+        }
+        let source = data.get(at + 8..at + 8 + source_len)?;
+        if source.starts_with(b"\x1bLJ") || source.contains(&0) {
+            return None;
+        }
+        return std::str::from_utf8(source).ok();
+    }
+    None
+}
+
+/// A single-payload Lua patch whose source is text and whose header carries
+/// the boot resource. Mesh, bank, and HD2FM archive payloads are not boot
+/// scripts.
 pub fn is_text_boot_script(path: &Path) -> bool {
     let Ok(data) = fs::read(path) else {
         return false;
@@ -60,22 +91,14 @@ pub fn is_text_boot_script(path: &Path) -> bool {
     if !data[..header].windows(8).any(|word| word == BOOT_RESOURCE) {
         return false;
     }
-    let Some(size) = u32_at(&data, 0xC0) else {
-        return false;
-    };
-    if u32_at(&data, 192) != Some(size) {
-        return false;
-    }
-    let start = 200usize;
-    let end = start + size as usize;
-    let Some(source) = data.get(start..end) else {
-        return false;
-    };
-    // LuaJIT bytecode (1B 4C 4A) is a loader stub, not boot-script source.
-    if source.starts_with(b"\x1bLJ") || source.contains(&0) {
-        return false;
-    }
-    std::str::from_utf8(source).is_ok()
+    lua_text(&data).is_some()
+}
+
+fn loader_kind(text: &str) -> bool {
+    text.contains("--@@LOADER@@")
+        || text.contains("Chef Shared Loader")
+        || text.contains("Boot Mod Loader")
+        || (text.contains("HD2-Addon") && text.contains(BOOT_NAME))
 }
 
 /// A boot that is itself a mod loader. It has to deploy last: a higher boot
@@ -84,19 +107,98 @@ pub fn is_loader_boot(path: &Path) -> bool {
     let Ok(data) = fs::read(path) else {
         return false;
     };
-    let Some(size) = u32_at(&data, 0xC0) else {
-        return false;
-    };
-    let start = 200usize;
-    let Some(source) = data.get(start..start + size as usize) else {
-        return false;
-    };
-    let Ok(text) = std::str::from_utf8(source) else {
-        return false;
-    };
-    text.contains("--@@LOADER@@")
-        || (text.contains("HD2-Addon") && text.contains(BOOT_NAME))
-        || text.contains("Chef Shared Loader")
+    lua_text(&data).is_some_and(loader_kind)
+}
+
+/// Plain-Lua loaders cannot run a mod that calls LuaJIT `ffi`.
+fn needs_ffi(text: &str) -> bool {
+    text.contains("ffi.cdef")
+        || text.contains("require(\"ffi\")")
+        || text.contains("require('ffi')")
+}
+
+fn plain_lua_loader(text: &str) -> bool {
+    text.contains("Boot Mod Loader") || text.contains("no ffi") || text.contains("no LuaJIT")
+}
+
+#[derive(serde::Serialize)]
+pub struct ModConflict {
+    pub guid: String,
+    pub message: String,
+}
+
+/// Conflicts the mod list should show. `mods` is the enabled set, in load order.
+pub fn conflicts_for(mods: &[(String, PathBuf)]) -> Vec<ModConflict> {
+    let mut loaders: Vec<String> = Vec::new();
+    let mut ffi_mods: Vec<(String, bool)> = Vec::new();
+    let mut plain_loader = false;
+    for (guid, dir) in mods {
+        let mut saw_loader = false;
+        let mut saw_ffi = false;
+        let mut walk = Vec::new();
+        if let Ok(top) = fs::read_dir(dir) {
+            for entry in top.flatten() {
+                walk.push(entry.path());
+            }
+        } else {
+            continue;
+        }
+        while let Some(path) = walk.pop() {
+            if path.is_dir() {
+                if let Ok(children) = fs::read_dir(&path) {
+                    walk.extend(children.flatten().map(|child| child.path()));
+                }
+                continue;
+            }
+            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            if !name.contains(".patch_") || name.ends_with(".stream") || name.ends_with("gpu_resources") {
+                continue;
+            }
+            let Ok(data) = fs::read(&path) else {
+                continue;
+            };
+            let Some(text) = lua_text(&data) else {
+                continue;
+            };
+            if is_text_boot_script(&path) && loader_kind(text) {
+                saw_loader = true;
+                if plain_lua_loader(text) {
+                    plain_loader = true;
+                }
+            }
+            if needs_ffi(text) {
+                saw_ffi = true;
+            }
+        }
+        if saw_loader {
+            loaders.push(guid.clone());
+        }
+        if saw_ffi {
+            ffi_mods.push((guid.clone(), saw_loader));
+        }
+    }
+    let mut out = Vec::new();
+    if loaders.len() > 1 {
+        let last = loaders.len() - 1;
+        for (nth, guid) in loaders.iter().enumerate() {
+            if nth == last {
+                continue;
+            }
+            out.push(ModConflict {
+                guid: guid.clone(),
+                message: "Another boot loader is enabled below this one and will be deployed after it. The game runs only the highest loader.".into(),
+            });
+        }
+    }
+    if plain_loader {
+        for (guid, _) in ffi_mods {
+            out.push(ModConflict {
+                guid,
+                message: "This mod calls LuaJIT ffi. The boot loader that is enabled runs plain Lua 5.1 and will not start it.".into(),
+            });
+        }
+    }
+    out
 }
 
 /// Merge `patches` (name, path), in load order, into one boot-script patch.
@@ -234,6 +336,32 @@ mod tests {
         data[0x68..0x70].fill(0);
         fs::write(&path, &data).unwrap();
         assert!(!is_text_boot_script(&path));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Boot Mod Loader's length prefix is not at byte 192. It is still a
+    /// loader, and it has to be recognized as one.
+    #[test]
+    fn boot_mod_loader_with_a_shifted_header_is_a_loader() {
+        let source = b"-- Boot Mod Loader (local)\n";
+        let payload = (source.len() + 8) as u32;
+        let mut data = vec![0u8; 184];
+        data[0..4].copy_from_slice(&0xF000_0011u32.to_le_bytes());
+        data[4..8].copy_from_slice(&1u32.to_le_bytes());
+        data[8..12].copy_from_slice(&1u32.to_le_bytes());
+        data[0x50..0x58].copy_from_slice(&LUA_TYPE);
+        data[0x68..0x70].copy_from_slice(&BOOT_RESOURCE);
+        data[0xA0..0xA4].copy_from_slice(&payload.to_le_bytes());
+        data.extend_from_slice(&(source.len() as u32).to_le_bytes());
+        data.extend_from_slice(&2u32.to_le_bytes());
+        data.extend_from_slice(source);
+        let dir = std::env::temp_dir().join(format!("ordnance-boot-shift-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(format!("{BOOT_NAME}.patch_0"));
+        fs::write(&path, &data).unwrap();
+        assert!(is_text_boot_script(&path));
+        assert!(is_loader_boot(&path));
         let _ = fs::remove_dir_all(&dir);
     }
 }

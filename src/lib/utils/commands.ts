@@ -23,6 +23,13 @@ async function invoke<T>(cmd: string, args?: InvokeArgs): Promise<T> {
 
 /** Folder picker with the same path field as Add. Falls back to the
  *  plugin dialog if the desktop portal is unavailable. */
+export type ModConflict = { guid: string; message: string };
+
+/** Enabled mods, in load order. Warnings are empty when nothing conflicts. */
+export async function modConflicts(mods: { guid: string; directory: string }[]): Promise<ModConflict[]> {
+    return await invoke<ModConflict[]>('mod_conflicts', { mods });
+}
+
 export async function pickDirectory(): Promise<string | null> {
     try {
         return await invoke<string | null>('pick_directory');

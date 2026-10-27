@@ -513,6 +513,7 @@ pub fn run() {
             commands::profiles::get_guid_renames,
             commands::settings::load_settings,
             commands::dialogs::pick_directory,
+            commands::dialogs::mod_conflicts,
             commands::settings::save_settings,
             commands::settings::check_settings,
             commands::settings::get_data_dir,

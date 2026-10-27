@@ -51,6 +51,23 @@ if picked:
     sys.stdout.write(picked[0])
 "#;
 
+#[derive(serde::Deserialize)]
+pub struct ConflictMod {
+    pub guid: String,
+    pub directory: String,
+}
+
+/// Warnings for the mod list: a loader that will not be the one the game
+/// runs, and an `ffi` mod under a plain-Lua loader.
+#[tauri::command]
+pub fn mod_conflicts(mods: Vec<ConflictMod>) -> Vec<super::boot_deploy::ModConflict> {
+    let rows: Vec<_> = mods
+        .into_iter()
+        .map(|row| (row.guid, std::path::PathBuf::from(row.directory)))
+        .collect();
+    super::boot_deploy::conflicts_for(&rows)
+}
+
 /// `None` when the user cancels. The path field is the KDE file dialog's.
 #[tauri::command]
 pub fn pick_directory() -> Result<Option<String>, String> {

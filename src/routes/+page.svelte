@@ -18,7 +18,7 @@
         loadSettings, deploy, purge, checkSettings, classifyDownloadUrl, checkUpdates, autoDetectAndSaveGamePath,
         resolveBridgeConsent, resolveBridgeInstallCompletion, isGameRunning, forceExit, ackCloseRequested,
         setBridgeFrontendReady, getLastUpdateReport, skipUpdateVersion, browserExtensionActive,
-        detectImportSources, takePendingDeepLinks, getGuidRenames, resolveReplaceRequest, pickDirectory, type ImportSource,
+        detectImportSources, takePendingDeepLinks, getGuidRenames, resolveReplaceRequest, pickDirectory, modConflicts, type ImportSource,
         type UpdateStatusEntry, type UpdateCheckReport, type BridgeConsentDecision, type BridgeSoftError,
         type ReplaceOffer, type InstalledMod
     } from "$lib/utils/commands";
@@ -130,6 +130,28 @@
         mods.filter((m) => !profileConfigs.some(config => config.Guid === m.guid)),
     );
     let libraryEnabled = $derived<boolean>(searchText.length === 0);
+    let conflictByGuid = $state<Record<string, string>>({});
+
+    $effect(() => {
+        const rows = profileConfigs
+            .filter((config) => config.Enabled)
+            .map((config) => {
+                const mod = mods.find((item) => item.guid === config.Guid);
+                return mod ? { guid: mod.guid, directory: mod.Directory } : null;
+            })
+            .filter((row): row is { guid: string; directory: string } => row !== null);
+        const token = rows.map((row) => row.guid).join("\n");
+        void token;
+        void modConflicts(rows)
+            .then((found) => {
+                const next: Record<string, string> = {};
+                for (const hit of found) next[hit.guid] = hit.message;
+                conflictByGuid = next;
+            })
+            .catch(() => {
+                conflictByGuid = {};
+            });
+    });
     let allowReorder = $derived<boolean>(searchText.length === 0);
     
     $effect(() => {
@@ -1882,6 +1904,9 @@
                                         </div>
                                     {/if}
                                     <span class="text-sm truncate">{mod.description}</span>
+                                    {#if conflictByGuid[mod.guid]}
+                                        <span class="text-xs text-amber-400 truncate" title={conflictByGuid[mod.guid]}>{conflictByGuid[mod.guid]}</span>
+                                    {/if}
                                 </div>
                                 {#if hasUpdateAvailable(mod.guid)}
                                     <button
