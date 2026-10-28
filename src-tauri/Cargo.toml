@@ -53,6 +53,8 @@ base64 = "0.22"
 # File identity (dev+inode / volume+file index) for "is this folder the
 # same as, inside, or containing that one" checks. See `fs_util::path_overlap`.
 same-file = "1.0"
+crypto_box = "0.9.1"
+blake2 = "0.11.0"
 
 [target.x86_64-pc-windows-gnu]
 linker = "x86_64-w64-mingw32-gcc"

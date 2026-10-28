@@ -17,6 +17,7 @@ pub mod data_folder;
 pub mod import;
 pub mod dialogs;
 mod boot_deploy;
+mod hd2edit;
 mod stat_deploy;
 
 static INDEX_REGEX: OnceLock<Regex> = OnceLock::new();
