@@ -110,10 +110,12 @@ pub fn is_loader_boot(path: &Path) -> bool {
     lua_text(&data).is_some_and(loader_kind)
 }
 
-/// Plain-Lua loaders cannot run a mod that calls LuaJIT `ffi`.
+/// A mod that does an unconditional `require("ffi")` cannot start under a
+/// plain-Lua loader. `ffi.cdef` alone is not flagged: those mods reach it only
+/// after `require` already failed, and `pcall(require, "ffi")` / `pcall(loader,
+/// "ffi")` (the graceful fallback) is not matched by `require("ffi")`.
 fn needs_ffi(text: &str) -> bool {
-    text.contains("ffi.cdef")
-        || text.contains("require(\"ffi\")")
+    text.contains("require(\"ffi\")")
         || text.contains("require('ffi')")
 }
 
