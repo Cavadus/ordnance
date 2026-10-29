@@ -777,7 +777,15 @@ mod tests {
             serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
         let asset = &conf["app"]["security"]["assetProtocol"];
         assert_eq!(asset["enable"], serde_json::Value::Bool(true));
-        assert_eq!(asset["scope"], serde_json::json!([]));
+        // No static allow/deny path grants; the only reason the scope is an
+        // object is to clear requireLiteralLeadingDot so hidden dot-directories
+        // (mod `.jpgs` thumbnails) resolve under the asset protocol on Unix.
+        let scope = &asset["scope"];
+        assert_eq!(scope["allow"], serde_json::json!([]));
+        assert_eq!(
+            scope["requireLiteralLeadingDot"],
+            serde_json::Value::Bool(false)
+        );
     }
 
     // ---- pointer files ------------------------------------------------
