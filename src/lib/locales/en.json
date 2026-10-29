@@ -7,14 +7,14 @@
         "mods_button": {
             "tip": "Mods"
         },
-        "create_button": {
-            "tip": "Create"
-        },
-        "help_button": {
-            "tip": "Help"
-        },
         "settings_button": {
             "tip": "Settings"
+        },
+        "profiles": {
+            "title": "Profiles",
+            "add.tip": "Add profile",
+            "rename.tip": "Rename profile",
+            "delete.tip": "Delete profile"
         }
     },
     "pages": {
@@ -217,6 +217,9 @@
             "library_button": {
                 "tip": "Library"
             },
+            "library.count": {
+                "tip": "{count} mods in your library"
+            },
             "library": {
                 "insert_top_button": {
                     "tip": "Insert at top"
@@ -267,6 +270,17 @@
                 "move_down": "Move Down",
                 "to_top": "To Top",
                 "to_bottom": "To Bottom"
+            },
+            "categories": {
+                "group": "Group",
+                "group_tip": "Group mods by category",
+                "new_placeholder": "New category...",
+                "create_tip": "Create category",
+                "rename_tip": "Rename category",
+                "delete_tip": "Delete category",
+                "assign": "Category",
+                "none": "No category",
+                "uncategorized": "Uncategorized"
             }
         },
         "settings": {

@@ -79,83 +79,96 @@
 
 .hd2mm-button {
     @apply
-        px-2
-        py-1
-        border-2
-        text-zinc-300
-        bg-transparent
-        border-zinc-500
-        hover:border-yellow-300
+        px-3
+        py-1.5
+        border
+        text-zinc-200
+        bg-zinc-900/60
+        border-zinc-700
+        rounded-md
+        transition-colors
+        hover:border-amber-400
+        hover:text-amber-200
         active:text-zinc-900
-        active:bg-yellow-300
-        active:border-yellow-300
-        disabled:text-zinc-400
+        active:bg-amber-400
+        active:border-amber-400
+        disabled:text-zinc-500
         disabled:bg-transparent
-        disabled:border-zinc-700
+        disabled:border-zinc-800
     ;
-    font-family: 'Blockletter';
+    font-family: 'FS Sinclair';
 }
 
 .hd2mm-button-nop {
     @apply
-        border-2
+        border
         text-zinc-300
         bg-transparent
-        border-zinc-500
-        hover:border-yellow-300
+        border-zinc-700
+        rounded-md
+        transition-colors
+        hover:border-amber-400
         active:text-zinc-900
-        active:bg-yellow-300
-        active:border-yellow-300
-        disabled:text-zinc-400
+        active:bg-amber-400
+        active:border-amber-400
+        disabled:text-zinc-500
         disabled:bg-transparent
-        disabled:border-zinc-700
+        disabled:border-zinc-800
     ;
-    font-family: 'Blockletter';
+    font-family: 'FS Sinclair';
 }
 
 .hd2mm-danger-button {
     @apply
-        px-2
-        py-1
-        border-2
-        text-zinc-300
-        bg-transparent
-        border-zinc-500
-        hover:border-red-500
+        px-3
+        py-1.5
+        border
+        text-zinc-200
+        bg-zinc-900/60
+        border-zinc-700
+        rounded-md
+        transition-colors
+        hover:border-red-400
+        hover:text-red-200
         active:text-zinc-100
         active:bg-red-500
         active:border-red-500
     ;
-    font-family: 'Blockletter';
+    font-family: 'FS Sinclair';
 }
 
 .hd2mm-success-button {
     @apply
-        px-2
-        py-1
-        border-2
-        text-zinc-300
-        bg-transparent
-        border-zinc-500
-        hover:border-green-500
+        px-3
+        py-1.5
+        border
+        text-zinc-200
+        bg-zinc-900/60
+        border-zinc-700
+        rounded-md
+        transition-colors
+        hover:border-green-400
+        hover:text-green-200
         active:text-zinc-100
         active:bg-green-500
         active:border-green-500
     ;
-    font-family: 'Blockletter';
+    font-family: 'FS Sinclair';
 }
 
 .hd2mm-input {
     @apply
         px-2
         py-1
-        border-2
-        text-zinc-300
+        border
+        text-zinc-200
         bg-zinc-900
-        border-zinc-500
-        hover:border-yellow-300
+        border-zinc-700
+        rounded-md
+        transition-colors
+        hover:border-amber-400
         focus:outline-none
-        focus:border-yellow-300
+        focus:border-amber-400
     ;
 }
 
@@ -170,12 +183,14 @@
         pr-8
         py-1
         bg-zinc-900
-        text-zinc-300
-        border-zinc-500
-        border-2
-        hover:border-yellow-300
+        text-zinc-200
+        border-zinc-700
+        border
+        rounded-md
+        transition-colors
+        hover:border-amber-400
         focus:outline-none
-        focus:border-yellow-300
+        focus:border-amber-400
     ;
 }
 

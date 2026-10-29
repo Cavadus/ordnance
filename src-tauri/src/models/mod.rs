@@ -1,3 +1,4 @@
+pub mod categories;
 pub mod manifest;
 pub mod profile;
 pub mod settings;

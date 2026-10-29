@@ -28,7 +28,7 @@ const TABLES: [(&str, &str, u32, usize); 3] = [
 ];
 
 const KEYED: [(u32, (usize, usize)); 3] = [
-    (0x88E4DBB1, (746, 496)),
+    (0x88E4DBB1, (746, 1240)),
     (0xFB8D88A3, (560, 160)),
     (0x4F2CF417, (386, 32)),
 ];

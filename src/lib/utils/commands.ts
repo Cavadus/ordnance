@@ -7,6 +7,7 @@ import type { Manifest } from '$lib/models/manifest';
 import type { RustResult } from '$lib/types/results';
 import type { UUID } from '$lib/types/uuid';
 import type { Settings } from '$lib/models/settings';
+import type { Categories, Category } from '$lib/models/categories';
 
 /** `invoke`, but every failure is also written to the log file with the
  * command's name, so a user's log shows *why* something failed even if
@@ -327,6 +328,31 @@ export async function loadSettings(): Promise<Settings> {
 export async function saveSettings(settings: Settings): Promise<void> {
     log.debug("Invoking `save_settings`.");
     await invoke<void>("save_settings", { settings });
+}
+
+export async function getCategories(): Promise<Categories> {
+    log.debug("Invoking `get_categories`.");
+    return await invoke<Categories>("get_categories");
+}
+
+export async function createCategory(name: string): Promise<Categories> {
+    log.debug("Invoking `create_category`.");
+    return await invoke<Categories>("create_category", { name });
+}
+
+export async function renameCategory(guid: string, name: string): Promise<Categories> {
+    log.debug("Invoking `rename_category`.");
+    return await invoke<Categories>("rename_category", { guid, name });
+}
+
+export async function deleteCategory(guid: string): Promise<Categories> {
+    log.debug("Invoking `delete_category`.");
+    return await invoke<Categories>("delete_category", { guid });
+}
+
+export async function setModCategory(modGuid: string, categoryGuid: string | null): Promise<Categories> {
+    log.debug("Invoking `set_mod_category`.");
+    return await invoke<Categories>("set_mod_category", { modGuid, categoryGuid });
 }
 
 export async function checkSettings(): Promise<boolean> {

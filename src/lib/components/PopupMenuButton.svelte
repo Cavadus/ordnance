@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { Snippet } from "svelte";
     import { ThreeDotsVertical } from "svelte-bootstrap-icons";
-    import { clickOutside, scrollOutside, windowResize, portal } from "$lib/actions";
+    import { windowResize, portal } from "$lib/actions";
 
     let isOpen = $state<boolean>(false);
     let x = $state<number>(0);
@@ -12,21 +12,37 @@
     let { children, insertTarget }: { children: Snippet, insertTarget?: string | HTMLElement } = $props();
 
     $effect(() => {
-        if (!popup) return;
-
-        const popupRect = popup.getBoundingClientRect();
-        const maxX = window.innerWidth - popupRect.width - 8;
-        x = Math.min(x, maxX);
-        const maxY = window.innerHeight - popupRect.height - 8;
-        y = Math.min(y, maxY);
+        if (!isOpen) return;
+        function onPointerDown(e: PointerEvent) {
+            const target = e.target as Node;
+            if (button?.contains(target) || popup?.contains(target)) return;
+            isOpen = false;
+        }
+        function onKeydown(e: KeyboardEvent) {
+            if (e.key === "Escape") isOpen = false;
+        }
+        document.addEventListener("pointerdown", onPointerDown);
+        document.addEventListener("keydown", onKeydown);
+        return () => {
+            document.removeEventListener("pointerdown", onPointerDown);
+            document.removeEventListener("keydown", onKeydown);
+        };
     });
-    
-    function onClick() {
-        isOpen = true;
 
-        const rect = button!.getBoundingClientRect();
-        x = rect.left;
-        y = rect.bottom + 4;
+    $effect(() => {
+        if (!popup) return;
+        const rect = popup.getBoundingClientRect();
+        x = Math.min(x, window.innerWidth - rect.width - 8);
+        y = Math.min(y, window.innerHeight - rect.height - 8);
+    });
+
+    function toggle() {
+        isOpen = !isOpen;
+        if (isOpen && button) {
+            const rect = button.getBoundingClientRect();
+            x = rect.left;
+            y = rect.bottom + 4;
+        }
     }
 </script>
 
@@ -34,15 +50,13 @@
     bind:this={button}
     class="hd2mm-button-nop p-2"
     class:border-yellow-300={isOpen}
-    onclick={onClick}
+    onclick={toggle}
 >
     <ThreeDotsVertical class="block mx-auto" />
 </button>
 {#if isOpen}
     <div
         bind:this={popup}
-        use:clickOutside={() => isOpen = false}
-        use:scrollOutside={() => isOpen = false}
         use:windowResize={() => isOpen = false}
         use:portal={insertTarget ?? "body"}
         class="fixed border-2 border-zinc-500 bg-zinc-800 drop-shadow-xl/50 transform-none m-0 z-40"

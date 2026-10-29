@@ -6,6 +6,7 @@ use tauri::State;
 
 use crate::{AppState, commands::settings::do_load_settings, models::{manifest::Manifest, profile::Config, settings::Settings, Mod}, utils::is_patch_filename};
 
+pub mod categories;
 pub mod mods;
 pub mod profiles;
 pub mod settings;

@@ -1,6 +1,6 @@
 {
   "name": "ordnance",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Ordnance Mod Manager \u2014 compiles Helldivers 2 stat mods into one sealed .dl_bin swap. Fork of Democracy Defender.",
   "type": "module",
   "scripts": {

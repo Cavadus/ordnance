@@ -11,11 +11,13 @@
     import { SortableList } from "@rodrigodagostino/svelte-sortable-list"
     import { useLocalization } from "$lib/state/localization.svelte";
     import { Mod } from "$lib/models/mod";
+    import type { Category, Categories } from "$lib/models/categories";
     import type {Config, Profile, ProfilesConfig} from "$lib/models/profile";
     import { defaultConfigFor, deployableEntries, fitConfig, removeDuplicateEntries, removeEntriesOf, renameEntries } from "$lib/utils/profileEntries";
     import {
-        addMod, addMods, addModFolder, addPaths, addModFromUrl, deleteMod, getMods, loadProfiles, saveProfiles,
+        addMod, addMods, addModFolder, addPaths, addModFromUrl, deleteMod, getMods, loadProfiles,
         loadSettings, deploy, purge, checkSettings, classifyDownloadUrl, checkUpdates, autoDetectAndSaveGamePath,
+        getCategories, createCategory, renameCategory, deleteCategory, setModCategory,
         resolveBridgeConsent, resolveBridgeInstallCompletion, isGameRunning, forceExit, ackCloseRequested,
         setBridgeFrontendReady, getLastUpdateReport, skipUpdateVersion, browserExtensionActive,
         detectImportSources, takePendingDeepLinks, getGuidRenames, resolveReplaceRequest, pickDirectory, modConflicts, type ImportSource,
@@ -24,6 +26,7 @@
     } from "$lib/utils/commands";
     import type { UUID } from "$lib/types/uuid";
     import { usePopup } from "$lib/state/popup.svelte";
+    import { useProfiles } from "$lib/state/profiles.svelte";
     import { useToast } from "$lib/state/toast.svelte";
     import {
         ConfirmPopup,
@@ -57,6 +60,7 @@
     const { t } = useLocalization();
     const popups = usePopup();
     const { show: showPopup } = popups;
+    const profilesStore = useProfiles();
     const { show: showToast } = useToast();
     const appWindow = getCurrentWindow();
 
@@ -65,13 +69,16 @@
     const CLOSE_SAVE_TIMEOUT_MS = 5000;
 
     let mods = $state<Mod[]>([]);
-    let profiles = $state<Profile[]>([]);
-    let activeProfile = $state<number>(0);
     let searchText = $state<string>("");
     let profileConfigs = $state<Config[]>([]);
     let iconPaths = new SvelteMap<UUID, string | null>();
     let libraryExtended = $state<boolean>(false);
     let libraryVisible = $state<boolean>(false);
+    let categories = $state<Category[]>([]);
+    let categoryAssignments = $state<Record<string, string>>({});
+    let collapsedCategories = $state<Record<string, boolean>>({});
+    let groupByCategory = $state<boolean>(false);
+    let newCategoryName = $state<string>("");
     let isDragging = $state<boolean>(false);
     let initPromise = $state<Promise<void>>();
     let downloadsPath = $state<string>("");
@@ -83,11 +90,7 @@
     let updatesAvailableCount = $derived(
         new Set(updateStatuses.filter(u => u.Status.Kind === "UpdateAvailable").map(u => u.Guid)).size
     );
-    /** True once `init()` has actually loaded profiles from disk into
-     * `profiles`. Closing before this is true must not try to save --
-     * there's nothing loaded yet to save, and `currentProfile` is
-     * undefined, which would make `doSaveProfiles` fail every time. */
-    let profilesLoaded = $state<boolean>(false);
+
     /** True while a deploy is in flight. Closing mid-deploy can leave the
      * game's data directory half-written, so the close handler asks for
      * confirmation instead of either hanging or silently interrupting it. */
@@ -108,7 +111,7 @@
      * on the empty mod list as a way in. */
     let importSources = $state<ImportSource[]>([]);
 
-    let currentProfile = $derived<Profile | undefined>(profiles[activeProfile]);
+    let currentProfile = $derived<Profile | undefined>(profilesStore.profiles[profilesStore.activeProfile]);
     /** The profile's entries as shown: each config, its mod (`undefined`
      * when that mod isn't in the library -- deleted, or its manifest.json
      * can't be read -- which keeps its place in the load order), and its
@@ -124,7 +127,6 @@
                 ))
             )
     );
-    let enableRemoveProfile = $derived<boolean>(profiles.length > 1);
     let enableClearSearch = $derived<boolean>(searchText.length > 1);
     let libraryMods = $derived<Mod[]>(
         mods.filter((m) => !profileConfigs.some(config => config.Guid === m.guid)),
@@ -288,7 +290,7 @@
         // cold start the install arrives before this page has loaded).
         Promise.all([initPromise, unlistenBridgeConsent, unlistenBridgeInstalled, unlistenReplaceRequest, unlistenReplaceClosed])
             .then(() => {
-                if (profilesLoaded) return setBridgeFrontendReady(true);
+                if (profilesStore.profilesLoaded) return setBridgeFrontendReady(true);
             })
             .catch((ex: unknown) => log.error(`Failed to mark the bridge frontend ready: ${errorMessage(ex)}`));
 
@@ -316,7 +318,7 @@
     });
 
     onNavigate(async () => {
-        if (!profilesLoaded) return;
+        if (!profilesStore.profilesLoaded) return;
 
         const result = await doSaveProfiles();
         if (!result.ok) log.warn(`Failed to save profiles on navigation: ${result.error}`);
@@ -344,9 +346,10 @@
             }
         }
 
-        const [loadedMods, loadedConfig]: [Mod[], ProfilesConfig] = await Promise.all([
+        const [loadedMods, loadedConfig, loadedCategories]: [Mod[], ProfilesConfig, Categories] = await Promise.all([
             getMods(),
-            loadProfiles()
+            loadProfiles(),
+            getCategories().catch(() => null)
         ]);
 
         // Entries whose mod isn't in the library (deleted by hand, or its
@@ -367,15 +370,16 @@
         }
 
         mods = loadedMods;
-        profiles = loadedConfig.Profiles;
-        activeProfile = loadedConfig.Active;
-        profilesLoaded = true;
-
+        profilesStore.setProfiles(loadedConfig.Profiles, loadedConfig.Active);
+        if (loadedCategories) {
+            categories = loadedCategories.Categories;
+            categoryAssignments = loadedCategories.Assignments;
+        }
         if (repeated.length > 0) {
             // Saved at once, so the repaired list is what's on disk even if
             // DDMM isn't closed normally.
             try {
-                await saveProfiles({ Profiles: profiles, Active: activeProfile });
+                await profilesStore.save();
             } catch (ex: unknown) {
                 log.warn(`Couldn't save the profiles after removing repeated entries: ${errorMessage(ex)}`);
             }
@@ -416,7 +420,7 @@
 
     /** Take a deleted mod out of every profile (all of its entries). */
     function removeModFromProfiles(guid: UUID) {
-        for (const profile of profiles) {
+        for (const profile of profilesStore.profiles) {
             switch (profile.Version) {
                 case "V1":
                     removeEntriesOf(profile.Configs, guid);
@@ -440,13 +444,13 @@
             log.warn(`Couldn't get the mods whose ID changed: ${errorMessage(ex)}`);
             return;
         }
-        if (!renames?.length || !profilesLoaded) return;
+        if (!renames?.length || !profilesStore.profilesLoaded) return;
         if (currentProfile) applyCurrentConfigChanges();
         const moved: UUID[] = [];
         for (const [oldGuid, newGuid] of renames) {
             // An old ID that's a loaded mod's again stays its own.
             if (mods.some(m => m.guid.toLowerCase() === oldGuid.toLowerCase())) continue;
-            for (const profile of profiles) {
+            for (const profile of profilesStore.profiles) {
                 switch (profile.Version) {
                     case "V1":
                         if (renameEntries(profile.Configs, oldGuid, newGuid) > 0 && !moved.includes(newGuid)) moved.push(newGuid);
@@ -456,7 +460,7 @@
         }
         if (moved.length === 0) return;
         // Fitted in place: the shown list is the active profile's array.
-        for (const profile of profiles) {
+        for (const profile of profilesStore.profiles) {
             profile.Configs.forEach((config, i) => {
                 const mod = moved.includes(config.Guid) ? mods.find(m => m.guid === config.Guid) : undefined;
                 if (mod) profile.Configs[i] = fitConfig(config, mod.Manifest).config;
@@ -625,12 +629,12 @@
      * old one, and save. */
     async function onModReplaced(mod: Mod) {
         replaceMod(mod.guid, mod);
-        if (profilesLoaded && currentProfile) applyCurrentConfigChanges();
-        const reset = fitProfilesToMods(profiles, [mod]);
+        if (profilesStore.profilesLoaded && currentProfile) applyCurrentConfigChanges();
+        const reset = fitProfilesToMods(profilesStore.profiles, [mod]);
         if (reset.length > 0) log.info(`Options of the replaced mod reset to fit it: ${reset.join(", ")}`);
         updateStatuses = updateStatuses.filter(u => u.Guid !== mod.guid);
         await refreshUpdateStatuses();
-        if (!profilesLoaded) return;
+        if (!profilesStore.profilesLoaded) return;
         const saved = await doSaveProfiles();
         if (!saved.ok) log.warn(`Failed to save profiles after replacing a mod: ${saved.error}`);
     }
@@ -897,7 +901,7 @@
         const mod = mods.find(m => m.guid === payload.mod.guid);
         if (mod && payload.replaced) {
             if (currentProfile) applyCurrentConfigChanges();
-            fitProfilesToMods(profiles, [mod]);
+            fitProfilesToMods(profilesStore.profiles, [mod]);
         }
 
         let addedToProfile: string | undefined;
@@ -964,7 +968,7 @@
         } catch {
             return;
         }
-        if (unmounted || !profilesLoaded) return;
+        if (unmounted || !profilesStore.profilesLoaded) return;
 
         let urls: string[];
         try {
@@ -1070,9 +1074,9 @@
         // mods (the backend does the same when told the page is gone).
         closeReplaceQuestions();
         const saving = (async () => {
-            if (!profilesLoaded || !currentProfile) return;
+            if (!profilesStore.profilesLoaded || !currentProfile) return;
             applyCurrentConfigChanges();
-            await saveProfiles({ Profiles: profiles, Active: activeProfile });
+            await profilesStore.save();
         })();
         await withTimeout(saving, CLOSE_SAVE_TIMEOUT_MS, "timed out").catch((ex: unknown) =>
             log.warn(`Couldn't save the profiles before reloading: ${errorMessage(ex)}`).catch(() => {}));
@@ -1104,7 +1108,7 @@
 
         try {
             applyCurrentConfigChanges()
-            await saveProfiles({ Profiles: profiles, Active: activeProfile });
+            await profilesStore.save();
             return { ok: true };
         } catch (ex: unknown) {
             return { ok: false, error: errorMessage(ex) };
@@ -1148,7 +1152,7 @@
     }
 
     async function handleCloseRequest() {
-        log.info(`Handling close request (deploying=${deploying}, importing=${importing}, profilesLoaded=${profilesLoaded}).`);
+        log.info(`Handling close request (deploying=${deploying}, importing=${importing}, profilesLoaded=${profilesStore.profilesLoaded}).`);
         if (importing) {
             const confirmed = await showPopup(new ConfirmPopup(
                 t("pages.mods.popup.confirm.close_importing.title"),
@@ -1186,7 +1190,7 @@
         // Nothing was ever loaded (init() hasn't finished, or errored out
         // before loading profiles) -- there's nothing to save, and trying
         // to would just fail on the undefined `currentProfile`.
-        if (profilesLoaded) {
+        if (profilesStore.profilesLoaded) {
             const result = await saveProfilesBeforeClose();
             log.info(`Save before close: ${result.ok ? "ok" : `failed (${result.error})`}.`);
             if (!result.ok) {
@@ -1202,35 +1206,6 @@
         }
 
         await closeWindow();
-    }
-
-    async function onAddProfile() {
-        const input = await showPopup(new InputPopup(
-            t("pages.mods.popup.input.add_profile.placeholder"),
-            false,
-            3,
-        ));
-        if (!input) return;
-        
-        profiles.push({
-            Version: "V1",
-            Name: input,
-            Configs: []
-        });
-        activeProfile = profiles.length - 1;
-    }
-
-    async function onRemoveProfile() {
-        const confirm = await showPopup(
-            new ConfirmPopup(
-                t("pages.mods.popup.confirm.remove_profile.title"),
-                t("pages.mods.popup.confirm.remove_profile.question"),
-            ),
-        );
-        if (!confirm) return;
-
-        profiles.splice(activeProfile, 1);
-        if (activeProfile > 0) activeProfile--;
     }
 
     function onDragEnd(e: SortableList.RootEvents["ondragend"]) {
@@ -1735,6 +1710,66 @@
     function onLaunch() {
         openUrl("steam://launch/553850");
     }
+
+    function categoryName(guid: string): string {
+        return categories.find((c) => c.Guid === guid)?.Name ?? "";
+    }
+
+    function categoryOf(guid: string): Category | undefined {
+        const assigned = categoryAssignments[guid];
+        return assigned ? categories.find((c) => c.Guid === assigned) : undefined;
+    }
+
+    async function onCreateCategory() {
+        const name = newCategoryName.trim();
+        if (!name) return;
+        try {
+            await createCategory(name);
+            const fresh = await getCategories();
+            categories = fresh.Categories;
+            categoryAssignments = fresh.Assignments;
+            newCategoryName = "";
+        } catch (ex: unknown) {
+            showToast("error", errorMessage(ex));
+        }
+    }
+
+    async function onRenameCategory(guid: string) {
+        const name = (prompt("Category name", categoryName(guid)) ?? "").trim();
+        if (!name) return;
+        try {
+            const fresh = await renameCategory(guid, name);
+            categories = fresh.Categories;
+            categoryAssignments = fresh.Assignments;
+        } catch (ex: unknown) {
+            showToast("error", errorMessage(ex));
+        }
+    }
+
+    async function onDeleteCategory(guid: string) {
+        try {
+            const fresh = await deleteCategory(guid);
+            categories = fresh.Categories;
+            categoryAssignments = fresh.Assignments;
+        } catch (ex: unknown) {
+            showToast("error", errorMessage(ex));
+        }
+    }
+
+    async function onSetModCategory(modGuid: string, categoryGuid: string | null) {
+        try {
+            const fresh = await setModCategory(modGuid, categoryGuid);
+            categories = fresh.Categories;
+            categoryAssignments = fresh.Assignments;
+        } catch (ex: unknown) {
+            showToast("error", errorMessage(ex));
+        }
+    }
+
+    function toggleCategoryCollapse(guid: string) {
+        collapsedCategories[guid] = !collapsedCategories[guid];
+        collapsedCategories = collapsedCategories;
+    }
 </script>
 
 {#await initPromise}
@@ -1751,33 +1786,6 @@
 {:then _}
     <svelte:boundary onerror={onRenderError}>
     <div class="w-full h-full flex flex-col gap-1 relative">
-        <div class="flex flex-row gap-1">
-            <!-- Profiles -->
-            <select class="flex-1 hd2mm-select" bind:value={activeProfile}>
-                {#each profiles as profile, i}
-                    <option value={i}>
-                        {#if profile.Version === "V1"}
-                            {profile.Name}
-                        {/if}
-                    </option>
-                {/each}
-            </select>
-            <button
-                class="hd2mm-button"
-                title={t("pages.mods.add_profile_button.tip")}
-                onclick={onAddProfile}
-            >
-                <Plus width="24" height="24" />
-            </button>
-            <button
-                class="hd2mm-button"
-                title={t("pages.mods.remove_profile_button.tip")}
-                onclick={onRemoveProfile}
-                disabled={!enableRemoveProfile}
-            >
-                <Dash width="24" height="24" />
-            </button>
-        </div>
         <!-- Search -->
         <div class="flex flex-row gap-1">
             <input
@@ -1802,7 +1810,48 @@
         <!-- Center -->
         <div class="flex-1 flex flex-row relative min-h-0">
             <!-- Mod List -->
-            <div class="flex-1 mr-7 pr-1 overflow-y-scroll h-full">
+            <div class="flex-1 pr-1 overflow-y-scroll h-full min-w-0">
+                <div class="flex flex-row flex-wrap items-center gap-1 px-1 pb-1">
+                    <button
+                        class="hd2mm-button flex flex-row gap-1 items-center px-2 py-1 text-xs"
+                        class:border-yellow-300={groupByCategory}
+                        class:text-yellow-300={groupByCategory}
+                        onclick={() => groupByCategory = !groupByCategory}
+                        title={t("pages.mods.categories.group_tip")}
+                    >
+                        <FolderPlus width="14" height="14" />
+                        <span>{t("pages.mods.categories.group")}</span>
+                    </button>
+                    <input
+                        class="hd2mm-input flex-1 min-w-28"
+                        placeholder={t("pages.mods.categories.new_placeholder")}
+                        bind:value={newCategoryName}
+                        onkeydown={(e) => { if (e.key === "Enter") onCreateCategory(); }}
+                    />
+                    <button
+                        class="hd2mm-button flex flex-row gap-1 items-center px-2 py-1 text-xs"
+                        disabled={!newCategoryName.trim()}
+                        onclick={onCreateCategory}
+                        title={t("pages.mods.categories.create_tip")}
+                    >
+                        <Plus width="14" height="14" />
+                    </button>
+                </div>
+                {#if categories.length > 0}
+                    <div class="flex flex-row flex-wrap items-center gap-1 px-1 pb-1">
+                        {#each categories as category (category.Guid)}
+                            <span class="flex flex-row items-center gap-1 text-xs rounded-md px-2 py-0.5 bg-zinc-800 text-zinc-300 border border-zinc-700">
+                                <span class="truncate max-w-40">{category.Name}</span>
+                                <button class="text-zinc-500 hover:text-yellow-300" onclick={() => onRenameCategory(category.Guid)} title={t("pages.mods.categories.rename_tip")}>
+                                    <PencilSquare width="12" height="12" />
+                                </button>
+                                <button class="text-zinc-500 hover:text-red-400" onclick={() => onDeleteCategory(category.Guid)} title={t("pages.mods.categories.delete_tip")}>
+                                    <Trash3 width="12" height="12" />
+                                </button>
+                            </span>
+                        {/each}
+                    </div>
+                {/if}
                 {#if mods.length === 0}
                     <div class="h-full flex flex-col items-center justify-center gap-1 text-center px-4">
                         <span class="text-zinc-400 text-lg">{t("pages.mods.empty_state.title")}</span>
@@ -1833,6 +1882,80 @@
                         <span>{t("pages.mods.load_order.lowest")}</span>
                     </div>
                 {/if}
+                {#snippet groupedEntry(entry)}
+                    {@const [config, mod, ci] = entry}
+                    {#if mod}
+                        <div class="p-2 text-zinc-300 bg-zinc-800/60 rounded flex flex-row gap-1 items-center">
+                            <img class="w-10 h-10 object-contain" src={iconPaths.get(config.Guid) ?? FALLBACK_MOD_IMAGE} alt="Mod icon" />
+                            <div class="flex-1 flex flex-col gap-0.5 justify-between min-w-0">
+                                <span class="text-lg truncate flex flex-row items-center gap-1">
+                                    {mod.name}
+                                    {#if mod.version}
+                                        <span class="text-sm text-zinc-400 shrink-0">{mod.version}</span>
+                                    {/if}
+                                </span>
+                                <span class="text-xs truncate text-zinc-500">{mod.description}</span>
+                            </div>
+                            <PopupMenuButton insertTarget="main">
+                                {#each categories as cat (cat.Guid)}
+                                    <button
+                                        class={categoryAssignments[mod.guid] === cat.Guid ? "bg-amber-400/10" : ""}
+                                        onclick={() => onSetModCategory(mod.guid, cat.Guid)}
+                                    >
+                                        <span>{cat.Name}</span>
+                                    </button>
+                                {/each}
+                                {#if categoryAssignments[mod.guid]}
+                                    <hr>
+                                    <button onclick={() => onSetModCategory(mod.guid, null)}>
+                                        <Eraser />
+                                        <span>{t("pages.mods.categories.none")}</span>
+                                    </button>
+                                {/if}
+                            </PopupMenuButton>
+                        </div>
+                    {/if}
+                {/snippet}
+                {#if groupByCategory}
+                    {@const uncatEntries = profileEntries.filter(([, m]) => m !== undefined && !categoryAssignments[m.guid])}
+                    <div class="flex flex-col gap-1">
+                        {#each categories as category (category.Guid)}
+                            {@const catEntries = profileEntries.filter(([, m]) => m !== undefined && categoryAssignments[m.guid] === category.Guid)}
+                            <div class="flex flex-col">
+                                <button
+                                    class="flex flex-row items-center gap-1 px-2 py-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-yellow-300 text-sm"
+                                    onclick={() => toggleCategoryCollapse(category.Guid)}
+                                >
+                                    {#if collapsedCategories[category.Guid]}<Plus width="14" height="14" />{:else}<Dash width="14" height="14" />{/if}
+                                    <span class="flex-1 text-left truncate">{category.Name}</span>
+                                    <span class="text-xs text-zinc-400">{catEntries.length}</span>
+                                </button>
+                                {#if !collapsedCategories[category.Guid]}
+                                    {#each catEntries as [config, mod, ci], i (config.Guid)}
+                                        {@render groupedEntry([config, mod, ci])}
+                                    {/each}
+                                {/if}
+                            </div>
+                        {/each}
+                        {#if uncatEntries.length > 0}
+                            <div class="flex flex-col">
+                                <button
+                                    class="flex flex-row items-center gap-1 px-2 py-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-sm"
+                                    onclick={() => toggleCategoryCollapse("__uncategorized__")}
+                                >
+                                    {#if collapsedCategories["__uncategorized__"]}<Plus width="14" height="14" />{:else}<Dash width="14" height="14" />{/if}
+                                    <span class="flex-1 text-left truncate">{t("pages.mods.categories.uncategorized")}</span>
+                                    <span class="text-xs text-zinc-400">{uncatEntries.length}</span>
+                                </button>
+                                {#if !collapsedCategories["__uncategorized__"]}
+                                    {#each uncatEntries as [config, mod, ci], i (config.Guid)}
+                                        {@render groupedEntry([config, mod, ci])}
+                                    {/each}
+                                {/if}
+                            </div>
+                        {/if}
+                    </div>
+                {:else}
                 <SortableList.Root
                     ondragend={onDragEnd}
                     isLocked={!allowReorder}
@@ -1892,6 +2015,12 @@
                                 <div class="flex-1 flex flex-col gap-0.5 justify-between min-w-0">
                                     <span class="text-2xl truncate flex flex-row items-center gap-1">
                                         {mod.name}
+                                        {#if mod.version}
+                                            <span class="text-sm text-zinc-400 shrink-0">{mod.version}</span>
+                                        {/if}
+                                        {#if categoryOf(mod.guid)}
+                                            <span class="text-xs rounded px-1.5 py-0.5 bg-amber-400/15 text-amber-300 shrink-0">{categoryOf(mod.guid)!.Name}</span>
+                                        {/if}
                                         {#if hasUpdateAvailable(mod.guid)}
                                             <span title={t("pages.mods.update_available_badge.tip")}><CloudArrowDownFill class="text-yellow-300 shrink-0" width="16" height="16" /></span>
                                         {/if}
@@ -1937,6 +2066,24 @@
                                     </button>
                                 {/if}
                                 <PopupMenuButton insertTarget="main">
+                                    {#if categories.length > 0}
+                                        <span class="px-2 pt-1 text-xs text-zinc-500">{t("pages.mods.categories.assign")}</span>
+                                        {#each categories as category (category.Guid)}
+                                            <button
+                                                class={categoryAssignments[mod.guid] === category.Guid ? "bg-amber-400/10" : ""}
+                                                onclick={() => onSetModCategory(mod.guid, category.Guid)}
+                                            >
+                                                <span>{category.Name}</span>
+                                            </button>
+                                        {/each}
+                                        {#if categoryAssignments[mod.guid]}
+                                            <button onclick={() => onSetModCategory(mod.guid, null)}>
+                                                <Eraser />
+                                                <span>{t("pages.mods.categories.none")}</span>
+                                            </button>
+                                        {/if}
+                                        <hr>
+                                    {/if}
                                     <button onclick={() => onRemove(ci)}>
                                         <Eraser />
                                         <span>{t("pages.mods.entry_menu.remove")}</span>
@@ -2016,6 +2163,7 @@
                         </SortableList.Item>
                     {/each}
                 </SortableList.Root>
+                {/if}
                 {#if profileEntries.length > 1}
                     <div class="flex flex-row items-center gap-1 px-1 pt-1 text-xs text-yellow-300/80">
                         <CaretDownFill class="shrink-0" width="10" height="10" />
@@ -2025,10 +2173,10 @@
             </div>
             <!-- Library -->
             <div
-                class="flex flex-row gap-1 absolute z-10 transition-all right-0 h-full bg-zinc-900
+                class="flex flex-row gap-1 shrink-0 transition-all h-full bg-zinc-900 border-l border-zinc-800
                     {libraryExtended
                     ? 'w-90'
-                    : 'w-6'}"
+                    : 'w-8'}"
             >
                 <button
                     class="hd2mm-button-nop w-6"
@@ -2039,7 +2187,23 @@
                     {#if libraryExtended}
                         <ArrowBarRight class="block m-auto" width="16" height="16" />
                     {:else}
-                        <ArrowBarLeft class="block m-auto" width="16" height="16" />
+                        <div class="flex flex-col items-center gap-1.5 py-2">
+                            <span
+                                class="text-[10px] font-semibold tracking-widest text-zinc-400 uppercase"
+                                style="writing-mode: vertical-rl;"
+                            >
+                                {t("pages.mods.library_button.tip")}
+                            </span>
+                            {#if libraryMods.length > 0}
+                                <span
+                                    class="text-[11px] font-bold leading-none rounded-full bg-yellow-300 text-zinc-900 min-w-4 h-4 flex items-center justify-center px-1"
+                                    title={t("pages.mods.library.count.tip", { count: libraryMods.length })}
+                                >
+                                    {libraryMods.length}
+                                </span>
+                            {/if}
+                            <ArrowBarLeft class="block m-auto" width="16" height="16" />
+                        </div>
                     {/if}
                 </button>
                 {#if libraryVisible}

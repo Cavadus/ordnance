@@ -12,7 +12,7 @@ TABLES = {
     "explosion": ("generated_explosion_settings.dl_bin", 0x2AEA2592, 152),
     "damage": ("generated_damage_settings.dl_bin", 0xE0A72CF0, 76),
 }
-KEYED = {0x88E4DBB1: (746, 496), 0xFB8D88A3: (560, 160), 0x4F2CF417: (386, 32)}
+KEYED = {0x88E4DBB1: (746, 1240), 0xFB8D88A3: (560, 160), 0x4F2CF417: (386, 32)}
 
 def hx(v):
     return v if isinstance(v, int) else int(v, 0)

@@ -478,6 +478,11 @@ pub fn run() {
         })
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
+            commands::categories::get_categories,
+            commands::categories::create_category,
+            commands::categories::rename_category,
+            commands::categories::delete_category,
+            commands::categories::set_mod_category,
             commands::mods::get_mods,
             commands::mods::resolve_mod_image,
             commands::mods::delete_mod,

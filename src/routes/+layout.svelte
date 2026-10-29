@@ -52,7 +52,7 @@
 </script>
 
 <div
-    class="flex flex-col h-dvh overflow-hidden bg-zinc-950 border-amber-800 border-4"
+    class="flex flex-col h-dvh overflow-hidden bg-zinc-950"
 >
     <Titlebar />
     <div class="relative flex-1 flex flex-row min-h-0">

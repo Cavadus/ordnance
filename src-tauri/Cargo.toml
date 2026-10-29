@@ -1,6 +1,6 @@
 [package]
 name = "ddmm"
-version = "0.2.0"
+version = "0.3.0"
 description = "Ordnance Mod Manager — compiles Helldivers 2 stat mods into one sealed .dl_bin swap."
 authors = ["katsyk", "Cavadus"]
 edition = "2021"

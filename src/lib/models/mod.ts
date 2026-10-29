@@ -33,6 +33,17 @@ export class Mod {
         return this.Manifest.Description;
     }
 
+    /**
+     * The mod's installed version, preferring the install-origin source and
+     * falling back to the first source that carries a version. `null` when
+     * no source records one.
+     */
+    get version(): string | null {
+        const install = this.Sources.find((s) => s.Origin === "Install" && s.Version);
+        if (install?.Version) return install.Version;
+        return this.Sources.find((s) => s.Version)?.Version ?? null;
+    }
+
     async iconPath(): Promise<string | null> {
         if (!this.Manifest.IconPath) return null;
         return modImageSrc(this.Directory, this.Manifest.IconPath);
