@@ -54,8 +54,8 @@ patterns=(
     'Ordnance-*-linux-amd64.deb'
     'Ordnance-*-linux-x86_64.rpm'
     'Ordnance-*-linux-x64.tar.gz'
-    'ddmm-extension-chrome-*.zip'
-    'ddmm-extension-firefox-*.zip'
+    'ordnance-extension-chrome-*.zip'
+    'ordnance-extension-firefox-*.zip'
 )
 expected_count=8
 

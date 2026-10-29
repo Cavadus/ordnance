@@ -261,7 +261,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: extension-build
-          path: extension/dist/ddmm-extension-*.zip
+          path: extension/dist/ordnance-extension-*.zip
           if-no-files-found: error
 
   # Gate: smoke-test exactly the Linux files built above in Fedora, Arch,

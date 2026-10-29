@@ -1,7 +1,7 @@
 {
-  "name": "ddmm-extension",
+  "name": "ordnance-extension",
   "version": "1.0.1",
-  "description": "Browser extension half of one-click Helldivers 2 mod installs for DDMM.",
+  "description": "Browser extension half of one-click Helldivers 2 mod installs for Ordnance.",
   "private": true,
   "type": "module",
   "license": "Apache-2.0",

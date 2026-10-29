@@ -2,7 +2,7 @@
 /**
  * @file Builds extension/dist/chrome/ and extension/dist/firefox/ from the
  * single extension/src/ tree, then zips each into
- * ddmm-extension-<browser>-<version>.zip in extension/dist/.
+ * ordnance-extension-<browser>-<version>.zip in extension/dist/.
  *
  * No bundler: this just copies files and writes one manifest.json per
  * browser (see manifest.mjs for the actual per-browser differences).
@@ -119,8 +119,8 @@ async function main() {
     return; // skip zipping; the smoke test loads dist/chrome/ unpacked directly.
   }
 
-  const chromeZip = path.join(DIST, `ddmm-extension-chrome-${version}.zip`);
-  const firefoxZip = path.join(DIST, `ddmm-extension-firefox-${version}.zip`);
+  const chromeZip = path.join(DIST, `ordnance-extension-chrome-${version}.zip`);
+  const firefoxZip = path.join(DIST, `ordnance-extension-firefox-${version}.zip`);
   await zipDirectory(chromeDir, chromeZip);
   await zipDirectory(firefoxDir, firefoxZip);
 

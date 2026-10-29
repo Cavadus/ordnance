@@ -14,14 +14,14 @@ and AyakaMods. It talks to DDMM over a private, local-only connection; the full 
 The DDMM browser extension adds an **Install with DDMM** button to mod pages on AyakaMods, Nexus
 Mods, ModWorkshop, GameBanana and GitHub, plus a right-click **Install with DDMM** on any download
 link, on any site. It never collects any data -- see the extension's
-[privacy policy](https://github.com/katsyk/DemocracyDefenderModManager/blob/main/extension/PRIVACY.md)
+[privacy policy](https://github.com/Cavadus/ordnance/blob/main/extension/PRIVACY.md)
 for the details.
 
 ### Chrome, Edge, Brave
 
 The extension isn't in the Chrome Web Store yet. Until it is:
 
-1. Download `ddmm-extension-chrome-<version>.zip` from the [latest release](https://github.com/katsyk/DemocracyDefenderModManager/releases).
+1. Download `ordnance-extension-chrome-<version>.zip` from the [latest release](https://github.com/Cavadus/ordnance/releases).
 2. Unzip it somewhere you'll keep it (don't delete the folder afterwards -- the browser loads the
    extension from it directly).
 3. Open `chrome://extensions` (or `edge://extensions`, `brave://extensions`).
@@ -36,7 +36,7 @@ The extension isn't signed by Mozilla (AMO) yet, so for now it can only be loade
 -- it disappears when Firefox restarts, and you'll need to reload it each session. Permanent
 installation needs the AMO-signed version, which is coming soon.
 
-1. Download `ddmm-extension-firefox-<version>.zip` from the [latest release](https://github.com/katsyk/DemocracyDefenderModManager/releases) and unzip it.
+1. Download `ordnance-extension-firefox-<version>.zip` from the [latest release](https://github.com/Cavadus/ordnance/releases) and unzip it.
 2. Open `about:debugging#/runtime/this-firefox`.
 3. Click **Load Temporary Add-on...** and select the `manifest.json` inside the unzipped folder.
 
