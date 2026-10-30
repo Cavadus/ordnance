@@ -109,12 +109,12 @@ pub async fn do_check_settings(base_path: &Path) -> anyhow::Result<bool> {
     }
 }
 
-/// DDMM's mod storage folder (`<data>/mods`).
+/// Ordnance's mod storage folder (`<data>/mods`).
 fn mods_storage(base_path: &Path) -> PathBuf {
     base_path.join(crate::commands::mods::MODS_DIRECTORY)
 }
 
-/// The downloads folder may contain DDMM's data folder (a portable copy
+/// The downloads folder may contain Ordnance's data folder (a portable copy
 /// kept in Downloads is normal: only files directly in the downloads folder
 /// are ever looked at), but must not be the mod storage folder or anything
 /// inside it -- downloads would then land among, or inside, installed mods.
@@ -126,7 +126,7 @@ pub fn check_downloads_path(base_path: &Path, downloads: &Path) -> anyhow::Resul
     let storage = mods_storage(base_path);
     match path_overlap(downloads, &storage)? {
         Some(PathOverlap::Same) | Some(PathOverlap::FirstInsideSecond) => anyhow::bail!(
-            "The downloads folder ({}) is DDMM's own mod storage or a folder inside it ({}). \
+            "The downloads folder ({}) is Ordnance's own mod storage or a folder inside it ({}). \
              Pick the folder your browser saves downloads to instead.",
             downloads.display(),
             storage.display()
@@ -136,14 +136,14 @@ pub fn check_downloads_path(base_path: &Path, downloads: &Path) -> anyhow::Resul
 }
 
 /// The game's `data` folder (where deploy writes, and purge deletes, patch
-/// files) must not be DDMM's mod storage or inside it: purging would delete
+/// files) must not be Ordnance's mod storage or inside it: purging would delete
 /// installed mods' own files.
 pub fn check_game_data_dir(base_path: &Path, game_data_dir: &Path) -> anyhow::Result<()> {
     use crate::fs_util::{path_overlap, PathOverlap};
     let storage = mods_storage(base_path);
     match path_overlap(game_data_dir, &storage)? {
         Some(PathOverlap::Same) | Some(PathOverlap::FirstInsideSecond) => anyhow::bail!(
-            "The game folder's data folder ({}) is inside DDMM's own mod storage ({}). \
+            "The game folder's data folder ({}) is inside Ordnance's own mod storage ({}). \
              Set the game path to your real Helldivers 2 install in Settings.",
             game_data_dir.display(),
             storage.display()
@@ -209,7 +209,7 @@ pub  async fn check_settings(state: State<'_, AppState>) -> TAResult<bool> {
     do_check_settings(&state.base_path).await.into_ta_result()
 }
 
-/// The directory DDMM is currently keeping `mods/`, `settings.json`,
+/// The directory Ordnance is currently keeping `mods/`, `settings.json`,
 /// `profiles.json` and logs in -- shown read-only in Settings with an
 /// "Open folder" button.
 #[tauri::command]
@@ -272,7 +272,7 @@ mod tests {
     /// settings.json is read all the time (the auto-import watcher, every
     /// browser-extension request, the update scheduler, deploy). A save
     /// must never let one of those reads see a half-written file -- nor
-    /// leave one behind if DDMM dies mid-write.
+    /// leave one behind if Ordnance dies mid-write.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn readers_never_see_a_half_written_settings_file() {
         let base = tempfile::tempdir().unwrap();
@@ -356,8 +356,8 @@ mod tests {
     #[test]
     fn downloads_folder_may_contain_the_data_folder_but_not_be_inside_the_mod_storage() {
         let downloads = tempfile::tempdir().unwrap();
-        // A portable DDMM kept in Downloads: fine.
-        let base = downloads.path().join("DDMM");
+        // A portable Ordnance kept in Downloads: fine.
+        let base = downloads.path().join("Ordnance");
         std::fs::create_dir_all(base.join("mods").join("ModA")).unwrap();
         check_downloads_path(&base, downloads.path()).unwrap();
         check_downloads_path(&base, &base).unwrap();
@@ -374,7 +374,7 @@ mod tests {
         std::fs::create_dir_all(base.path().join("mods")).unwrap();
         let game = tempfile::tempdir().unwrap();
         check_game_data_dir(base.path(), &game.path().join("data")).unwrap();
-        // A portable DDMM inside the game's data folder is harmless.
+        // A portable Ordnance inside the game's data folder is harmless.
         check_game_data_dir(base.path(), base.path()).unwrap();
 
         assert!(check_game_data_dir(base.path(), &base.path().join("mods")).is_err());

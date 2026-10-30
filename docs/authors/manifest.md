@@ -4,7 +4,7 @@ title: Manifest reference
 
 # Manifest reference
 
-A mod's `manifest.json` tells DDMM its identity, description, icon, and any options it offers. DDMM supports
+A mod's `manifest.json` tells Ordnance its identity, description, icon, and any options it offers. Ordnance supports
 three formats. Which one a manifest is depends only on its `Version` field: no `Version` field means **Legacy**;
 `"Version": 1` means **V1**; `"Version": 2` means **V2**. Any other value is rejected as an unknown version.
 
@@ -33,7 +33,7 @@ No `Version` field at all. The original, simplest format.
 | `IconPath` | string | No | Relative path to an icon image |
 | `Options` | array of strings | No | Each string is a subfolder name; the user picks exactly one — see [Packaging your mod](packaging.md#legacy-manifest-with-options) |
 
-Legacy manifests can't declare `Sources` or `NexusData` — DDMM has no way to associate a source with a Legacy
+Legacy manifests can't declare `Sources` or `NexusData` — Ordnance has no way to associate a source with a Legacy
 manifest beyond whatever it records itself when you install from a URL (the `.hd2mm-origin.json` sidecar; see
 [The Sources field](sources.md#the-hd2mm-originjson-sidecar)). Auto-generated manifests (for a mod added without
 its own `manifest.json`) are always Legacy, with no `Options`.
@@ -208,7 +208,7 @@ with any JSON Schema (2020-12) validator.
 
 - Field names are case-sensitive `PascalCase` (`Guid`, not `guid` or `GUID`).
 - Paths (`IconPath`, `Image`, `Include` entries) are relative to the mod's root folder and use forward slashes;
-  DDMM matches them against what's on disk case-insensitively.
-- Unknown/extra fields in a manifest are ignored, not rejected — DDMM only reads the fields it knows about.
+  Ordnance matches them against what's on disk case-insensitively.
+- Unknown/extra fields in a manifest are ignored, not rejected — Ordnance only reads the fields it knows about.
 - See [The Sources field](sources.md) for `Sources` in depth, including how it interacts with legacy `NexusData`
-  and DDMM's own install-time bookkeeping.
+  and Ordnance's own install-time bookkeeping.

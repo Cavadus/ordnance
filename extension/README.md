@@ -1,13 +1,13 @@
-# DDMM browser extension
+# Ordnance browser extension
 
-The web half of one-click mod installs for [DDMM](../README.md). Adds an "Install with DDMM" button
+The web half of one-click mod installs for [Ordnance](../README.md). Adds an "Install with Ordnance" button
 to mod pages on AyakaMods, Nexus Mods, ModWorkshop, GameBanana and GitHub (every site treated
-equally -- AyakaMods is listed first because it's the community DDMM comes from, not because it gets
-special treatment), plus a right-click "Install with DDMM" on any download link, anywhere.
+equally -- AyakaMods is listed first because it's the community Ordnance comes from, not because it gets
+special treatment), plus a right-click "Install with Ordnance" on any download link, anywhere.
 
 See [PRIVACY.md](./PRIVACY.md) for what the extension does and doesn't collect (nothing), and
 [`docs/development/bridge-protocol.md`](../docs/development/bridge-protocol.md) for the native
-messaging protocol it speaks to DDMM.
+messaging protocol it speaks to Ordnance.
 
 ## Quick start
 
@@ -49,7 +49,7 @@ from a content script's isolated world. That's extra manifest surface, and one m
 reviewer has to reason about, for no real benefit here.
 
 Instead, every source file (background, content scripts, popup) is a classic script that attaches
-its exports to a shared `globalThis.DDMM` namespace (see `src/lib/browser-shim.js` for the pattern).
+its exports to a shared `globalThis.Ordnance` namespace (see `src/lib/browser-shim.js` for the pattern).
 Manifest `content_scripts[].js` arrays and the background's file list are just ordered lists of these
 classic scripts sharing one global scope -- exactly like a handful of `<script>` tags. Chrome's
 service worker background loads the same `lib/*.js` files via `importScripts()`; Firefox's
@@ -61,7 +61,7 @@ information without a build step. See `src/lib/*.js` for the pattern used everyw
 ```
 src/
   lib/                  Pure logic, no DOM/browser-API side effects at import time (mostly):
-    browser-shim.js       chrome.* / browser.* -> one promise-based DDMM.browserApi
+    browser-shim.js       chrome.* / browser.* -> one promise-based Ordnance.browserApi
     sources.js             mod-page URL parsing, ported 1:1 from src-tauri/src/sources.rs
     errors.js               protocol error code -> friendly message table
     protocol-client.js     native-messaging client: request ids, timeouts, reconnect, serialized installs
@@ -99,7 +99,7 @@ each `src/content/sites/*.js` file's header comment for the detailed reasoning. 
 | AyakaMods | Yes | Inline button in the sidebar; guest downloads are login-gated (no `<a>`, just a disabled placeholder), so it arms capture and lets the user log in and click AyakaMods' own download control |
 | ModWorkshop | Yes (server-rendered) | Inline button; `a.download-button[href]` is a direct file link straight to `storage.modworkshop.net` -- no capture needed |
 | GameBanana | Partially -- the `<module data-module="Files">` placeholder is real, but GameBanana fills it with actual download links via client-side JS after load, which curl never sees | Inline button anchored to that module; the direct-link search happens at click time (by then the site's own JS has rendered it in a real browser) |
-| GitHub | Yes, including confirming what's *not* there -- release assets always lazy-load through `<include-fragment src=".../releases/expanded_assets/<tag>">`, on both the release list and single-tag views | Inline button once Assets is expanded and a `/releases/download/` link exists at click time; otherwise capture-arm with a hint to expand Assets. The context-menu "Install with DDMM" on the asset link works on this site regardless |
+| GitHub | Yes, including confirming what's *not* there -- release assets always lazy-load through `<include-fragment src=".../releases/expanded_assets/<tag>">`, on both the release list and single-tag views | Inline button once Assets is expanded and a `/releases/download/` link exists at click time; otherwise capture-arm with a hint to expand Assets. The context-menu "Install with Ordnance" on the asset link works on this site regardless |
 | Nexus Mods | No -- every attempt (multiple mod ids, multiple user agents, browser-like headers) hit Cloudflare's interactive challenge, never the real page | Floating fallback button, always capture-arm. This is also a deliberate policy, not just a DOM limitation: free Nexus downloads require a manual "Slow download" click, and the extension must never automate that click |
 
 Two fixtures are clearly marked as **synthesized, not fetched** (`gamebanana-mod-populated.html`,
@@ -120,7 +120,7 @@ They're not claimed as verified captures.
   `content/sites/test-fixture.js` adapter -- never present in a release build; see
   `scripts/manifest.mjs`'s `includeLocalhost`) against a local HTTP server serving the AyakaMods
   fixture. Confirms the button appears in the page and, since no native host exists in this
-  environment, that it reaches the "Get DDMM" state gracefully rather than hanging or throwing.
+  environment, that it reaches the "Get Ordnance" state gracefully rather than hanging or throwing.
   Needs a real Chromium and (headless Linux) Xvfb, since extensions don't load in classic headless
   mode:
   ```sh
@@ -133,5 +133,5 @@ Chrome/Edge/Brave's unpacked extension id (`inomhciahaeeefhgdkiaabdponcfdane`) i
 the corresponding **public** key in the manifest's `key` field. The public key is committed at
 `extension/chrome-public-key.txt` (public keys aren't secret; every published manifest contains one).
 The matching **private** key is only needed to sign `.crx` packages and is kept by the maintainer,
-never in this repo. `scripts/build.mjs` reads the committed file by default; `DDMM_MANIFEST_KEY` or
-`DDMM_MANIFEST_KEY_FILE` can override it.
+never in this repo. `scripts/build.mjs` reads the committed file by default; `ORDNANCE_MANIFEST_KEY` or
+`ORDNANCE_MANIFEST_KEY_FILE` can override it.

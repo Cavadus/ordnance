@@ -6,7 +6,7 @@ title: The Sources field
 
 `Sources` is an optional array on [`V1`](manifest.md#v1) and [`V2`](manifest.md#v2) manifests that declares,
 without privileging any particular mod site, everywhere a mod can be found. Each entry becomes an "Open on
-&lt;site&gt;" menu item for that mod in DDMM.
+&lt;site&gt;" menu item for that mod in Ordnance.
 
 ## The `Source` object
 
@@ -42,7 +42,7 @@ produce a link.
 (`https://ayakamods.com/mods/hd2-auto-reload.4084/` → `Id: "4084"`; a bare `https://ayakamods.com/mods/4084/`
 works too). Set `Version` to match what AyakaMods publishes for your mod (its page's own listed version) so
 [update checks](../using/updating-mods.md) work immediately for anyone installing your mod with this source already
-declared, rather than only after DDMM records a version itself at install time:
+declared, rather than only after Ordnance records a version itself at install time:
 
 ```json
 { "Provider": "ayakamods", "Id": "4084", "Version": "2026-09-24" }
@@ -63,22 +63,22 @@ declared, rather than only after DDMM records a version itself at install time:
 }
 ```
 
-A mod can declare more than one source — for example, mirrored on both AyakaMods and GitHub — and DDMM shows an
+A mod can declare more than one source — for example, mirrored on both AyakaMods and GitHub — and Ordnance shows an
 "Open on &lt;site&gt;" entry for each one that resolves to a link.
 
 ## Legacy `NexusData`
 
 Manifests may still carry the older `NexusData` field (`{ "ModId": ..., "Version": "..." }` on V1;
-`{ "ModId": ... }` on V2 — see [Manifest reference](manifest.md)) instead of, or alongside, `Sources`. DDMM treats
+`{ "ModId": ... }` on V2 — see [Manifest reference](manifest.md)) instead of, or alongside, `Sources`. Ordnance treats
 it as an additional implicit `nexus` source at runtime. If a manifest declares *both* `NexusData` and a `nexus`
-entry in `Sources` with the same `Id`, DDMM shows only one "Open on Nexus Mods" entry rather than two — but
+entry in `Sources` with the same `Id`, Ordnance shows only one "Open on Nexus Mods" entry rather than two — but
 `NexusData` itself is never rewritten or removed from the file. There's no need to migrate an existing
 `NexusData`-only manifest; adding `Sources` is purely additive.
 
 ## The `.hd2mm-origin.json` sidecar
 
 When you (the user, not the mod author) install a mod from a direct URL, or through a
-[browser handoff](../using/mod-sites.md#how-the-browser-handoff-works), DDMM records that as an install-time
+[browser handoff](../using/mod-sites.md#how-the-browser-handoff-works), Ordnance records that as an install-time
 source in a small `.hd2mm-origin.json` file written next to the mod's `manifest.json` — **never** into the
 manifest itself:
 
@@ -91,10 +91,10 @@ manifest itself:
 }
 ```
 
-For a mod installed from AyakaMods, this sidecar's `Source` also gets a `Version` filled in automatically (DDMM
+For a mod installed from AyakaMods, this sidecar's `Source` also gets a `Version` filled in automatically (Ordnance
 fetches the mod page's published version at install time) — see
-[Checking for updates](../using/updating-mods.md#how-ddmm-knows-a-mods-installed-version).
+[Checking for updates](../using/updating-mods.md#how-ordnance-knows-a-mods-installed-version).
 
-This is DDMM's own bookkeeping, not something mod authors write. It merges into the same "Open on &lt;site&gt;"
+This is Ordnance's own bookkeeping, not something mod authors write. It merges into the same "Open on &lt;site&gt;"
 menu as manifest-declared sources, keeps the historical `hd2mm` filename prefix for compatibility with tooling
 written against the original manager, and is safe to delete — it has no effect on how the mod itself works.

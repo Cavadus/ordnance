@@ -31,7 +31,7 @@ export type SettingsV1 = {
     AfterBrowserInstall: AfterBrowserInstall,
     BridgeAllowedSites: string[],
     AutoImportEnabled: boolean,
-    /** Opt-in: check for mod updates when DDMM starts (off by default). */
+    /** Opt-in: check for mod updates when Ordnance starts (off by default). */
     AutoCheckUpdates: boolean,
     /** With AutoCheckUpdates: re-check every this many hours while open;
      * 0 = only at startup. */

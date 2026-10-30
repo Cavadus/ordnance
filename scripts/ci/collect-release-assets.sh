@@ -44,7 +44,7 @@ fi
 mkdir -p "$release_dir"
 
 # Expected release filenames, one glob per file -- each must match exactly
-# one file. 6 DDMM desktop build outputs (from build-windows and
+# one file. 6 Ordnance desktop build outputs (from build-windows and
 # build-linux) + 2 browser-extension zips (from build-extension: Chrome and
 # Firefox, see extension/scripts/build.mjs) = 8 files total.
 patterns=(

@@ -28,8 +28,8 @@
 //! revoke, userinfo) and `api.nexusmods.com` (update checks, see
 //! `providers::nexus`).
 //!
-//! DDMM needs a client ID that Nexus Mods issues on registration (by email).
-//! It's compiled in from `DDMM_NEXUS_CLIENT_ID` at build time; the same
+//! Ordnance needs a client ID that Nexus Mods issues on registration (by email).
+//! It's compiled in from `ORDNANCE_NEXUS_CLIENT_ID` at build time; the same
 //! variable at runtime overrides it (for testing). With neither, sign-in
 //! is unavailable ("Coming soon") and the manual API key still works.
 
@@ -50,10 +50,10 @@ use crate::providers::nexus::NexusAuth;
 use crate::providers::{APP_NAME, CONNECT_TIMEOUT, REQUEST_TIMEOUT};
 use crate::secrets::{self, KeyStorage, Secret, OAUTH_SLOT};
 
-/// Build-time/run-time variable holding DDMM's Nexus OAuth client ID.
-pub const CLIENT_ID_ENV: &str = "DDMM_NEXUS_CLIENT_ID";
+/// Build-time/run-time variable holding Ordnance's Nexus OAuth client ID.
+pub const CLIENT_ID_ENV: &str = "ORDNANCE_NEXUS_CLIENT_ID";
 /// Compiled-in client ID (empty until Nexus Mods issues one).
-const BUILD_CLIENT_ID: &str = match option_env!("DDMM_NEXUS_CLIENT_ID") {
+const BUILD_CLIENT_ID: &str = match option_env!("ORDNANCE_NEXUS_CLIENT_ID") {
     Some(id) => id,
     None => "",
 };
@@ -92,7 +92,7 @@ pub fn redirect_uri(port: u16) -> String {
     format!("http://127.0.0.1:{port}{CALLBACK_PATH}")
 }
 
-/// The client ID to use, if any: a non-empty `DDMM_NEXUS_CLIENT_ID` in the
+/// The client ID to use, if any: a non-empty `ORDNANCE_NEXUS_CLIENT_ID` in the
 /// environment (for testing), else the compiled-in one.
 pub fn client_id() -> Option<String> {
     client_id_from(std::env::var(CLIENT_ID_ENV).ok().as_deref(), BUILD_CLIENT_ID)
@@ -314,12 +314,12 @@ pub fn callback_page(result: &Result<(), SignInError>) -> String {
     let (title, body) = match result {
         Ok(()) => (
             "Signed in to Nexus Mods",
-            "You can close this tab and return to DDMM.".to_string(),
+            "You can close this tab and return to Ordnance.".to_string(),
         ),
-        Err(e) => ("Sign-in didn't complete", format!("{} You can close this tab and return to DDMM.", e)),
+        Err(e) => ("Sign-in didn't complete", format!("{} You can close this tab and return to Ordnance.", e)),
     };
     format!(
-        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>{title} - DDMM</title>\
+        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>{title} - Ordnance</title>\
 <style>body{{background:#18181b;color:#e4e4e7;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}}\
 main{{text-align:center;max-width:32rem;padding:1rem}}h1{{font-size:1.4rem;color:{color}}}p{{color:#a1a1aa}}</style></head>\
 <body><main><h1>{title}</h1><p>{body}</p><p>Democracy Defender Mod Manager</p></main></body></html>",
@@ -641,7 +641,7 @@ pub async fn exchange_code(endpoints: &Endpoints, client_id: &str, code: &Secret
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum RefreshError {
-    /// Nexus refused the refresh token: the user revoked DDMM's access (or
+    /// Nexus refused the refresh token: the user revoked Ordnance's access (or
     /// it expired). The sign-in is gone.
     Revoked,
     /// Couldn't refresh right now (network, server error); try later.
@@ -800,7 +800,7 @@ pub enum ResolvedAuth {
     Unavailable(String),
 }
 
-pub const SIGNED_OUT_MESSAGE: &str = "Your Nexus Mods sign-in is no longer valid (it may have been revoked), so DDMM signed you out. Sign in again in Settings to check Nexus mods.";
+pub const SIGNED_OUT_MESSAGE: &str = "Your Nexus Mods sign-in is no longer valid (it may have been revoked), so Ordnance signed you out. Sign in again in Settings to check Nexus mods.";
 
 /// The single auth provider for every Nexus API request: returns the
 /// credential to use, refreshing the access token first if it's about to
@@ -925,12 +925,12 @@ mod tests {
 
     #[test]
     fn authorize_url_has_every_parameter() {
-        let url = authorize_url(&Endpoints::nexus(), "ddmm-test", &redirect_uri(REDIRECT_PORT), "st4te", RFC_CHALLENGE).unwrap();
+        let url = authorize_url(&Endpoints::nexus(), "ordnance-test", &redirect_uri(REDIRECT_PORT), "st4te", RFC_CHALLENGE).unwrap();
         let parsed = reqwest::Url::parse(&url).unwrap();
         assert_eq!(parsed.host_str(), Some(USERS_HOST));
         assert_eq!(parsed.path(), "/oauth/authorize");
         let q: std::collections::HashMap<_, _> = parsed.query_pairs().into_owned().collect();
-        assert_eq!(q["client_id"], "ddmm-test");
+        assert_eq!(q["client_id"], "ordnance-test");
         assert_eq!(q["response_type"], "code");
         assert_eq!(q["scope"], "openid public");
         assert_eq!(q["redirect_uri"], "http://127.0.0.1:28647/callback");
@@ -986,7 +986,7 @@ mod tests {
     #[test]
     fn callback_page_escapes_and_says_close_the_tab() {
         let ok = callback_page(&Ok(()));
-        assert!(ok.contains("You can close this tab and return to DDMM."));
+        assert!(ok.contains("You can close this tab and return to Ordnance."));
         let err = callback_page(&Err(SignInError::Provider("<x>".into())));
         assert!(!err.contains("<x>"));
     }
@@ -1106,7 +1106,7 @@ mod tests {
         assert_eq!(fav.status(), 404);
         let page = http.get(format!("http://127.0.0.1:{port}/callback?code=C0DE&state=S1")).send().await.unwrap();
         assert_eq!(page.status(), 200);
-        assert!(page.text().await.unwrap().contains("You can close this tab and return to DDMM."));
+        assert!(page.text().await.unwrap().contains("You can close this tab and return to Ordnance."));
         assert_eq!(wait.await.unwrap().unwrap().expose(), "C0DE");
         assert!(tokio::net::TcpStream::connect(("127.0.0.1", port)).await.is_err(), "listener closed right after");
     }

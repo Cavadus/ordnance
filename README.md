@@ -61,7 +61,7 @@ pnpm install
 pnpm tauri build
 ```
 
-`pnpm tauri dev` runs it with hot reload. The crate is still named `ddmm`, so the raw build output is `ddmm` (`ddmm.exe` on Windows). The published Linux archive renames that binary to `ordnance`.
+`pnpm tauri dev` runs it with hot reload. The crate is still named `ordnance`, so the raw build output is `ordnance` (`ordnance.exe` on Windows). The published Linux archive renames that binary to `ordnance`.
 
 ## Credits and license
 

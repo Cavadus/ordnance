@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import '../../src/lib/errors.js';
 
-const { describeError, ERROR_MESSAGES } = globalThis.DDMM.errors;
+const { describeError, ERROR_MESSAGES } = globalThis.Ordnance.errors;
 
 describe('describeError', () => {
   it('returns the table entry for a known code', () => {

@@ -17,5 +17,5 @@
         <span class="text-red-500 text-xl font-blockletter self-center">{t("popup.notification.title.error")}</span>
     {/if}
     <p class="min-w-40 text-sm self-start whitespace-pre-wrap">{popup.message}</p>
-    <button class="hd2mm-button self-end" onclick={() => popup.close()}>{t("popup.notification.ok_button.text")}</button>
+    <button class="ordnance-button self-end" onclick={() => popup.close()}>{t("popup.notification.ok_button.text")}</button>
 </PopupBase>

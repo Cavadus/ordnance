@@ -241,7 +241,7 @@ export async function updateModDirect(guid: UUID, provider: string, file: Update
     return toInstalledMod(mod);
 }
 
-/** Whether the browser extension has talked to DDMM recently. */
+/** Whether the browser extension has talked to Ordnance recently. */
 export async function browserExtensionActive(): Promise<boolean> {
     return await invoke<boolean>("browser_extension_active");
 }
@@ -284,7 +284,7 @@ export async function getNexusSignInStatus(): Promise<NexusSignInStatus> {
 }
 
 /** Opens Nexus Mods in the system browser and resolves once the user has
- * approved DDMM there (or rejects on decline, cancel or the 5-minute
+ * approved Ordnance there (or rejects on decline, cancel or the 5-minute
  * timeout). */
 export async function nexusSignIn(): Promise<NexusSignInStatus> {
     log.debug("Invoking `nexus_sign_in`.");
@@ -360,7 +360,7 @@ export async function checkSettings(): Promise<boolean> {
     return await invoke<boolean>("check_settings");
 }
 
-/** The directory DDMM is currently keeping mods/settings/profiles/logs in. */
+/** The directory Ordnance is currently keeping mods/settings/profiles/logs in. */
 export async function getDataDir(): Promise<string> {
     log.debug("Invoking `get_data_dir`.");
     return await invoke<string>("get_data_dir");
@@ -368,7 +368,7 @@ export async function getDataDir(): Promise<string> {
 
 /** Where the data folder is and how it was chosen (see
  * `commands::data_folder` on the Rust side). `Problem` is set when the
- * chosen folder is missing and DDMM started in its recovery screen. */
+ * chosen folder is missing and Ordnance started in its recovery screen. */
 export type DataFolderInfo = {
     Path: string;
     DefaultPath: string;
@@ -416,7 +416,7 @@ export async function moveDataFolder(destination: string | null, reset: boolean)
     return await invoke<DataFolderMoveResult>("move_data_folder", { destination, reset });
 }
 
-/** Uses existing DDMM data at the destination as is, then restarts. */
+/** Uses existing Ordnance data at the destination as is, then restarts. */
 export async function adoptDataFolder(destination: string | null, reset: boolean): Promise<string> {
     log.info(`Using the existing data folder at ${reset ? "the default location" : destination}.`);
     return await invoke<string>("adopt_data_folder", { destination, reset });
@@ -487,7 +487,7 @@ export async function setBridgeFrontendReady(ready: boolean): Promise<void> {
     await invoke<void>("set_bridge_frontend_ready", { ready });
 }
 
-/** `ddmm://install` targets (https URLs) waiting for their confirmation,
+/** `ordnance://install` targets (https URLs) waiting for their confirmation,
  * oldest first. Taking them removes them, so each is returned once; see
  * `deep_link::DeepLinkQueue` on the Rust side. */
 export async function takePendingDeepLinks(): Promise<string[]> {
@@ -595,7 +595,7 @@ export async function ackCloseRequested(): Promise<void> {
     await invoke<void>("ack_close_requested");
 }
 
-/** Open the folder with DDMM's log files in the file manager. */
+/** Open the folder with Ordnance's log files in the file manager. */
 export async function openLogFolder(): Promise<void> {
     await invoke<void>("open_log_folder");
 }
@@ -664,7 +664,7 @@ export type ImportedMod = {
 
 export type ImportReport = {
     Imported: ImportedMod[];
-    /** Already in DDMM; only their Nexus Mods info was added. */
+    /** Already in Ordnance; only their Nexus Mods info was added. */
     Linked: { Id: number; Name: string }[];
     Failed: { Id: number; Name: string; Reason: string }[];
     NotStarted: number;

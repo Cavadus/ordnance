@@ -191,13 +191,13 @@
         try {
             await save();
         } catch (ex: unknown) {
-            // The backend says why (e.g. the downloads folder is DDMM's own
+            // The backend says why (e.g. the downloads folder is Ordnance's own
             // mod storage); never lose the changes without a word.
             showPopup(new ErrorPopup(t("pages.settings.popup.error.save.message"), errorText(ex)));
         }
     })
 
-    // Closing DDMM from this page saves too (the Mods page's close handler
+    // Closing Ordnance from this page saves too (the Mods page's close handler
     // isn't there to): the changes were lost otherwise.
     let closeRequestInFlight = false;
     onMount(() => {
@@ -207,7 +207,7 @@
             await ackCloseRequested().catch((ex: unknown) =>
                 log.error(`Failed to acknowledge close request: ${errorText(ex)}`).catch(() => {}));
             // Copying the data folder: the backend refuses the close (the copy
-            // would go on with no window, and DDMM would come back by
+            // would go on with no window, and Ordnance would come back by
             // itself); the progress popup asks to wait.
             if (adopting || (moveInProgress && !moveInProgress.finished)) {
                 log.info("Close requested while switching the data folder; not closing.").catch(() => {});
@@ -552,7 +552,7 @@
                     <input
                         bind:value={gamePath}
                         id="gamepath"
-                        class="hd2mm-input flex-1"
+                        class="ordnance-input flex-1"
                         placeholder={t("pages.settings.game_path.placeholder")}
                         autocomplete="off"
                         autocorrect="off"
@@ -560,14 +560,14 @@
                         spellcheck="false"
                     />
                     <button
-                        class="hd2mm-button"
+                        class="ordnance-button"
                         title={t("pages.settings.game_path.browse_button.tip")}
                         onclick={onBrowse}
                     >
                         <ThreeDots class="m-auto block" />
                     </button>
                     <button
-                        class="hd2mm-button flex flex-row gap-1 items-center"
+                        class="ordnance-button flex flex-row gap-1 items-center"
                         title={t("pages.settings.game_path.detect_button.tip")}
                         onclick={onAutoDetect}
                     >
@@ -593,11 +593,11 @@
                     <input
                         value={dataDir}
                         id="datadir"
-                        class="hd2mm-input flex-1"
+                        class="ordnance-input flex-1"
                         readonly
                     />
                     <button
-                        class="hd2mm-button flex flex-row gap-1 items-center"
+                        class="ordnance-button flex flex-row gap-1 items-center"
                         title={t("pages.settings.data_dir.open_button.tip")}
                         onclick={onOpenDataDir}
                     >
@@ -605,7 +605,7 @@
                         {t("pages.settings.data_dir.open_button.text")}
                     </button>
                     <button
-                        class="hd2mm-button flex flex-row gap-1 items-center"
+                        class="ordnance-button flex flex-row gap-1 items-center"
                         title={t("pages.settings.data_dir.change_button.tip")}
                         onclick={onChangeDataDir}
                         disabled={dataDirBusy}
@@ -620,7 +620,7 @@
                             {t("pages.settings.data_dir.custom_hint", { default: dataFolderInfo.DefaultPath })}
                         </p>
                         <button
-                            class="hd2mm-button flex flex-row gap-1 items-center"
+                            class="ordnance-button flex flex-row gap-1 items-center"
                             title={t("pages.settings.data_dir.reset_button.tip")}
                             onclick={onResetDataDir}
                             disabled={dataDirBusy}
@@ -638,7 +638,7 @@
                     <input
                         bind:value={downloadsPath}
                         id="downloadspath"
-                        class="hd2mm-input flex-1"
+                        class="ordnance-input flex-1"
                         placeholder={t("pages.settings.downloads_path.placeholder")}
                         autocomplete="off"
                         autocorrect="off"
@@ -646,7 +646,7 @@
                         spellcheck="false"
                     />
                     <button
-                        class="hd2mm-button"
+                        class="ordnance-button"
                         title={t("pages.settings.downloads_path.browse_button.tip")}
                         onclick={onBrowseDownloads}
                     >
@@ -672,13 +672,13 @@
                 </ol>
                 <div class="flex flex-row gap-1 justify-end">
                     <button
-                        class="hd2mm-button"
+                        class="ordnance-button"
                         onclick={onAddSkipEntry}
                     >
                         <Plus class="m-auto block" />
                     </button>
                     <button
-                        class="hd2mm-button"
+                        class="ordnance-button"
                         disabled={selectedSkipIndex < 0 || selectedSkipIndex >= skipList.length}
                         onclick={onRemoveSkipEntry}
                     >
@@ -700,7 +700,7 @@
                         type="number"
                         min="1"
                         max="168"
-                        class="hd2mm-input w-16"
+                        class="ordnance-input w-16"
                         bind:value={autoCheckIntervalHours}
                         disabled={!autoCheckUpdates || !autoCheckIntervalEnabled}
                         onchange={() => (autoCheckIntervalHours = clampInterval(autoCheckIntervalHours))}
@@ -727,13 +727,13 @@
                             <p class="text-zinc-500 text-xs">{t("pages.settings.updates.nexus.sign_in.key_not_used")}</p>
                         {/if}
                         <div class="flex flex-row gap-1">
-                            <button class="hd2mm-button" disabled={signInBusy} onclick={onNexusSignOut}>
+                            <button class="ordnance-button" disabled={signInBusy} onclick={onNexusSignOut}>
                                 {t("pages.settings.updates.nexus.sign_in.sign_out_button.text")}
                             </button>
                         </div>
                     {:else if !signIn.Available}
                         <div class="flex flex-row gap-2 items-center">
-                            <button class="hd2mm-button" disabled title={t("pages.settings.updates.nexus.sign_in.coming_soon_tip")}>
+                            <button class="ordnance-button" disabled title={t("pages.settings.updates.nexus.sign_in.coming_soon_tip")}>
                                 {t("pages.settings.updates.nexus.sign_in.button.text")}
                             </button>
                             <span class="text-zinc-400 text-xs italic">{t("pages.settings.updates.nexus.sign_in.coming_soon")}</span>
@@ -741,14 +741,14 @@
                     {:else if signingIn}
                         <p class="text-zinc-300 text-sm">{t("pages.settings.updates.nexus.sign_in.waiting")}</p>
                         <div class="flex flex-row gap-1">
-                            <button class="hd2mm-button" onclick={onNexusCancelSignIn}>
+                            <button class="ordnance-button" onclick={onNexusCancelSignIn}>
                                 {t("pages.settings.updates.nexus.sign_in.cancel_button.text")}
                             </button>
                         </div>
                     {:else}
                         <div class="flex flex-row gap-1">
                             <button
-                                class="hd2mm-button flex flex-row gap-1 items-center"
+                                class="ordnance-button flex flex-row gap-1 items-center"
                                 title={t("pages.settings.updates.nexus.sign_in.button.tip")}
                                 onclick={onNexusSignIn}
                             >
@@ -777,7 +777,7 @@
                                     : t("pages.settings.updates.nexus.stored_keychain")}
                             </p>
                             <div class="flex flex-row gap-1">
-                                <button class="hd2mm-button" disabled={nexusBusy} onclick={onRemoveNexusKey}>
+                                <button class="ordnance-button" disabled={nexusBusy} onclick={onRemoveNexusKey}>
                                     {t("pages.settings.updates.nexus.remove_button.text")}
                                 </button>
                             </div>
@@ -785,7 +785,7 @@
                             <div class="flex flex-row gap-1 max-w-lg">
                                 <input
                                     type="password"
-                                    class="hd2mm-input flex-1"
+                                    class="ordnance-input flex-1"
                                     placeholder={t("pages.settings.updates.nexus.placeholder")}
                                     autocomplete="off"
                                     autocorrect="off"
@@ -795,14 +795,14 @@
                                     onkeydown={(e) => { if (e.key === "Enter") onSaveNexusKey(); }}
                                 />
                                 <button
-                                    class="hd2mm-button"
+                                    class="ordnance-button"
                                     disabled={nexusBusy || nexusKeyInput.trim().length === 0}
                                     onclick={onSaveNexusKey}
                                 >
                                     {nexusBusy ? t("pages.settings.updates.nexus.checking") : t("pages.settings.updates.nexus.save_button.text")}
                                 </button>
                                 <button
-                                    class="hd2mm-button flex flex-row gap-1 items-center"
+                                    class="ordnance-button flex flex-row gap-1 items-center"
                                     title={t("pages.settings.updates.nexus.open_page_button.tip")}
                                     onclick={() => openUrl(NEXUS_API_KEYS_URL)}
                                 >
@@ -853,7 +853,7 @@
                             <li class="flex flex-row items-center justify-between px-1 py-0.5 text-zinc-300 text-sm">
                                 <span class="truncate">{site}</span>
                                 <button
-                                    class="hd2mm-button shrink-0"
+                                    class="ordnance-button shrink-0"
                                     title={t("pages.settings.browser_install.allowed_sites.revoke_button.tip")}
                                     onclick={() => onRevokeSite(site)}
                                 >
@@ -867,7 +867,7 @@
             <div class="flex flex-col gap-1">
                 <h2 class="text-zinc-300 text-xl">{t("pages.settings.browser_integration.title")}</h2>
                 <p class="text-zinc-400 text-sm">{t("pages.settings.browser_integration.description")}</p>
-                <button class="hd2mm-button self-start flex flex-row gap-1 items-center" onclick={onGetExtension}>
+                <button class="ordnance-button self-start flex flex-row gap-1 items-center" onclick={onGetExtension}>
                     <BoxArrowUpRight />
                     {t("pages.settings.browser_integration.get_extension_button.text")}
                 </button>
@@ -882,7 +882,7 @@
                             ></span>
                             <span class="flex-1 text-zinc-300 truncate" title={browser.detail}>{browser.displayName}</span>
                             <button
-                                class="hd2mm-button"
+                                class="ordnance-button"
                                 disabled={browserIntegrationBusy}
                                 title={t("pages.settings.browser_integration.repair_button.tip")}
                                 onclick={() => onRepairBrowser(browser.browserId)}
@@ -890,7 +890,7 @@
                                 <ArrowRepeat class="m-auto block" />
                             </button>
                             <button
-                                class="hd2mm-button"
+                                class="ordnance-button"
                                 disabled={browserIntegrationBusy || !browser.registered}
                                 title={t("pages.settings.browser_integration.remove_button.tip")}
                                 onclick={() => onRemoveBrowser(browser.browserId)}
@@ -901,10 +901,10 @@
                     {/each}
                 </ul>
                 <div class="flex flex-row gap-1 justify-end">
-                    <button class="hd2mm-button" disabled={browserIntegrationBusy} onclick={onRepairAllBrowsers}>
+                    <button class="ordnance-button" disabled={browserIntegrationBusy} onclick={onRepairAllBrowsers}>
                         {t("pages.settings.browser_integration.repair_all_button.text")}
                     </button>
-                    <button class="hd2mm-button" disabled={browserIntegrationBusy} onclick={onRemoveAllBrowsers}>
+                    <button class="ordnance-button" disabled={browserIntegrationBusy} onclick={onRemoveAllBrowsers}>
                         {t("pages.settings.browser_integration.remove_all_button.text")}
                     </button>
                 </div>

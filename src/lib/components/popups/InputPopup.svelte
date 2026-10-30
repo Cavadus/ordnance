@@ -57,7 +57,7 @@
         <p class="text-sm text-zinc-400 max-w-80">{popup.description}</p>
     {/if}
     <input
-        class="hd2mm-input w-80"
+        class="ordnance-input w-80"
         id="input"
         type="text"
         placeholder={popup.placeholder}
@@ -77,11 +77,11 @@
     {/if}
     <div class="flex flex-row gap-2 justify-between">
         <button
-            class="hd2mm-button"
+            class="ordnance-button"
             onclick={() => popup.close(input)}
             disabled={!isValid}>{t("popup.input.confirm_button.text")}</button
         >
-        <button class="hd2mm-button" onclick={() => popup.close(null)}
+        <button class="ordnance-button" onclick={() => popup.close(null)}
             >{t("popup.input.abort_button.text")}</button
         >
     </div>

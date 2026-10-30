@@ -144,7 +144,7 @@ pub async fn run_registration(state: &AppState) -> Vec<BrowserIntegrationStatus>
         .collect()
 }
 
-/// Remove every native messaging manifest DDMM registered (Settings'
+/// Remove every native messaging manifest Ordnance registered (Settings'
 /// "Remove all" button / portable & Linux uninstall path -- NSIS handles
 /// Windows registry cleanup itself on uninstall).
 #[tauri::command]
@@ -191,7 +191,7 @@ pub fn is_game_running() -> bool {
 
 /// Bring the main window to front on demand -- `deep_link` and
 /// `bridge::server` use the same underlying helper for the same reason
-/// (a `ddmm://open` link, or a browser install prompt); this command lets
+/// (a `ordnance://open` link, or a browser install prompt); this command lets
 /// Settings' "Get the extension" flow request it too.
 #[tauri::command]
 pub fn focus_main_window(app: AppHandle) {

@@ -7,7 +7,7 @@
 /// side of the bridge ever trusts. Kept in one place so both the origin
 /// check and the native-messaging manifests reference the same values.
 pub const CHROME_EXTENSION_ID: &str = "inomhciahaeeefhgdkiaabdponcfdane";
-pub const FIREFOX_EXTENSION_ID: &str = "ddmm@katsyk.github.io";
+pub const FIREFOX_EXTENSION_ID: &str = "ordnance@cavadus.github.io";
 
 /// The exact `origin` values the app accepts on a forwarded request -- the
 /// host relay sets this field itself (see `host::relay`), so trusting it
@@ -86,7 +86,7 @@ mod tests {
 
     #[test]
     fn firefox_origin_is_allowed() {
-        assert!(is_allowed_origin("ddmm@katsyk.github.io"));
+        assert!(is_allowed_origin("ordnance@cavadus.github.io"));
     }
 
     #[test]

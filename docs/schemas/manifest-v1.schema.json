@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://katsyk.github.io/DemocracyDefenderModManager/schemas/manifest-v1.schema.json",
-  "title": "DDMM manifest.json (V1)",
+  "$id": "https://github.com/Cavadus/ordnance/blob/main/docs/schemas/manifest-v1.schema.json",
+  "title": "Ordnance manifest.json (V1)",
   "description": "Schema for a Helldivers 2 mod manifest.json using the V1 format, matching src-tauri/src/models/manifest.rs::v1::Manifest.",
   "type": "object",
   "required": ["Version", "Guid", "Name", "Description"],

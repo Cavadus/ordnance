@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Only the latest release of Democracy Defender Mod Manager (DDMM) is supported. Please update before reporting an
+Only the latest release of Democracy Defender Mod Manager (Ordnance) is supported. Please update before reporting an
 issue you haven't confirmed still reproduces on the latest release.
 
 ## Reporting a vulnerability

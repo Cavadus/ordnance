@@ -35,7 +35,7 @@
                     },
                     "close_deploying": {
                         "title": "Deploy in Progress",
-                        "question": "DDMM is still deploying your mods. Closing now may leave your game files in a broken state. Close anyway?"
+                        "question": "Ordnance is still deploying your mods. Closing now may leave your game files in a broken state. Close anyway?"
                     },
                     "close_save_failed": {
                         "title": "Couldn't Save Profiles",
@@ -44,7 +44,7 @@
                     },
                     "offer_handoff": {
                         "title": "Open in Browser Instead?",
-                        "question": "That link didn't serve a downloadable archive directly. Open it on {site} in your browser and let DDMM install it automatically once it downloads?"
+                        "question": "That link didn't serve a downloadable archive directly. Open it on {site} in your browser and let Ordnance install it automatically once it downloads?"
                     },
                     "deep_link_install": {
                         "title": "Install This Mod?",
@@ -141,7 +141,7 @@
                     },
                     "update": {
                         "message": "Updating {name} failed!",
-                        "no_page": "This mod's site didn't give DDMM a page to update from."
+                        "no_page": "This mod's site didn't give Ordnance a page to update from."
                     },
                     "update_all": {
                         "message": "Updated {updated} mod(s); {failed} problem(s):"
@@ -336,7 +336,7 @@
             },
             "downloads_path": {
                 "title": "Downloads Folder",
-                "description": "Where DDMM watches for a mod you download from a site it can't fetch directly (e.g. AyakaMods, Nexus Mods).",
+                "description": "Where Ordnance watches for a mod you download from a site it can't fetch directly (e.g. AyakaMods, Nexus Mods).",
                 "placeholder": "eg. Downloads",
                 "browse_button": {
                     "tip": "Browse..."
@@ -344,24 +344,24 @@
             },
             "data_dir": {
                 "title": "Data Folder",
-                "description": "Where DDMM keeps your mods, settings, profiles and logs. Change moves all of it to another folder or drive.",
+                "description": "Where Ordnance keeps your mods, settings, profiles and logs. Change moves all of it to another folder or drive.",
                 "open_button": {
                     "text": "Open Folder",
                     "tip": "Open this folder in your file manager."
                 },
                 "change_button": {
                     "text": "Change...",
-                    "tip": "Move DDMM's data to another folder or drive, or switch to DDMM data that's already there."
+                    "tip": "Move Ordnance's data to another folder or drive, or switch to Ordnance data that's already there."
                 },
                 "reset_button": {
                     "text": "Reset to Default",
-                    "tip": "Move DDMM's data back to its default location."
+                    "tip": "Move Ordnance's data back to its default location."
                 },
                 "custom_hint": "You chose this folder. The default location is {default}.",
                 "popup": {
-                    "refused": "DDMM can't use that folder:\n\n{detail}",
-                    "restarting": "Restarting DDMM...",
-                    "adopt_failed": "DDMM couldn't switch to that folder. Nothing was changed.\n\n{detail}",
+                    "refused": "Ordnance can't use that folder:\n\n{detail}",
+                    "restarting": "Restarting Ordnance...",
+                    "adopt_failed": "Ordnance couldn't switch to that folder. Nothing was changed.\n\n{detail}",
                     "move_failed": "Moving the data folder failed. Your data is still in the old folder and nothing was changed.\n\n{detail}"
                 }
             },
@@ -370,7 +370,7 @@
             },
             "browser_install": {
                 "title": "Browser Installs",
-                "description": "Controls what happens after you click Install with DDMM on a mod site, once you've set up the browser extension.",
+                "description": "Controls what happens after you click Install with Ordnance on a mod site, once you've set up the browser extension.",
                 "after_install": {
                     "label": "After a browser install:",
                     "options": {
@@ -381,7 +381,7 @@
                 },
                 "auto_import": {
                     "label": "Auto-import from Downloads",
-                    "description": "Watch your Downloads folder while DDMM is running and offer to install any new Helldivers 2 mod archive it sees, even without the browser extension. Never installs without you clicking Install first."
+                    "description": "Watch your Downloads folder while Ordnance is running and offer to install any new Helldivers 2 mod archive it sees, even without the browser extension. Never installs without you clicking Install first."
                 },
                 "allowed_sites": {
                     "title": "Sites Allowed to Install Through the Extension",
@@ -393,15 +393,15 @@
             },
             "browser_integration": {
                 "title": "Browser Integration",
-                "description": "DDMM registers itself with your browsers so the extension can hand off downloads to it. This happens automatically on launch; use Repair if a browser stops recognizing DDMM (for example after moving the app).",
+                "description": "Ordnance registers itself with your browsers so the extension can hand off downloads to it. This happens automatically on launch; use Repair if a browser stops recognizing Ordnance (for example after moving the app).",
                 "get_extension_button": {
                     "text": "Get the Browser Extension"
                 },
                 "repair_button": {
-                    "tip": "Repair -- re-register DDMM with this browser."
+                    "tip": "Repair -- re-register Ordnance with this browser."
                 },
                 "remove_button": {
-                    "tip": "Remove -- unregister DDMM from this browser."
+                    "tip": "Remove -- unregister Ordnance from this browser."
                 },
                 "repair_all_button": {
                     "text": "Repair All"
@@ -422,7 +422,7 @@
                     "exe_exists": "Game path's \"bin\" directory does not contain the \"helldivers2.exe\"!",
                     "not_a_directory": "Game path is a file, not a folder! Pick the \"Helldivers 2\" folder.",
                     "portal_path": "This is a temporary desktop-portal path (/run/user/.../doc/...), not the real game folder. Type or paste the real path instead, e.g. ~/.local/share/Steam/steamapps/common/Helldivers 2.",
-                    "unreadable": "DDMM isn't allowed to read this folder: {detail}",
+                    "unreadable": "Ordnance isn't allowed to read this folder: {detail}",
                     "check_failed": "Couldn't check the game path: {detail}"
                 }
             },
@@ -430,18 +430,18 @@
                 "title": "Mod updates",
                 "description": "Update checks never run unless you ask: click Check for Updates on the Mods page, or turn on automatic checks here.",
                 "auto_check": {
-                    "label": "Check for mod updates when DDMM starts",
+                    "label": "Check for mod updates when Ordnance starts",
                     "description": "Off by default. Checks only contact the sites your mods came from, and never download or install anything by themselves. Nexus Mods mods are only checked when you click Check for Updates."
                 },
                 "interval": {
                     "label_before": "then every",
-                    "label_after": "hours while DDMM is open"
+                    "label_after": "hours while Ordnance is open"
                 },
                 "nexus": {
                     "title": "Nexus Mods (optional)",
-                    "description": "Optional. Only used to check your Nexus Mods mods for updates. Sign in, or enter a personal API key, or do neither: everything else in DDMM works the same.",
-                    "description_key_only": "Optional. Only used to check your Nexus Mods mods for updates. Enter a personal API key, or leave it empty: everything else in DDMM works the same. Signing in to Nexus Mods instead is coming soon.",
-                    "where_to_get": "On Nexus Mods, open your account's API Keys page (Get a key), copy the Personal API Key at the bottom, and paste it here. DDMM checks it with Nexus before saving. Remove it here any time.",
+                    "description": "Optional. Only used to check your Nexus Mods mods for updates. Sign in, or enter a personal API key, or do neither: everything else in Ordnance works the same.",
+                    "description_key_only": "Optional. Only used to check your Nexus Mods mods for updates. Enter a personal API key, or leave it empty: everything else in Ordnance works the same. Signing in to Nexus Mods instead is coming soon.",
+                    "where_to_get": "On Nexus Mods, open your account's API Keys page (Get a key), copy the Personal API Key at the bottom, and paste it here. Ordnance checks it with Nexus before saving. Remove it here any time.",
                     "placeholder": "Paste your personal Nexus Mods API key",
                     "save_button": {
                         "text": "Save & verify"
@@ -453,8 +453,8 @@
                     },
                     "connected": "Connected as {name}.",
                     "connected_unknown": "A Nexus Mods API key is saved.",
-                    "stored_keychain": "Stored in your system's keychain (credential store), not in DDMM's settings.",
-                    "stored_file": "No system keychain was available, so the key is stored as a file readable only by you (nexus-api-key in DDMM's data folder).",
+                    "stored_keychain": "Stored in your system's keychain (credential store), not in Ordnance's settings.",
+                    "stored_file": "No system keychain was available, so the key is stored as a file readable only by you (nexus-api-key in Ordnance's data folder).",
                     "remove_button": {
                         "text": "Remove key"
                     },
@@ -462,11 +462,11 @@
                     "sign_in": {
                         "button": {
                             "text": "Sign in to Nexus Mods",
-                            "tip": "Opens Nexus Mods in your browser, where you approve DDMM. Optional."
+                            "tip": "Opens Nexus Mods in your browser, where you approve Ordnance. Optional."
                         },
                         "coming_soon": "Coming soon",
                         "coming_soon_tip": "Signing in to Nexus Mods isn't available in this version yet. You can enter a personal API key below instead.",
-                        "waiting": "Waiting for you to approve DDMM in your browser... This stops after 5 minutes.",
+                        "waiting": "Waiting for you to approve Ordnance in your browser... This stops after 5 minutes.",
                         "cancel_button": {
                             "text": "Cancel"
                         },
@@ -475,8 +475,8 @@
                         "sign_out_button": {
                             "text": "Sign out"
                         },
-                        "stored_keychain": "Your sign-in is stored in your system's keychain (credential store), not in DDMM's settings.",
-                        "stored_file": "No system keychain was available, so your sign-in is stored as a file readable only by you (nexus-oauth-tokens in DDMM's data folder).",
+                        "stored_keychain": "Your sign-in is stored in your system's keychain (credential store), not in Ordnance's settings.",
+                        "stored_file": "No system keychain was available, so your sign-in is stored as a file readable only by you (nexus-oauth-tokens in Ordnance's data folder).",
                         "key_not_used": "While you're signed in, your personal API key below is kept but not used."
                     },
                     "manual": {
@@ -543,10 +543,10 @@
         },
         "handoff": {
             "title": "Browser Handoff",
-            "message": "Download the mod in the browser tab that just opened for {site}. DDMM installs it automatically as soon as it lands in {downloadsPath}.",
+            "message": "Download the mod in the browser tab that just opened for {site}. Ordnance installs it automatically as soon as it lands in {downloadsPath}.",
             "error_message": "Installing the mod from {site} didn't work:",
             "timed_out_message": "Gave up waiting for the download after 15 minutes.",
-            "ignored_other_mod": "{file} is a file of another Nexus Mods mod (ID {modId}), not this one, so DDMM left it alone and is still waiting for this mod's file. To install it as a separate mod, add it with Add.",
+            "ignored_other_mod": "{file} is a file of another Nexus Mods mod (ID {modId}), not this one, so Ordnance left it alone and is still waiting for this mod's file. To install it as a separate mod, add it with Add.",
             "status": {
                 "waiting": "Waiting for the download...",
                 "installing": "Installing..."
@@ -560,8 +560,8 @@
         },
         "bridge_consent": {
             "title": "Allow Browser Install?",
-            "question": "Allow the DDMM browser extension to install mods from {site}?",
-            "question_no_site": "The DDMM browser extension wants to install {file}, but didn't say which website it came from. Install it?",
+            "question": "Allow the Ordnance browser extension to install mods from {site}?",
+            "question_no_site": "The Ordnance browser extension wants to install {file}, but didn't say which website it came from. Install it?",
             "always_allow_button": {
                 "text": "Always Allow"
             },
@@ -589,14 +589,14 @@
             "title": "Mod updates",
             "summary_available": "{count} mod(s) can be updated.",
             "summary_none": "Everything that could be checked is up to date.",
-            "nothing_checkable": "None of your mods come from a site DDMM can check (AyakaMods, GitHub, GameBanana, ModWorkshop, or Nexus Mods).",
+            "nothing_checkable": "None of your mods come from a site Ordnance can check (AyakaMods, GitHub, GameBanana, ModWorkshop, or Nexus Mods).",
             "state": {
                 "update_available": "Update available",
                 "skipped": "Skipping {version}",
                 "needs_api_key": "Optional: add a Nexus Mods key in Settings to check",
                 "error": "Couldn't check: {message}",
                 "unknown": "Unknown",
-                "unknown_tip": "DDMM doesn't know which version is installed (or the site didn't say), so it won't guess.",
+                "unknown_tip": "Ordnance doesn't know which version is installed (or the site didn't say), so it won't guess.",
                 "up_to_date": "Up to date",
                 "needs_manual_check": "Click Check for Updates to check Nexus mods"
             },
@@ -643,23 +643,23 @@
         "data_folder_move": {
             "title": "Move Data Folder",
             "reset_title": "Move Back to Default",
-            "adopt_title": "Existing DDMM Data Found",
+            "adopt_title": "Existing Ordnance Data Found",
             "from": "From",
             "to": "To",
             "size": "Size",
             "size_value": "{size} in {files} files",
             "free": "Free space there",
             "free_unknown": "unknown",
-            "subfolder_note": "{picked} already has other files in it, so DDMM will keep its data in a new \"DDMM Data\" folder inside it instead of mixing them.",
+            "subfolder_note": "{picked} already has other files in it, so Ordnance will keep its data in a new \"Ordnance Data\" folder inside it instead of mixing them.",
             "what_happens": "What happens:",
-            "step_copy": "DDMM copies your mods, settings, profiles and logs to the new folder.",
+            "step_copy": "Ordnance copies your mods, settings, profiles and logs to the new folder.",
             "step_verify": "It checks that every file arrived complete.",
             "step_switch": "It switches to the new folder.",
             "step_delete": "Only then does it delete the old copy.",
-            "step_restart": "DDMM restarts using the new folder.",
-            "failure_note": "If anything goes wrong, the partial copy is removed and your data stays where it is. Mod operations are paused until DDMM restarts.",
-            "adopt_message": "{target} already holds DDMM data (mods, settings or profiles). Use the existing data there?",
-            "adopt_detail": "DDMM will switch to that folder and restart. Nothing is copied or deleted: your current data stays in {source}.",
+            "step_restart": "Ordnance restarts using the new folder.",
+            "failure_note": "If anything goes wrong, the partial copy is removed and your data stays where it is. Mod operations are paused until Ordnance restarts.",
+            "adopt_message": "{target} already holds Ordnance data (mods, settings or profiles). Use the existing data there?",
+            "adopt_detail": "Ordnance will switch to that folder and restart. Nothing is copied or deleted: your current data stays in {source}.",
             "move_button": "Move",
             "adopt_button": "Use the Existing Data",
             "cancel_button": "Cancel"
@@ -669,18 +669,18 @@
             "copying": "Copying your data...",
             "verifying": "Checking the copy...",
             "finishing": "Switching to the new folder...",
-            "restarting": "Done. DDMM is restarting...",
+            "restarting": "Done. Ordnance is restarting...",
             "progress": "{done} / {total} ({files} of {total_files} files, {percent}%)",
-            "leftovers": "{count} old item(s) couldn't be deleted yet (probably still in use); DDMM will try again at the next start.",
-            "dont_close": "Please don't close DDMM until this finishes."
+            "leftovers": "{count} old item(s) couldn't be deleted yet (probably still in use); Ordnance will try again at the next start.",
+            "dont_close": "Please don't close Ordnance until this finishes."
         },
         "browser_update": {
             "title": "Update in your browser",
             "title_bulk": "Update {index} of {total}",
             "message": "{name} {version} is on {site}, which needs your browser to download it.",
-            "extension_hint": "DDMM will open the mod page. Click \"Update with DDMM\" on it (for Nexus Mods, choose the file and click its own download button); this closes by itself when the update is installed.",
+            "extension_hint": "Ordnance will open the mod page. Click \"Update with Ordnance\" on it (for Nexus Mods, choose the file and click its own download button); this closes by itself when the update is installed.",
             "waiting": "Waiting for the update from your browser...",
-            "handoff_hint": "DDMM will open the mod page and watch your Downloads folder. Download the new version there and DDMM installs it over the old one.",
+            "handoff_hint": "Ordnance will open the mod page and watch your Downloads folder. Download the new version there and Ordnance installs it over the old one.",
             "open_button": {
                 "text": "Open on {site}"
             },
@@ -724,7 +724,7 @@
             "retry_button": "Scan Again",
             "choose_source_button": "Choose a Folder Instead",
             "nothing_found": "No mods found there. Pick the folder that holds the mod folders or the downloaded archives.",
-            "summary": "{total} found: {new} new, {installed} already in DDMM, {other} skipped.",
+            "summary": "{total} found: {new} new, {installed} already in Ordnance, {other} skipped.",
             "truncated": "That folder holds a lot; only the first 5000 items are listed. Pick a more specific folder to see the rest.",
             "linkable": "{count} mods you already have will get their Nexus Mods info added, so update checks cover them. Nothing else about them changes.",
             "linkable_one": "1 mod you already have will get its Nexus Mods info added, so update checks cover it. Nothing else about it changes.",
@@ -734,9 +734,9 @@
             "filter_placeholder": "Filter",
             "status": {
                 "new": "New",
-                "installed": "Already in DDMM as \"{name}\"",
-                "installed_add_source": "Already in DDMM (\"{name}\"): will add Nexus info",
-                "installed_other_version": "Another version is in DDMM (\"{name}\")",
+                "installed": "Already in Ordnance as \"{name}\"",
+                "installed_add_source": "Already in Ordnance (\"{name}\"): will add Nexus info",
+                "installed_other_version": "Another version is in Ordnance (\"{name}\")",
                 "duplicate": "Same as \"{name}\"",
                 "older_version": "Older version of \"{name}\"",
                 "not_a_mod": "No Helldivers 2 mod files inside",
@@ -751,7 +751,7 @@
             "add_to_profile": "Also add them to the profile \"{profile}\"",
             "keeps_order": "Keeps the load order, on/off state and chosen options from \"{profile}\".",
             "keeps_order_unnamed": "Keeps the load order, on/off state and chosen options the other mod manager had.",
-            "read_only_note": "The originals stay where they are; DDMM copies what it imports into its own mods folder.",
+            "read_only_note": "The originals stay where they are; Ordnance copies what it imports into its own mods folder.",
             "import_button": "Import {count} Mods",
             "import_button_one": "Import 1 Mod",
             "importing": "Importing...",
@@ -820,10 +820,10 @@
     "recovery": {
         "data_folder": {
             "title": "Data Folder Not Found",
-            "missing_message": "DDMM keeps your mods, settings and profiles in this folder, but it isn't there right now:",
+            "missing_message": "Ordnance keeps your mods, settings and profiles in this folder, but it isn't there right now:",
             "missing_hint": "If it's on a USB stick or an external or network drive, connect it and click Retry. If you moved or renamed the folder yourself, click Locate Folder and pick it.",
-            "bad_pointer_message": "The file that tells DDMM where its data folder is can't be read:",
-            "nothing_changed": "DDMM hasn't created, changed or deleted anything.",
+            "bad_pointer_message": "The file that tells Ordnance where its data folder is can't be read:",
+            "nothing_changed": "Ordnance hasn't created, changed or deleted anything.",
             "retry_button": "Retry",
             "locate_button": "Locate Folder...",
             "reset_button": "Use the Default Location",
@@ -831,9 +831,9 @@
             "reset_hint": "The default location is {default}.",
             "reset_confirm": {
                 "title": "Use the Default Location",
-                "question": "DDMM will forget the chosen folder and restart with the data in {default} (which may be empty). The missing folder isn't touched; you can switch back to it later with Change in Settings."
+                "question": "Ordnance will forget the chosen folder and restart with the data in {default} (which may be empty). The missing folder isn't touched; you can switch back to it later with Change in Settings."
             },
-            "restarting": "Restarting DDMM..."
+            "restarting": "Restarting Ordnance..."
         }
     }
 }

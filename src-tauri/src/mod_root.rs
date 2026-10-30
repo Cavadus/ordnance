@@ -24,12 +24,12 @@ pub(crate) const MAX_WRAPPER_DEPTH: usize = 3;
 
 /// Files and folders operating systems and archivers drop next to a mod
 /// (`__MACOSX` holds a Mac's resource forks, `._name` its AppleDouble
-/// files), and DDMM's own working folders. They never count as a second
+/// files), and Ordnance's own working folders. They never count as a second
 /// top-level item.
 pub(crate) fn is_os_clutter(name: &str) -> bool {
     use crate::mod_folder::{PENDING_DELETE_PREFIX, UNWRAP_PREFIX, UPDATE_STAGING_PREFIX};
     name.starts_with("._")
-        // DDMM's own working folders (`.update-backup-` included).
+        // Ordnance's own working folders (`.update-backup-` included).
         || [UNWRAP_PREFIX, UPDATE_STAGING_PREFIX, PENDING_DELETE_PREFIX].iter().any(|p| name.starts_with(p))
         || ["__MACOSX", ".DS_Store", "Thumbs.db", "desktop.ini", ".Spotlight-V100", ".Trashes"]
             .iter()

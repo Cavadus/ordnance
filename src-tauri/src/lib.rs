@@ -107,7 +107,7 @@ pub struct AppState {
     guid_renames: std::sync::Mutex<Vec<(uuid::Uuid, uuid::Uuid)>>,
     /// When the browser extension last talked to this session (any bridge
     /// request) -- decides whether a browser update can finish with the
-    /// extension's "Update with DDMM" button.
+    /// extension's "Update with Ordnance" button.
     bridge_last_seen: Mutex<Option<tokio::time::Instant>>,
     /// Cancels the in-flight "Sign in to Nexus Mods", if any
     /// (`commands::nexus` only).
@@ -119,7 +119,7 @@ pub struct AppState {
     /// with the token its wizard got for it (see
     /// `commands::import::run_import`).
     import_scan: Mutex<Option<(u64, mod_import::ScanResult)>>,
-    /// `ddmm://install` links waiting for the Mods page's confirmation
+    /// `ordnance://install` links waiting for the Mods page's confirmation
     /// (`deep_link` only).
     deep_links: std::sync::Mutex<deep_link::DeepLinkQueue>,
     /// "Replace the installed mod?" questions waiting for the Mods page's
@@ -130,7 +130,7 @@ pub struct AppState {
 /// Shown when something that writes to the data folder is attempted while
 /// it's being moved or isn't available.
 pub const DATA_FOLDER_BUSY: &str =
-    "DDMM's data folder is being moved or isn't available right now. Wait for DDMM to restart, then try again.";
+    "Ordnance's data folder is being moved or isn't available right now. Wait for Ordnance to restart, then try again.";
 
 impl AppState {
     pub fn new(base_path: PathBuf) -> Self {
@@ -223,7 +223,7 @@ impl AppState {
 fn resolve_base_path() -> Option<PathBuf> {
     let decision = data_dir::decide_data_dir_for_this_machine_read_only();
     if let Some(problem) = &decision.problem {
-        log::warn!("Not looking for DDMM: its data folder can't be used ({problem:?}; {})", decision.reason);
+        log::warn!("Not looking for Ordnance: its data folder can't be used ({problem:?}; {})", decision.reason);
         return None;
     }
     Some(decision.path)
@@ -300,7 +300,7 @@ pub fn run() {
     tauri::Builder::default()
         // Must be registered first (see the plugin's own docs): it needs
         // to intercept a second launch -- including one carrying a
-        // `ddmm://` deep link on Windows/Linux, where the OS starts a new
+        // `ordnance://` deep link on Windows/Linux, where the OS starts a new
         // process rather than emitting an event -- before anything else
         // runs.
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
@@ -335,7 +335,7 @@ pub fn run() {
         .setup(move |app| {
             log::info!("{}", startup_message);
 
-            // `ddmm://` links. Taken in even on the recovery screen (they
+            // `ordnance://` links. Taken in even on the recovery screen (they
             // touch no data folder): they're only queued, and the Mods
             // page takes them once it's up -- after the restart that
             // Retry / Locate / Reset do, which passes on any still waiting
@@ -346,7 +346,7 @@ pub fn run() {
             // emitted it -- to no one, as nothing was listening yet). This
             // runs long before the webview has loaded, which is why links
             // are queued rather than sent to the page (issue #32). A link
-            // opened while DDMM is running reaches `on_open_url`: from a
+            // opened while Ordnance is running reaches `on_open_url`: from a
             // second instance via tauri-plugin-single-instance (registered
             // above, with its `deep-link` feature), or from the OS on
             // macOS. The queue drops the same link seen twice.
@@ -389,7 +389,7 @@ pub fn run() {
                 }
             }
 
-            // NSIS/deb register the `ddmm://` scheme at install time (from
+            // NSIS/deb register the `ordnance://` scheme at install time (from
             // tauri.conf.json); a portable Windows exe or an AppImage has
             // no installer to do that, so register it ourselves every
             // launch too -- cheap and idempotent either way.
@@ -399,7 +399,7 @@ pub fn run() {
             } || std::env::var_os("APPIMAGE").is_some();
             if needs_runtime_scheme_registration {
                 if let Err(e) = app.deep_link().register_all() {
-                    log::warn!("Failed to register the ddmm:// scheme: {e}");
+                    log::warn!("Failed to register the ordnance:// scheme: {e}");
                 }
             }
 
@@ -591,7 +591,7 @@ pub fn run() {
                         relaunch.args.len()
                     );
                     if let Err(e) = app_lifecycle::spawn_relaunch_or_plain(&relaunch, app_lifecycle::spawn_relaunch) {
-                        log::error!("Couldn't relaunch DDMM ({:?}): {e}. Start it again by hand.", relaunch.program);
+                        log::error!("Couldn't relaunch Ordnance ({:?}): {e}. Start it again by hand.", relaunch.program);
                     }
                 }
             }

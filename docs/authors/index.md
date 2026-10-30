@@ -4,12 +4,12 @@ title: For mod authors
 
 # For mod authors
 
-- [Packaging your mod](packaging.md) — folder layouts and patch-file naming DDMM understands
+- [Packaging your mod](packaging.md) — folder layouts and patch-file naming Ordnance understands
 - [Manifest reference](manifest.md) — Legacy, V1, and V2 `manifest.json` formats, plus JSON Schemas
 - [The Sources field](sources.md) — declaring where your mod can be found, per site, with examples
-- [Install button for your mod page](install-button.md) — a one-click `ddmm://install` link, no extension needed
+- [Install button for your mod page](install-button.md) — a one-click `ordnance://install` link, no extension needed
 
-DDMM also reads the original HD2 mod manifest format (version-less `manifest.json`, described as **Legacy** in
+Ordnance also reads the original HD2 mod manifest format (version-less `manifest.json`, described as **Legacy** in
 the [Manifest reference](manifest.md#legacy)) unchanged, plus its own provider-neutral `Sources` field layered on
 top — a manifest with no `Sources` field still works fine, and a `Sources`-aware manifest still works in managers
 that don't know about it.

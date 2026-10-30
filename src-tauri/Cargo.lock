@@ -1018,49 +1018,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ddmm"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "anyhow-tauri",
- "base64 0.22.1",
- "blake2",
- "crypto_box",
- "dirs",
- "futures",
- "keyring",
- "libc",
- "log",
- "percent-encoding",
- "rand 0.10.3",
- "regex",
- "reqwest",
- "same-file",
- "serde",
- "serde_json",
- "sevenz-rust2",
- "sha2 0.10.9",
- "sysinfo",
- "tauri",
- "tauri-build",
- "tauri-plugin-deep-link",
- "tauri-plugin-dialog",
- "tauri-plugin-fs",
- "tauri-plugin-log",
- "tauri-plugin-opener",
- "tauri-plugin-prevent-default",
- "tauri-plugin-single-instance",
- "tempfile",
- "tokio",
- "unrar",
- "url",
- "uuid",
- "windows-sys 0.60.2",
- "winreg 0.56.0",
- "zip",
-]
-
-[[package]]
 name = "deflate64"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3169,6 +3126,49 @@ checksum = "9aa2b01e1d916879f73a53d01d1d6cee68adbb31d6d9177a8cfce093cced1d50"
 dependencies = [
  "futures-core",
  "pin-project-lite",
+]
+
+[[package]]
+name = "ordnance"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "anyhow-tauri",
+ "base64 0.22.1",
+ "blake2",
+ "crypto_box",
+ "dirs",
+ "futures",
+ "keyring",
+ "libc",
+ "log",
+ "percent-encoding",
+ "rand 0.10.3",
+ "regex",
+ "reqwest",
+ "same-file",
+ "serde",
+ "serde_json",
+ "sevenz-rust2",
+ "sha2 0.10.9",
+ "sysinfo",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-deep-link",
+ "tauri-plugin-dialog",
+ "tauri-plugin-fs",
+ "tauri-plugin-log",
+ "tauri-plugin-opener",
+ "tauri-plugin-prevent-default",
+ "tauri-plugin-single-instance",
+ "tempfile",
+ "tokio",
+ "unrar",
+ "url",
+ "uuid",
+ "windows-sys 0.60.2",
+ "winreg 0.56.0",
+ "zip",
 ]
 
 [[package]]

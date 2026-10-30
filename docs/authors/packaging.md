@@ -6,7 +6,7 @@ title: Packaging your mod
 
 ## Patch files
 
-Helldivers 2 mods are made of **patch files**: DDMM looks for files named
+Helldivers 2 mods are made of **patch files**: Ordnance looks for files named
 
 ```text
 <16 lowercase hex characters>.patch_<N>
@@ -14,18 +14,18 @@ Helldivers 2 mods are made of **patch files**: DDMM looks for files named
 
 optionally paired with a `.gpu_resources` and/or `.stream` file sharing the exact same name (for example
 `0cf14e223de06a26.patch_0`, `0cf14e223de06a26.patch_0.gpu_resources`,
-`0cf14e223de06a26.patch_0.stream`). Anything else in a mod's folder is ignored when DDMM collects files to deploy.
+`0cf14e223de06a26.patch_0.stream`). Anything else in a mod's folder is ignored when Ordnance collects files to deploy.
 Patch files are looked for directly inside whichever folder is in play (see below) — not in nested subfolders.
 
 ## Folder layout, by manifest type
 
-Where DDMM looks for your patch files depends on whether — and how — your `manifest.json` declares `Options`. See
+Where Ordnance looks for your patch files depends on whether — and how — your `manifest.json` declares `Options`. See
 [Manifest reference](manifest.md) for the full field list of each version.
 
 ### No `Options` (or no manifest at all)
 
 Put your patch files directly in the mod's root folder (the folder `manifest.json` sits in, or the archive/folder
-root if you're not shipping a manifest). DDMM deploys them as-is.
+root if you're not shipping a manifest). Ordnance deploys them as-is.
 
 ```text
 my-mod/
@@ -36,7 +36,7 @@ my-mod/
 ```
 
 !!! tip "Shipping without a manifest.json"
-    If you don't ship a `manifest.json` at all, DDMM still finds your patch files even when they're one level
+    If you don't ship a `manifest.json` at all, Ordnance still finds your patch files even when they're one level
     down in a single wrapper folder, or split across several top-level variant folders (like the Legacy example
     below) — it auto-detects the layout and builds the equivalent `Options` dropdown itself. Root-level files are
     still simplest and require no detection at all. See
@@ -46,7 +46,7 @@ my-mod/
 ### Legacy manifest with `Options`
 
 Each entry in `Options` is a plain string naming a subfolder under the mod root; the user picks exactly one from a
-dropdown, and DDMM deploys the patch files inside that one subfolder.
+dropdown, and Ordnance deploys the patch files inside that one subfolder.
 
 ```text
 my-mod/
@@ -85,7 +85,7 @@ my-mod/
 ## Zipping the folder or its contents
 
 Zip your mod's contents so `manifest.json` sits at the archive's root. Zipping the mod's folder itself also works:
-when an archive (or a folder added with Add Folder) has no `manifest.json` at its root, DDMM looks inside, and if
+when an archive (or a folder added with Add Folder) has no `manifest.json` at its root, Ordnance looks inside, and if
 the root holds just one folder, it uses the `manifest.json` in that folder. It looks up to 3 folders deep, so
 `My Mod v1.2/My Mod/manifest.json` works too.
 
@@ -104,7 +104,7 @@ That folder then becomes the mod's root: only its contents are installed, and ev
 (`__MACOSX`, `.DS_Store`, `Thumbs.db`, `desktop.ini`) don't count as a second folder. Anything else next to the
 folder, such as a readme, isn't installed.
 
-DDMM doesn't look inside the folder when the archive's root has:
+Ordnance doesn't look inside the folder when the archive's root has:
 
 - a `manifest.json` (that one is used),
 - two or more folders,
@@ -113,9 +113,9 @@ DDMM doesn't look inside the folder when the archive's root has:
 ## Icons and option images
 
 `IconPath` (on the manifest) and `Image` (on an option or sub-option) are paths relative to the mod root, pointing
-at an image file to show in the UI. DDMM matches these case-insensitively against what's actually on disk, so
+at an image file to show in the UI. Ordnance matches these case-insensitively against what's actually on disk, so
 `IconPath: "Icon.png"` will still find `icon.png` — useful since archives are frequently built on a
-case-insensitive filesystem (Windows) but DDMM may run on a case-sensitive one (Linux).
+case-insensitive filesystem (Windows) but Ordnance may run on a case-sensitive one (Linux).
 
 ## The mod ID (`Guid`)
 

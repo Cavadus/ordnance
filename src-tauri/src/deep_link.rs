@@ -1,4 +1,4 @@
-//! `ddmm://` links: any web page (a mod site, an author's page, a Discord
+//! `ordnance://` links: any web page (a mod site, an author's page, a Discord
 //! message) can offer one-click install without the browser extension.
 //! See `docs/development/bridge-protocol.md`.
 //!
@@ -6,15 +6,15 @@
 //! validates the link and queues it for the frontend, which always shows a
 //! confirmation (no "always allow", per spec) before running the same Add
 //! URL flow a manual paste would. Queued rather than sent, because a link
-//! that starts DDMM arrives before the page exists (see [`DeepLinkQueue`]).
+//! that starts Ordnance arrives before the page exists (see [`DeepLinkQueue`]).
 
 use tauri::{AppHandle, Emitter, Manager, State};
 use url::Url;
 
 use crate::AppState;
 
-/// What a `ddmm://` URL asked for, after validation. Only `https` install
-/// targets are accepted; everything else -- a non-`ddmm` scheme, an
+/// What a `ordnance://` URL asked for, after validation. Only `https` install
+/// targets are accepted; everything else -- a non-`ordnance` scheme, an
 /// unrecognized host, a missing/malformed `url` parameter, or a non-`https`
 /// target -- is silently ignored, per spec ("Only `https` URLs are
 /// accepted. Anything else in the link is ignored.").
@@ -25,7 +25,7 @@ pub enum DeepLinkAction {
 }
 
 pub fn parse(url: &Url) -> Option<DeepLinkAction> {
-    if url.scheme() != "ddmm" {
+    if url.scheme() != "ordnance" {
         return None;
     }
 
@@ -43,14 +43,14 @@ pub fn parse(url: &Url) -> Option<DeepLinkAction> {
     }
 }
 
-/// `ddmm://install` targets waiting for the Mods page to show their
+/// `ordnance://install` targets waiting for the Mods page to show their
 /// confirmation.
 ///
 /// A link can arrive before the page can show anything: on a cold start
 /// it's in argv and is read while the app is still setting up, long before
 /// the webview has loaded (an event emitted then reaches no one), and the
 /// page may be elsewhere (Settings, the data-folder recovery screen) when
-/// DDMM is already running. So links are only queued here, and the page
+/// Ordnance is already running. So links are only queued here, and the page
 /// takes them with [`take_pending_deep_links`] once it's ready, and again
 /// each time [`PENDING_EVENT`] says there's something new. Taking empties
 /// the queue, so each link is handed out exactly once however often the
@@ -106,7 +106,7 @@ impl DeepLinkQueue {
         std::mem::take(&mut self.pending)
     }
 
-    /// Links still waiting, as `ddmm://install` links again -- for the
+    /// Links still waiting, as `ordnance://install` links again -- for the
     /// relaunch after a data folder change, so a link that arrived while
     /// the recovery screen was up isn't lost. Links already handed to the
     /// page are never in here, so none is shown twice.
@@ -115,22 +115,22 @@ impl DeepLinkQueue {
     }
 }
 
-/// The `ddmm://install` link for an https target (the inverse of [`parse`]).
+/// The `ordnance://install` link for an https target (the inverse of [`parse`]).
 pub fn install_link(target: &str) -> String {
-    let mut link = Url::parse("ddmm://install").expect("static URL");
+    let mut link = Url::parse("ordnance://install").expect("static URL");
     link.query_pairs_mut().append_pair("url", target);
     link.to_string()
 }
 
-/// `ddmm://` URLs among this process's arguments (the program name
-/// excluded). On Windows and Linux a link that starts DDMM arrives as its
+/// `ordnance://` URLs among this process's arguments (the program name
+/// excluded). On Windows and Linux a link that starts Ordnance arrives as its
 /// only argument; the relaunch after a data folder change may pass several.
 /// Other arguments are left alone.
 pub fn links_from_args<S: AsRef<str>>(args: impl IntoIterator<Item = S>) -> Vec<Url> {
     args.into_iter()
         .skip(1)
         .filter_map(|a| Url::parse(a.as_ref()).ok())
-        .filter(|u| u.scheme() == "ddmm")
+        .filter(|u| u.scheme() == "ordnance")
         .collect()
 }
 
@@ -140,7 +140,7 @@ pub fn links_from_args<S: AsRef<str>>(args: impl IntoIterator<Item = S>) -> Vec<
 /// mounts.
 pub const PENDING_EVENT: &str = "deep-link://pending";
 
-/// Handle every URL from one `on_open_url` event, or the ones DDMM was
+/// Handle every URL from one `on_open_url` event, or the ones Ordnance was
 /// started with: bring the window to front, and queue each `install` link
 /// for the Mods page's confirmation (see [`DeepLinkQueue`]). Never installs
 /// anything itself.
@@ -210,20 +210,20 @@ mod tests {
 
     #[test]
     fn parses_install_with_https_target() {
-        let action = parse(&url("ddmm://install?url=https%3A%2F%2Fayakamods.com%2Fmods%2Fcool.4084%2F")).unwrap();
+        let action = parse(&url("ordnance://install?url=https%3A%2F%2Fayakamods.com%2Fmods%2Fcool.4084%2F")).unwrap();
         assert_eq!(action, DeepLinkAction::Install { url: "https://ayakamods.com/mods/cool.4084/".to_string() });
     }
 
     #[test]
     fn parses_open() {
-        assert_eq!(parse(&url("ddmm://open")).unwrap(), DeepLinkAction::Open);
+        assert_eq!(parse(&url("ordnance://open")).unwrap(), DeepLinkAction::Open);
     }
 
     #[test]
     fn rejects_non_https_install_target() {
-        assert!(parse(&url("ddmm://install?url=http%3A%2F%2Fexample.com%2Fmod.zip")).is_none());
-        assert!(parse(&url("ddmm://install?url=ftp%3A%2F%2Fexample.com%2Fmod.zip")).is_none());
-        assert!(parse(&url("ddmm://install?url=javascript%3Aalert(1)")).is_none());
+        assert!(parse(&url("ordnance://install?url=http%3A%2F%2Fexample.com%2Fmod.zip")).is_none());
+        assert!(parse(&url("ordnance://install?url=ftp%3A%2F%2Fexample.com%2Fmod.zip")).is_none());
+        assert!(parse(&url("ordnance://install?url=javascript%3Aalert(1)")).is_none());
     }
 
     #[test]
@@ -233,18 +233,18 @@ mod tests {
 
     #[test]
     fn rejects_unrecognized_host() {
-        assert!(parse(&url("ddmm://uninstall?url=https://example.com")).is_none());
+        assert!(parse(&url("ordnance://uninstall?url=https://example.com")).is_none());
     }
 
     #[test]
     fn rejects_install_with_missing_url_param() {
-        assert!(parse(&url("ddmm://install")).is_none());
-        assert!(parse(&url("ddmm://install?foo=bar")).is_none());
+        assert!(parse(&url("ordnance://install")).is_none());
+        assert!(parse(&url("ordnance://install?foo=bar")).is_none());
     }
 
     #[test]
     fn rejects_install_with_malformed_url_param() {
-        assert!(parse(&url("ddmm://install?url=not-a-url")).is_none());
+        assert!(parse(&url("ordnance://install?url=not-a-url")).is_none());
     }
 
     const A: &str = "https://example.com/mods/a.zip";
@@ -288,14 +288,14 @@ mod tests {
     }
 
     #[test]
-    fn links_still_waiting_survive_a_relaunch_as_ddmm_links() {
+    fn links_still_waiting_survive_a_relaunch_as_ordnance_links() {
         let mut q = DeepLinkQueue::default();
         let odd = "https://example.com/dl?id=4&name=a b&x=%2F";
         assert_eq!(q.push(odd.into()), PushOutcome::Queued);
         let links = q.pending_links();
         assert_eq!(links.len(), 1);
-        // The relaunched DDMM reads them back to exactly the same target.
-        let back = links_from_args(["ddmm".to_string(), links[0].clone()]);
+        // The relaunched Ordnance reads them back to exactly the same target.
+        let back = links_from_args(["ordnance".to_string(), links[0].clone()]);
         assert_eq!(parse(&back[0]), Some(DeepLinkAction::Install { url: odd.to_string() }));
         // Once handed to the page, it isn't carried over any more.
         q.take_all();
@@ -334,19 +334,19 @@ mod tests {
     }
 
     #[test]
-    fn links_from_args_takes_only_ddmm_urls_after_the_program_name() {
+    fn links_from_args_takes_only_ordnance_urls_after_the_program_name() {
         let found = links_from_args([
-            "ddmm://install?url=https%3A%2F%2Fexample.com%2Fa.zip", // argv[0] is never a link
+            "ordnance://install?url=https%3A%2F%2Fexample.com%2Fa.zip", // argv[0] is never a link
             "--flag",
-            "ddmm://install?url=https%3A%2F%2Fexample.com%2Fmod.zip",
-            "https://example.com/not-a-ddmm-link",
+            "ordnance://install?url=https%3A%2F%2Fexample.com%2Fmod.zip",
+            "https://example.com/not-a-ordnance-link",
             "/home/u/file.zip",
-            "ddmm://open",
+            "ordnance://open",
         ]);
         let found: Vec<String> = found.iter().map(Url::to_string).collect();
-        assert_eq!(found, vec!["ddmm://install?url=https%3A%2F%2Fexample.com%2Fmod.zip", "ddmm://open"]);
-        assert!(links_from_args(["ddmm"]).is_empty());
+        assert_eq!(found, vec!["ordnance://install?url=https%3A%2F%2Fexample.com%2Fmod.zip", "ordnance://open"]);
+        assert!(links_from_args(["ordnance"]).is_empty());
         // Native-messaging host arguments are not links.
-        assert!(links_from_args(["ddmm", "chrome-extension://inomhciahaeeefhgdkiaabdponcfdane/", "--parent-window=0"]).is_empty());
+        assert!(links_from_args(["ordnance", "chrome-extension://inomhciahaeeefhgdkiaabdponcfdane/", "--parent-window=0"]).is_empty());
     }
 }

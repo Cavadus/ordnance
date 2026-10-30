@@ -1,4 +1,4 @@
-//! Storage for the secrets DDMM can hold, both optional and both only used
+//! Storage for the secrets Ordnance can hold, both optional and both only used
 //! for Nexus Mods update checks:
 //! - the user's personal Nexus Mods API key (entered manually), and
 //! - the Nexus Mods sign-in tokens from "Sign in to Nexus Mods" (OAuth;
@@ -7,7 +7,7 @@
 //! Each lives in the OS keychain (Windows Credential Manager, macOS
 //! Keychain, Linux Secret Service) via the `keyring` crate. On Linux
 //! without a Secret Service provider (no GNOME Keyring/KWallet running, a
-//! bare window manager, ...) it falls back to a file in DDMM's data folder
+//! bare window manager, ...) it falls back to a file in Ordnance's data folder
 //! with owner-only (0600) permissions, and the UI says so.
 //!
 //! Rules this module exists to enforce:
@@ -24,10 +24,10 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
-const KEYRING_SERVICE: &str = "io.github.katsyk.ddmm";
+const KEYRING_SERVICE: &str = "com.cavadus.ordnance";
 
 /// One stored secret: its keychain entry name and its Linux-only fallback
-/// file (in DDMM's data folder, used when no Secret Service provider is
+/// file (in Ordnance's data folder, used when no Secret Service provider is
 /// available).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Slot {
@@ -49,7 +49,7 @@ pub const FALLBACK_FILE_NAME: &str = "nexus-api-key";
 /// with a small header in `<name>` itself. Short values (the API key) are
 /// stored as-is, exactly as before.
 const KEYCHAIN_CHUNK: usize = 1000;
-const CHUNK_HEADER: &str = "ddmm-chunked:";
+const CHUNK_HEADER: &str = "ordnance-chunked:";
 /// Upper bound on chunks we'll read back (sanity check on the header).
 const MAX_CHUNKS: usize = 64;
 
@@ -155,11 +155,11 @@ fn slot_file(base_path: &Path, slot: Slot) -> PathBuf {
 }
 
 /// Unit tests must never touch the real keychain of whoever runs them (it
-/// would overwrite their actual DDMM secrets), so under `cfg(test)` storage
+/// would overwrite their actual Ordnance secrets), so under `cfg(test)` storage
 /// goes to the fallback file unless a test opts in with
-/// `DDMM_TEST_REAL_KEYCHAIN` (the `#[ignore]`d keychain tests do).
+/// `ORDNANCE_TEST_REAL_KEYCHAIN` (the `#[ignore]`d keychain tests do).
 fn keychain_enabled() -> bool {
-    !cfg!(test) || std::env::var_os("DDMM_TEST_REAL_KEYCHAIN").is_some()
+    !cfg!(test) || std::env::var_os("ORDNANCE_TEST_REAL_KEYCHAIN").is_some()
 }
 
 fn keyring_entry(user: &str) -> keyring::Result<keyring::Entry> {
@@ -427,7 +427,7 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn os_keychain_round_trip() {
-        std::env::set_var("DDMM_TEST_REAL_KEYCHAIN", "1");
+        std::env::set_var("ORDNANCE_TEST_REAL_KEYCHAIN", "1");
         let dir = tempfile::tempdir().unwrap();
         let key = NexusApiKey::parse("KeychainTestKey789").unwrap();
         assert_eq!(store(dir.path(), &key).await.unwrap(), KeyStorage::Keychain);
@@ -492,7 +492,7 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn os_keychain_round_trip_long_tokens() {
-        std::env::set_var("DDMM_TEST_REAL_KEYCHAIN", "1");
+        std::env::set_var("ORDNANCE_TEST_REAL_KEYCHAIN", "1");
         let dir = tempfile::tempdir().unwrap();
         let long = format!("{{\"access_token\":\"{}\"}}", "t".repeat(3000));
         assert_eq!(store_secret(dir.path(), OAUTH_SLOT, &long).await.unwrap(), KeyStorage::Keychain);

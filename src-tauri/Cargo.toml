@@ -1,5 +1,5 @@
 [package]
-name = "ddmm"
+name = "ordnance"
 version = "0.3.0"
 description = "Ordnance Mod Manager — compiles Helldivers 2 stat mods into one sealed .dl_bin swap."
 authors = ["katsyk", "Cavadus"]
@@ -7,7 +7,7 @@ license = "MIT"
 edition = "2021"
 
 [lib]
-name = "ddmm_lib"
+name = "ordnance_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

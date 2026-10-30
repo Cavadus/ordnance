@@ -1,5 +1,5 @@
 //! Generates and (re)registers the native-messaging host manifest so the
-//! browser extension can find and launch `ddmm` in host mode. Registration
+//! browser extension can find and launch `ordnance` in host mode. Registration
 //! is idempotent and re-run on every launch, because the exe may have
 //! moved (a new portable build, an AppImage re-download, ...).
 //!
@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use crate::bridge::allowlist::{CHROME_EXTENSION_ID, FIREFOX_EXTENSION_ID};
 
 /// The native messaging host name both browsers look the manifest up by.
-pub const HOST_NAME: &str = "io.github.katsyk.ddmm";
+pub const HOST_NAME: &str = "com.cavadus.ordnance";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ManifestKind {
@@ -18,7 +18,7 @@ pub enum ManifestKind {
     Firefox,
 }
 
-/// One browser DDMM can register itself with. `registry_hive` is the
+/// One browser Ordnance can register itself with. `registry_hive` is the
 /// Chromium browser's own `HKCU\Software\<vendor>\<Product>` prefix used on
 /// Windows (`None` for browsers that read another vendor's key, e.g. Brave
 /// reading Chrome's); `config_dir` is the Linux config-directory name under
@@ -87,7 +87,7 @@ fn escape_json_string(s: &str) -> String {
 /// The manifest content for a Chromium-family browser.
 pub fn chromium_manifest_json(exe_path: &Path) -> String {
     format!(
-        "{{\n  \"name\": \"{}\",\n  \"description\": \"Democracy Defender Mod Manager bridge\",\n  \"path\": \"{}\",\n  \"type\": \"stdio\",\n  \"allowed_origins\": [\"chrome-extension://{}/\"]\n}}\n",
+        "{{\n  \"name\": \"{}\",\n  \"description\": \"Ordnance bridge\",\n  \"path\": \"{}\",\n  \"type\": \"stdio\",\n  \"allowed_origins\": [\"chrome-extension://{}/\"]\n}}\n",
         HOST_NAME,
         escape_json_string(&exe_path.to_string_lossy()),
         CHROME_EXTENSION_ID,
@@ -97,7 +97,7 @@ pub fn chromium_manifest_json(exe_path: &Path) -> String {
 /// The manifest content for Firefox.
 pub fn firefox_manifest_json(exe_path: &Path) -> String {
     format!(
-        "{{\n  \"name\": \"{}\",\n  \"description\": \"Democracy Defender Mod Manager bridge\",\n  \"path\": \"{}\",\n  \"type\": \"stdio\",\n  \"allowed_extensions\": [\"{}\"]\n}}\n",
+        "{{\n  \"name\": \"{}\",\n  \"description\": \"Ordnance bridge\",\n  \"path\": \"{}\",\n  \"type\": \"stdio\",\n  \"allowed_extensions\": [\"{}\"]\n}}\n",
         HOST_NAME,
         escape_json_string(&exe_path.to_string_lossy()),
         FIREFOX_EXTENSION_ID,
@@ -320,10 +320,10 @@ mod tests {
 
     #[test]
     fn chromium_manifest_has_expected_shape() {
-        let json = chromium_manifest_json(Path::new("/opt/ddmm/ddmm"));
+        let json = chromium_manifest_json(Path::new("/opt/ordnance/ordnance"));
         let value: serde_json::Value = serde_json::from_str(&json).unwrap();
         assert_eq!(value["name"], HOST_NAME);
-        assert_eq!(value["path"], "/opt/ddmm/ddmm");
+        assert_eq!(value["path"], "/opt/ordnance/ordnance");
         assert_eq!(value["type"], "stdio");
         assert_eq!(
             value["allowed_origins"][0],
@@ -333,18 +333,18 @@ mod tests {
 
     #[test]
     fn firefox_manifest_has_expected_shape() {
-        let json = firefox_manifest_json(Path::new("/opt/ddmm/ddmm"));
+        let json = firefox_manifest_json(Path::new("/opt/ordnance/ordnance"));
         let value: serde_json::Value = serde_json::from_str(&json).unwrap();
         assert_eq!(value["name"], HOST_NAME);
-        assert_eq!(value["allowed_extensions"][0], "ddmm@katsyk.github.io");
+        assert_eq!(value["allowed_extensions"][0], "ordnance@cavadus.github.io");
         assert!(value.get("allowed_origins").is_none());
     }
 
     #[test]
     fn manifest_escapes_windows_backslashes_and_quotes() {
-        let json = chromium_manifest_json(Path::new(r#"C:\Program Files\DDMM\ddmm.exe"#));
+        let json = chromium_manifest_json(Path::new(r#"C:\Program Files\Ordnance\ordnance.exe"#));
         let value: serde_json::Value = serde_json::from_str(&json).unwrap();
-        assert_eq!(value["path"], r#"C:\Program Files\DDMM\ddmm.exe"#);
+        assert_eq!(value["path"], r#"C:\Program Files\Ordnance\ordnance.exe"#);
     }
 
     #[test]
@@ -365,7 +365,7 @@ mod tests {
         let home = Path::new("/home/user");
         let firefox = BROWSERS.iter().find(|b| b.id == "firefox").unwrap();
         let path = linux_manifest_path(home, firefox).unwrap();
-        assert_eq!(path, home.join(".mozilla/native-messaging-hosts/io.github.katsyk.ddmm.json"));
+        assert_eq!(path, home.join(".mozilla/native-messaging-hosts/com.cavadus.ordnance.json"));
     }
 
     #[test]
@@ -375,7 +375,7 @@ mod tests {
         let path = linux_manifest_path(home, chrome).unwrap();
         assert_eq!(
             path,
-            home.join(".config/google-chrome/NativeMessagingHosts/io.github.katsyk.ddmm.json")
+            home.join(".config/google-chrome/NativeMessagingHosts/com.cavadus.ordnance.json")
         );
     }
 

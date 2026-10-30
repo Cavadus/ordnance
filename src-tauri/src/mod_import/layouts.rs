@@ -114,7 +114,7 @@ fn parse_nexus(v: Option<&Value>) -> Option<NexusRef> {
 }
 
 /// Arsenal's per-profile option state (`optionsConfig`, matched to the
-/// library entry's options by name) as DDMM's toggled/selected lists.
+/// library entry's options by name) as Ordnance's toggled/selected lists.
 fn options_state(options: &[ArsenalOption], config: Option<&Value>) -> (Vec<bool>, Vec<usize>) {
     let configs = config.and_then(Value::as_array);
     let mut toggled = Vec::with_capacity(options.len());
@@ -209,7 +209,7 @@ pub fn load_arsenal(file: &Path) -> anyhow::Result<ArsenalData> {
 
 /// The manifest to give an imported Arsenal mod that has none of its own:
 /// Arsenal's name, description and options (without its icons, which live
-/// in Arsenal's own cache). `None` when there are no options, so DDMM's
+/// in Arsenal's own cache). `None` when there are no options, so Ordnance's
 /// usual auto-detection applies instead.
 pub fn arsenal_manifest(m: &ArsenalMod) -> Option<Manifest> {
     if m.options.is_empty() {
@@ -322,7 +322,7 @@ pub fn load_echelon(file: &Path) -> anyhow::Result<EchelonLibrary> {
 pub type GuidHints = (Option<String>, HashMap<Uuid, ProfileHint>);
 
 /// Profile state next to a folder of mods (in it or its parent):
-/// - `profiles.json` (the 2.0 rewrite, and DDMM itself): profiles with
+/// - `profiles.json` (the 2.0 rewrite, and Ordnance itself): profiles with
 ///   `Configs` in load order; the active one is used.
 /// - `enabled.json`, 1.x: `[{Guid, Enabled, Toggled, Selected}]` in load
 ///   order.
@@ -342,7 +342,7 @@ pub fn load_guid_hints(root: &Path) -> Option<GuidHints> {
                         .collect();
                     return Some((Some(profile.name().to_string()), hints));
                 }
-                Err(e) => log::info!("Import: {:?} isn't a profile file DDMM can read ({e}); ignoring it.", dir.join("profiles.json")),
+                Err(e) => log::info!("Import: {:?} isn't a profile file Ordnance can read ({e}); ignoring it.", dir.join("profiles.json")),
             }
         }
         if let Ok(data) = std::fs::read(dir.join("enabled.json")) {

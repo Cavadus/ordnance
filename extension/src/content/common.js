@@ -3,17 +3,17 @@
  * rendering, and the per-page driver that wires a site adapter (see
  * content/sites/*.js) up to the background script.
  *
- * DDMM brand: #FFC61A (yellow) on #0B0B0C (near-black), compact, obviously
+ * Ordnance brand: #FFC61A (yellow) on #0B0B0C (near-black), compact, obviously
  * not part of the host page. Isolated in a shadow root so no mod site's CSS
  * can bleed in (or be bled on).
  */
-/* global DDMM */
+/* global Ordnance */
 (function initContentCommon(root) {
   'use strict';
 
-  const DDMM_NS = (root.DDMM = root.DDMM || {});
+  const ORDNANCE_NS = (root.Ordnance = root.Ordnance || {});
 
-  const DOCS_INSTALL_URL = 'https://katsyk.github.io/DemocracyDefenderModManager/using/one-click-install/';
+  const DOCS_INSTALL_URL = 'https://github.com/Cavadus/ordnance#readme';
 
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -34,7 +34,7 @@
     svg.setAttribute('height', '14');
     svg.setAttribute('aria-hidden', 'true');
     svg.setAttribute('focusable', 'false');
-    svg.setAttribute('class', 'ddmm-emblem');
+    svg.setAttribute('class', 'ordnance-emblem');
 
     const shield = document.createElementNS(SVG_NS, 'path');
     shield.setAttribute('d', 'M256 40 L440 100 V250 C440 362 358 436 256 478 C154 436 72 362 72 250 V100 Z');
@@ -61,7 +61,7 @@
 
   const STYLE = `
     :host { all: initial; }
-    .ddmm-btn {
+    .ordnance-btn {
       all: initial;
       display: inline-flex;
       align-items: center;
@@ -77,16 +77,16 @@
       user-select: none;
       box-shadow: 0 1px 0 rgba(0,0,0,0.4);
     }
-    .ddmm-emblem { flex: none; color: inherit; }
-    .ddmm-btn:hover { background: #ffd24d; }
-    .ddmm-btn:active { background: #e6b117; }
-    .ddmm-btn[data-state="installing"],
-    .ddmm-btn[data-state="checking"] { cursor: progress; opacity: 0.85; }
-    .ddmm-btn[data-state="installed"] { background: #2ecc71; color: #0B0B0C; }
-    .ddmm-btn[data-state="update"] { background: #3ba7ff; color: #0B0B0C; }
-    .ddmm-btn[data-state="error"] { background: #ff5555; color: #1a0000; }
-    .ddmm-btn[data-state="unreachable"] { background: #0B0B0C; color: #FFC61A; border-color: #FFC61A; }
-    .ddmm-hint {
+    .ordnance-emblem { flex: none; color: inherit; }
+    .ordnance-btn:hover { background: #ffd24d; }
+    .ordnance-btn:active { background: #e6b117; }
+    .ordnance-btn[data-state="installing"],
+    .ordnance-btn[data-state="checking"] { cursor: progress; opacity: 0.85; }
+    .ordnance-btn[data-state="installed"] { background: #2ecc71; color: #0B0B0C; }
+    .ordnance-btn[data-state="update"] { background: #3ba7ff; color: #0B0B0C; }
+    .ordnance-btn[data-state="error"] { background: #ff5555; color: #1a0000; }
+    .ordnance-btn[data-state="unreachable"] { background: #0B0B0C; color: #FFC61A; border-color: #FFC61A; }
+    .ordnance-hint {
       all: initial;
       display: block;
       margin-top: 4px;
@@ -100,8 +100,8 @@
     }
     /* "all: initial; display: block" above would otherwise override the
        hidden attribute, leaving an empty hint bar under every button. */
-    .ddmm-hint[hidden] { display: none; }
-    .ddmm-floating {
+    .ordnance-hint[hidden] { display: none; }
+    .ordnance-floating {
       position: fixed;
       right: 16px;
       bottom: 16px;
@@ -127,8 +127,8 @@
    */
   function createButtonWidget(opts = {}) {
     const host = document.createElement('div');
-    host.setAttribute('data-ddmm-root', '');
-    if (opts.floating) host.className = 'ddmm-floating-host';
+    host.setAttribute('data-ordnance-root', '');
+    if (opts.floating) host.className = 'ordnance-floating-host';
 
     // 'open' (not 'closed'): the shadow root still fully isolates the host
     // page's CSS from ours (and ours from it), which is the actual
@@ -145,21 +145,21 @@
     shadow.appendChild(style);
 
     const wrapper = document.createElement('div');
-    if (opts.floating) wrapper.className = 'ddmm-floating';
+    if (opts.floating) wrapper.className = 'ordnance-floating';
     shadow.appendChild(wrapper);
 
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'ddmm-btn';
+    button.className = 'ordnance-btn';
     button.appendChild(buildEmblem());
     const label = document.createElement('span');
-    label.className = 'ddmm-label';
+    label.className = 'ordnance-label';
     label.textContent = 'Install with Ordnance';
     button.appendChild(label);
     wrapper.appendChild(button);
 
     const hint = document.createElement('div');
-    hint.className = 'ddmm-hint';
+    hint.className = 'ordnance-hint';
     hint.hidden = true;
     wrapper.appendChild(hint);
 
@@ -193,7 +193,7 @@
 
   /**
    * @typedef {object} SiteAdapter
-   * @property {string} name - Key into DDMM.capture.SITE_HOSTS.
+   * @property {string} name - Key into Ordnance.capture.SITE_HOSTS.
    * @property {(doc: Document) => Element|null} findInsertionPoint - Where
    *   to place the button inline; `null` means "use the floating fallback".
    * @property {(doc: Document) => string|null} [findDirectDownloadUrl] - A
@@ -202,13 +202,13 @@
    */
 
   /**
-   * Drives one mod page: detects it, builds the button, queries DDMM, and
+   * Drives one mod page: detects it, builds the button, queries Ordnance, and
    * wires up clicks. No-ops if the current URL isn't a mod page for this
    * adapter.
    * @param {SiteAdapter} adapter
    */
   function runSiteAdapter(adapter) {
-    const source = DDMM_NS.sources.sourceFromPageUrl(location.href);
+    const source = ORDNANCE_NS.sources.sourceFromPageUrl(location.href);
     if (!source || source.provider !== adapter.name) return;
     driveAdapter(adapter);
   }
@@ -236,7 +236,7 @@
       document.documentElement.appendChild(widget.host);
     }
 
-    const state = new DDMM_NS.ButtonState();
+    const state = new ORDNANCE_NS.ButtonState();
     /** Render the state, including its own hint ("Ordnance will start"). */
     function render() {
       widget.render(state);
@@ -248,16 +248,16 @@
 
     /** @param {object} message @returns {Promise<object>} */
     function send(message) {
-      return DDMM_NS.browserApi.runtime.sendMessage(message);
+      return ORDNANCE_NS.browserApi.runtime.sendMessage(message);
     }
 
     /**
-     * Label the button from DDMM's current state. Only ever *checks* --
-     * hello/query never start DDMM (the host launches it only for
-     * install/open), so merely browsing a mod page can't pop DDMM open.
+     * Label the button from Ordnance's current state. Only ever *checks* --
+     * hello/query never start Ordnance (the host launches it only for
+     * install/open), so merely browsing a mod page can't pop Ordnance open.
      */
     async function refresh() {
-      const hello = await send({ type: 'ddmm:hello' });
+      const hello = await send({ type: 'ordnance:hello' });
       // An install the user already clicked owns the button until its
       // result arrives; a late check must not overwrite that.
       if (state.busy) return;
@@ -271,7 +271,7 @@
         render();
         return;
       }
-      const result = await send({ type: 'ddmm:query', pageUrl: location.href, pageVersion });
+      const result = await send({ type: 'ordnance:query', pageUrl: location.href, pageVersion });
       if (state.busy) return;
       if (result && result.ok) {
         state.setQueryResult(result);
@@ -293,12 +293,12 @@
         state.startInstalling();
         render();
         await send({
-          type: 'ddmm:installDirect',
+          type: 'ordnance:installDirect',
           url: directUrl,
           pageUrl: location.href,
           pageVersion,
         });
-        // The result arrives asynchronously via the 'ddmm:installResult'
+        // The result arrives asynchronously via the 'ordnance:installResult'
         // runtime message once the browser download finishes.
         return;
       }
@@ -310,8 +310,8 @@
       state.waitForDownload();
       render();
       clearTimeout(armExpiryTimer);
-      armExpiryTimer = setTimeout(releaseArm, DDMM_NS.capture.DEFAULT_ARM_WINDOW_MS);
-      const reply = await send({ type: 'ddmm:armCapture', site: adapter.name, pageUrl: location.href, pageVersion });
+      armExpiryTimer = setTimeout(releaseArm, ORDNANCE_NS.capture.DEFAULT_ARM_WINDOW_MS);
+      const reply = await send({ type: 'ordnance:armCapture', site: adapter.name, pageUrl: location.href, pageVersion });
       if (reply && reply.claimed && state.state === 'waiting') {
         // The file had already finished downloading; it's installing now.
         state.startInstalling();
@@ -324,14 +324,14 @@
 
     /** @param {string|null|undefined} pageUrl @returns {boolean} Whether it names this page's mod. */
     function isThisPagesMod(pageUrl) {
-      const sources = DDMM_NS.sources;
+      const sources = ORDNANCE_NS.sources;
       return Boolean(pageUrl) && sources.isSameMod(sources.sourceFromPageUrl(pageUrl), sources.sourceFromPageUrl(location.href));
     }
 
     /**
      * The armed install never happened; release the button and re-check.
      * Also driven from here (not only by the background's
-     * `ddmm:captureExpired`), because a restarted service worker has lost
+     * `ordnance:captureExpired`), because a restarted service worker has lost
      * its timers.
      */
     function releaseArm() {
@@ -342,18 +342,18 @@
       refresh();
     }
 
-    DDMM_NS.browserApi.runtime.onMessage.addListener((message) => {
+    ORDNANCE_NS.browserApi.runtime.onMessage.addListener((message) => {
       if (!message) return;
-      if (message.broadcast && message.type === 'ddmm:captureStarted' && !isThisPagesMod(message.pageUrl)) {
+      if (message.broadcast && message.type === 'ordnance:captureStarted' && !isThisPagesMod(message.pageUrl)) {
         return;
       }
-      if (message.type === 'ddmm:captureStarted' && message.site === adapter.name) {
+      if (message.type === 'ordnance:captureStarted' && message.site === adapter.name) {
         clearTimeout(armExpiryTimer);
         if (state.state === 'waiting') {
           state.startInstalling();
           render();
         }
-      } else if (message.type === 'ddmm:installResult') {
+      } else if (message.type === 'ordnance:installResult') {
         if (message.broadcast && !isThisPagesMod(message.pageUrl)) {
           // Another mod's result, sent to every open tab of the site (an
           // auto-captured download): it says nothing about this page's
@@ -366,10 +366,10 @@
           state.setInstalled();
         } else {
           const err = message.reply && message.reply.error;
-          state.setError(DDMM_NS.errors.describeError(err && err.code, err && err.message));
+          state.setError(ORDNANCE_NS.errors.describeError(err && err.code, err && err.message));
         }
         render();
-      } else if (message.type === 'ddmm:captureExpired' && message.site === adapter.name) {
+      } else if (message.type === 'ordnance:captureExpired' && message.site === adapter.name) {
         releaseArm();
       }
     });
@@ -377,5 +377,5 @@
     refresh();
   }
 
-  DDMM_NS.content = { createButtonWidget, runSiteAdapter, runTestAdapter, DOCS_INSTALL_URL };
+  ORDNANCE_NS.content = { createButtonWidget, runSiteAdapter, runTestAdapter, DOCS_INSTALL_URL };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -9,13 +9,13 @@
  * Findings:
  *   - `a.download-button[href]` is a *direct* file link straight to
  *     `storage.modworkshop.net`, present in the initial HTML with no login
- *     required for this mod. DDMM triggers `downloads.download()` on it
+ *     required for this mod. Ordnance triggers `downloads.download()` on it
  *     directly -- no capture-arm needed here.
  *   - No machine-readable version field was found on the page (no
  *     JSON-LD `softwareVersion` equivalent), so `pageVersion` is left null
  *     for this site.
  */
-/* global DDMM */
+/* global Ordnance */
 (function initModWorkshop() {
   'use strict';
 
@@ -37,8 +37,8 @@
   }
 
   const adapter = { name: 'modworkshop', findInsertionPoint, findDirectDownloadUrl };
-  DDMM.siteAdapters = DDMM.siteAdapters || {};
-  DDMM.siteAdapters.modworkshop = adapter;
+  Ordnance.siteAdapters = Ordnance.siteAdapters || {};
+  Ordnance.siteAdapters.modworkshop = adapter;
 
-  if (DDMM.content) DDMM.content.runSiteAdapter(adapter);
+  if (Ordnance.content) Ordnance.content.runSiteAdapter(adapter);
 })();

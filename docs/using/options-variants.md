@@ -44,7 +44,7 @@ directly at the mod's root.
 ## Variant folders without a manifest
 
 An auto-generated manifest *can* end up with `Options` too: if a manifest-less mod's patch files aren't at its
-root, DDMM looks for directories that directly contain them (a single wrapper folder, or several variant folders
+root, Ordnance looks for directories that directly contain them (a single wrapper folder, or several variant folders
 like `Red/`/`Blue/`) and turns them into a Legacy-style dropdown automatically — the first one (after natural
 sorting) is selected by default. See
 [Archives without a manifest.json](adding-mods.md#archives-without-a-manifestjson) for exactly how that detection

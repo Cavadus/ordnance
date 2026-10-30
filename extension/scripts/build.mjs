@@ -10,8 +10,8 @@
  * The Chrome manifest `key` (which pins the unpacked extension id to
  * inomhciahaeeefhgdkiaabdponcfdane) is a secret never committed to this
  * repo. The build looks for it, in order:
- *   1. `DDMM_MANIFEST_KEY` env var (the base64 DER public key itself).
- *   2. A file at `DDMM_MANIFEST_KEY_FILE` (default: extension/chrome-public-key.txt,
+ *   1. `ORDNANCE_MANIFEST_KEY` env var (the base64 DER public key itself).
+ *   2. A file at `ORDNANCE_MANIFEST_KEY_FILE` (default: extension/chrome-public-key.txt,
  *      the committed PUBLIC key -- it is not a secret; the private key never enters the repo).
  * If neither is available (e.g. on CI, or a contributor's machine), the
  * build still succeeds -- it just omits `key`, so Chrome assigns a random
@@ -36,7 +36,7 @@ const ICONS = path.join(ROOT, 'icons');
 const DIST = path.join(ROOT, 'dist');
 
 const DEFAULT_KEY_FILE = path.join(ROOT, 'chrome-public-key.txt');
-const GECKO_ID = 'ddmm@katsyk.github.io';
+const GECKO_ID = 'ordnance@cavadus.github.io';
 const MIN_FIREFOX_VERSION = '109.0';
 
 /** @returns {Promise<string>} The extension version, from package.json. */
@@ -47,8 +47,8 @@ async function readVersion() {
 
 /** @returns {Promise<string|undefined>} The Chrome manifest key, if available. */
 async function readChromeKey() {
-  if (process.env.DDMM_MANIFEST_KEY) return process.env.DDMM_MANIFEST_KEY.trim();
-  const keyFile = process.env.DDMM_MANIFEST_KEY_FILE || DEFAULT_KEY_FILE;
+  if (process.env.ORDNANCE_MANIFEST_KEY) return process.env.ORDNANCE_MANIFEST_KEY.trim();
+  const keyFile = process.env.ORDNANCE_MANIFEST_KEY_FILE || DEFAULT_KEY_FILE;
   if (existsSync(keyFile)) {
     return (await readFile(keyFile, 'utf8')).trim();
   }
@@ -130,7 +130,7 @@ async function main() {
     const id = hash.replace(/./g, (c) => String.fromCharCode(97 + parseInt(c, 16)));
     console.log(`Chrome build: manifest key present, unpacked id = ${id}`);
   } else {
-    console.log('Chrome build: no manifest key found (DDMM_MANIFEST_KEY / DDMM_MANIFEST_KEY_FILE) -- built without a pinned id.');
+    console.log('Chrome build: no manifest key found (ORDNANCE_MANIFEST_KEY / ORDNANCE_MANIFEST_KEY_FILE) -- built without a pinned id.');
   }
   console.log(`Wrote ${chromeZip}`);
   console.log(`Wrote ${firefoxZip}`);

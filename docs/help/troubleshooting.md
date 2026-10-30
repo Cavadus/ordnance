@@ -4,9 +4,9 @@ title: Troubleshooting
 
 # Troubleshooting
 
-## DDMM won't start (Linux)
+## Ordnance won't start (Linux)
 
-Run DDMM from a terminal to see why. Most often a library is missing, for example
+Run Ordnance from a terminal to see why. Most often a library is missing, for example
 `error while loading shared libraries: libwebkit2gtk-4.1.so.0` from the `.tar.gz` when WebKitGTK 4.1 isn't
 installed. An AppImage window can also stay blank with an `EGL_BAD_PARAMETER` error. [Installing on
 Linux](../getting-started/linux.md) covers which download to use for your distribution, the exact package to
@@ -17,12 +17,12 @@ install for each one, AppImage/FUSE errors, and the blank-window workaround.
 Expected for these builds — they aren't code-signed. Click **"More info"**, then **"Run anyway"**. This applies to
 both the installer and the app itself the first time you run it.
 
-## DDMM opens straight to Settings
+## Ordnance opens straight to Settings
 
-On startup DDMM checks your [Game Path](../using/settings.md#game-path); if it's invalid or empty (including on a
+On startup Ordnance checks your [Game Path](../using/settings.md#game-path); if it's invalid or empty (including on a
 completely fresh install), it first tries to auto-detect your Helldivers 2 install via Steam and, if that
 succeeds, fills in and saves the path for you automatically — you'll see a "Found Helldivers 2 at ..." message
-and DDMM continues straight to Mods, no trip to Settings needed.
+and Ordnance continues straight to Mods, no trip to Settings needed.
 
 You only land on Settings when auto-detection also fails (Steam isn't installed, or the game isn't). Set the path
 yourself, or click **Auto-detect** again after installing/moving the game — see
@@ -30,7 +30,7 @@ yourself, or click **Auto-detect** again after installing/moving the game — se
 
 ## A mod's manifest can't be read
 
-DDMM reads each mod's `manifest.json` when you add the mod and every time it starts. It accepts the usual
+Ordnance reads each mod's `manifest.json` when you add the mod and every time it starts. It accepts the usual
 hand-editing quirks — a UTF-8 byte-order mark, UTF-16 files, `//` comments, trailing commas, `GUID`/`iconPath`
 style key spellings, `"Version": "1"`, a missing `Description`, `Manifest.json` instead of `manifest.json`, and
 Windows `\` paths. When a manifest still can't be read, the error names the mod and, for a JSON syntax error,
@@ -44,9 +44,9 @@ Hint: The mod's manifest.json is broken: let the mod's author know. ...
 ```
 
 If that happens while **adding** a mod, the mod isn't installed; the popup and the [log](logs.md) show the reason.
-Report it to the mod's author (and to us, see [Reporting bugs](bugs.md), if you think DDMM should accept it).
+Report it to the mod's author (and to us, see [Reporting bugs](bugs.md), if you think Ordnance should accept it).
 
-If an already-installed mod's manifest becomes unreadable (e.g. you edited it by hand), DDMM skips just that mod
+If an already-installed mod's manifest becomes unreadable (e.g. you edited it by hand), Ordnance skips just that mod
 when loading the list and logs `Skipping mod in "...": <reason>` — the rest of your mods still load. Fix or
 re-download that mod: click **Open Folder** next to **Data Folder** in Settings, go into `mods/`, and fix or
 delete its folder.
@@ -75,30 +75,30 @@ causes:
   7-Zip), then add the extracted folder with [Add Folder](../using/adding-mods.md).
 - **"… is already installed" / two mods with the same ID.** Every mod has an ID (the GUID in its
   `manifest.json`), and two installed mods can't share one. When you add a file with the ID of an installed mod,
-  DDMM asks whether to **replace** the installed mod with it (see
+  Ordnance asks whether to **replace** the installed mod with it (see
   [A mod with the same ID is already installed](../using/adding-mods.md#replacing-an-installed-mod)); you only
   get this error when the question couldn't be asked (for example, the browser extension sent the file while
-  DDMM's Mods page wasn't open), or for a folder added with Add Folder. Then:
+  Ordnance's Mods page wasn't open), or for a folder added with Add Folder. Then:
     - **The same mod again** (a newer or older download of it): add the file again with the Mods page open and
       choose **Replace**, use **Update** on the mod, or remove it first.
     - **A different mod** with the same ID: some authors copy one mod's `manifest.json` into their next mod, so
-      both claim the same GUID. DDMM names the mod already using it; tell the author. You can't have both
+      both claim the same GUID. Ordnance names the mod already using it; tell the author. You can't have both
       installed: **Replace** removes the installed one. To keep both, extract the archive, delete its
-      `manifest.json`, and add the folder with Add Folder (DDMM then gives it an ID of its own).
-- **The mod's options are missing, or it shows up twice.** DDMM looks for `manifest.json` at the archive's
+      `manifest.json`, and add the folder with Add Folder (Ordnance then gives it an ID of its own).
+- **The mod's options are missing, or it shows up twice.** Ordnance looks for `manifest.json` at the archive's
   root and, when the root holds only one folder, inside that folder (up to 3 levels deep). If the archive holds
-  two or more folders with the manifest in one of them, DDMM can't tell which folder is the mod. It then
+  two or more folders with the manifest in one of them, Ordnance can't tell which folder is the mod. It then
   installs the mod without its manifest: you get single-choice options named after the folders and a new ID,
   so adding a newer version lists the mod twice. Extract the archive and add the folder that contains
   `manifest.json` with Add Folder.
 - **An archive of archives** (one zip per variant inside the download) installs with a warning that names the
   inner archives. Extract the one you want and add that instead.
 
-DDMM opens a zip, 7z or RAR by what's inside, not by its name, so a RAR uploaded as `.zip` installs fine.
+Ordnance opens a zip, 7z or RAR by what's inside, not by its name, so a RAR uploaded as `.zip` installs fine.
 
 ## A mod I added doesn't show up
 
-- A mod folder under `mods/` with **no** `manifest.json` in it at all is silently skipped when DDMM loads the mod
+- A mod folder under `mods/` with **no** `manifest.json` in it at all is silently skipped when Ordnance loads the mod
   list (rather than erroring) — this can happen if an install was interrupted. Delete the incomplete folder and
   re-add the mod.
 - Check the [log file](logs.md) — a failed add shows a popup with the specific error, and the same detail is in
@@ -108,7 +108,7 @@ DDMM opens a zip, 7z or RAR by what's inside, not by its name, so a RAR uploaded
 
 Fixed in the release after rc.13. A profile that listed the same mod twice kept the mod list from showing at all, while Settings and
 the other pages still worked. Up to rc.9, editing a mod's options while the search box filtered the list could save
-such a repeat, and it then stayed in `profiles.json` (also through reinstalling and data folder moves). DDMM now
+such a repeat, and it then stayed in `profiles.json` (also through reinstalling and data folder moves). Ordnance now
 removes the extra entries when it starts, keeping the one highest in the list, and says which mods it changed;
 check their options before deploying. Also check that no mod dropped out of the profile: the old bug wrote the repeated entry over
 another mod's entry, so that mod may need to be added back from the library.
@@ -119,11 +119,11 @@ If the Mods page ever can't be shown for another reason, it now says so with the
 
 ## My mods folder filled the disk with nested copies of itself
 
-Versions up to and including 2.0.0-rc.6 had a bug: using **Add Folder** (or dragging a folder in) on DDMM's own
-`mods/` folder, or on a folder that contains it, made DDMM copy that folder into itself. The copy kept reading
+Versions up to and including 2.0.0-rc.6 had a bug: using **Add Folder** (or dragging a folder in) on Ordnance's own
+`mods/` folder, or on a folder that contains it, made Ordnance copy that folder into itself. The copy kept reading
 what it had just written, so it nested a full copy of every mod inside the previous copy, over and over, until the
 path got too long or the disk filled up. A 1 GB mod folder can end up taking hundreds of GB. This is most likely
-when DDMM runs [portable](../getting-started/download.md#data-location) next to an existing `mods/` folder and you
+when Ordnance runs [portable](../getting-started/download.md#data-location) next to an existing `mods/` folder and you
 point **Add Folder** at that folder. Newer versions refuse to do this (see
 [Add Folder](../using/adding-mods.md#add-folder)).
 
@@ -138,7 +138,7 @@ picked:
 Your real mods are the other folders directly inside `mods/`. They were only ever read, never changed. To clean
 up:
 
-1. Close DDMM and update it to a version with the fix.
+1. Close Ordnance and update it to a version with the fix.
 2. Find the data folder: **Open Folder** next to **Data Folder** in Settings, then go into `mods/`.
 3. Look inside the extra folder (`mods/mods/` or `mods/<name you picked>/`) and check that it only holds copies of
    mods you still have directly in `mods/`. If you really had a mod of your own named `mods`, only its own files
@@ -151,8 +151,8 @@ up:
       `robocopy "%TEMP%\empty" "C:\full\path\to\mods\mods" /MIR`, then
       `rmdir /s /q "\\?\C:\full\path\to\mods\mods"` and `rmdir "%TEMP%\empty"`.
     - **Linux:** `rm -rf -- "/full/path/to/mods/mods"`.
-5. Start DDMM. Mods directly in `mods/` that have a `manifest.json` show up as before. For any that don't, use
-   **Add Folder** on that mod's own folder: DDMM adds it where it is, without copying it.
+5. Start Ordnance. Mods directly in `mods/` that have a `manifest.json` show up as before. For any that don't, use
+   **Add Folder** on that mod's own folder: Ordnance adds it where it is, without copying it.
 
 ## Deploy or Purge fails immediately
 
@@ -189,24 +189,24 @@ exists — fix it in Settings, then retry.
 Only one [browser handoff](../using/mod-sites.md#how-the-browser-handoff-works) can run at a time. Cancel or wait
 for the current one (Waiting/Installing popup) to finish before starting another.
 
-## Closing DDMM says "Saving profiles..." but the window never closes
+## Closing Ordnance says "Saving profiles..." but the window never closes
 
 Fixed in rc.4 — a missing window permission meant the app could save your profiles and then silently fail to
 actually close itself afterward, leaving the window stuck open with no visible error. If you're still on rc.3 or
-earlier, update DDMM. On a version with the fix, closing that still doesn't finish within a few seconds instead
+earlier, update Ordnance. On a version with the fix, closing that still doesn't finish within a few seconds instead
 shows a "Couldn't save profiles" or "Deploy in progress" prompt asking whether to close anyway — check the
 [log file](logs.md) for the underlying error if that keeps happening.
 
 ## Linux (CachyOS, Arch, Steam Deck, and others)
 
-For installing DDMM itself (which file, dependencies, AppImage, blank window), see
-[Installing on Linux](../getting-started/linux.md). This section covers problems once DDMM is running.
+For installing Ordnance itself (which file, dependencies, AppImage, blank window), see
+[Installing on Linux](../getting-started/linux.md). This section covers problems once Ordnance is running.
 
 ### "Game path is invalid!" even though the path is right
 
 Fixed in 2.0.0-rc.6. Earlier versions checked the path in a way that could never see inside
 hidden folders on Linux — and the default Steam library is under `~/.local/share/Steam` (or `~/.steam/steam`), so
-every default install was rejected. Update DDMM. On a fixed version, the message under the field says exactly what's wrong
+every default install was rejected. Update Ordnance. On a fixed version, the message under the field says exactly what's wrong
 (see [First-time setup](../getting-started/setup.md#setting-the-game-path-by-hand)).
 
 Where the game usually is:
@@ -223,7 +223,7 @@ spaces, non-English characters, and symlinked libraries all work. In the folder 
 hidden folders like `.local`, or just paste the path into the field (`~` isn't expanded — use the full
 `/home/<you>/...` form).
 
-DDMM only needs to read and write the game's `data/` folder; it doesn't care whether Steam is native or Flatpak,
+Ordnance only needs to read and write the game's `data/` folder; it doesn't care whether Steam is native or Flatpak,
 or which Proton version runs the game.
 
 ### Game on an NTFS or exFAT drive (dual boot)
@@ -233,34 +233,34 @@ or which Proton version runs the game.
   fully, and remount.
 - The drive must be mounted with your user as owner (the default for drives mounted from your file manager). If
   deploying fails with `Permission denied`, check the mount options (`uid=`/`gid=` for `ntfs3`/`exfat`).
-- Letter case: NTFS keeps the names Windows created (`data`, `bin`, `helldivers2.exe`), which is what DDMM expects.
+- Letter case: NTFS keeps the names Windows created (`data`, `bin`, `helldivers2.exe`), which is what Ordnance expects.
 
 ### Adding a mod fails
 
 Every failure now shows the real reason in the popup (older versions only said `errors disabled in production.`)
 and writes it to the log. Mods downloaded from a URL are staged in a `.downloads` folder inside the data folder
-(not `/tmp`, which is a small RAM disk on Arch/CachyOS), and DDMM copies instead of moving whenever a file has to
+(not `/tmp`, which is a small RAM disk on Arch/CachyOS), and Ordnance copies instead of moving whenever a file has to
 cross from one drive to another.
 
 ### Where the log is on Linux
 
 With the `.tar.gz`, `.deb`, `.rpm` or AppImage, the [data folder](../getting-started/download.md#data-location) is
-normally `~/.local/share/io.github.katsyk.ddmm/`, so the log is
-`~/.local/share/io.github.katsyk.ddmm/logs/Democracy Defender Mod Manager.log`. Exception: if you extracted the
-`.tar.gz` into a folder you can write to that already has DDMM data (`mods/`, `settings.json`) or a
-`portable.txt` next to the executable, DDMM runs portable and the log is in `logs/` next to the executable. The
+normally `~/.local/share/com.cavadus.ordnance/`, so the log is
+`~/.local/share/com.cavadus.ordnance/logs/Ordnance.log`. Exception: if you extracted the
+`.tar.gz` into a folder you can write to that already has Ordnance data (`mods/`, `settings.json`) or a
+`portable.txt` next to the executable, Ordnance runs portable and the log is in `logs/` next to the executable. The
 first lines of the log say which one it picked; **Open Folder** next to **Data Folder** in Settings always opens
 the right one. If you [moved the data folder](../using/data-folder.md), the log is in `logs/` inside the folder you
 chose.
 
-### "Data Folder Not Found" when DDMM starts
+### "Data Folder Not Found" when Ordnance starts
 
-DDMM's data is in a folder you chose, and that folder isn't there: typically a USB or external drive that isn't
-connected, or a changed drive letter. DDMM hasn't created or deleted anything. Connect the drive and click
-**Retry**, or use **Locate Folder...** to point DDMM at where the data is now. See
+Ordnance's data is in a folder you chose, and that folder isn't there: typically a USB or external drive that isn't
+connected, or a changed drive letter. Ordnance hasn't created or deleted anything. Connect the drive and click
+**Retry**, or use **Locate Folder...** to point Ordnance at where the data is now. See
 [If the folder is missing at startup](../using/data-folder.md#if-the-folder-is-missing-at-startup).
 
-Running DDMM from a terminal (`./ddmm`) also prints the log live.
+Running Ordnance from a terminal (`./ordnance`) also prints the log live.
 
 ## Still stuck?
 

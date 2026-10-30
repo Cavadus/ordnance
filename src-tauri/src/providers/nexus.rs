@@ -16,7 +16,7 @@
 //! - It never downloads anything. Nexus's download-link endpoint is
 //!   premium-only and deliberately unused; updating a Nexus mod always goes
 //!   through the user's browser, where they click Nexus's own download
-//!   button themselves (DDMM never automates "Slow download").
+//!   button themselves (Ordnance never automates "Slow download").
 //!
 //! Request budget per check follows Mod Organizer 2's `checkAllForUpdate`
 //! (see [`plan`]): mods checked in the last 5 minutes are skipped; mods
@@ -59,7 +59,7 @@ const CATEGORY_OPTIONAL: u32 = 3;
 const CATEGORY_OLD_VERSION: u32 = 4;
 const CATEGORY_MISC: u32 = 5;
 
-/// How DDMM authenticates to the Nexus Mods API. Built only by
+/// How Ordnance authenticates to the Nexus Mods API. Built only by
 /// `crate::nexus_oauth::resolve_auth` (and tests).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NexusAuth {
@@ -322,7 +322,7 @@ impl NexusClient {
     }
 }
 
-/// What DDMM knows about the installed copy of a Nexus mod.
+/// What Ordnance knows about the installed copy of a Nexus mod.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Installed {
     pub version: Option<String>,
@@ -552,7 +552,7 @@ impl Period {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlanInput {
     pub mod_id: u64,
-    /// When DDMM last checked this mod *for the file that's installed now*
+    /// When Ordnance last checked this mod *for the file that's installed now*
     /// (`None`: never, or a different file was installed since).
     pub last_checked: Option<i64>,
 }
@@ -829,13 +829,13 @@ mod tests {
         // Nothing blank, nothing borrowed from another application: our own
         // name, the real app version, and our own User-Agent.
         assert!(!APP_NAME.trim().is_empty() && !env!("CARGO_PKG_VERSION").trim().is_empty());
-        assert!(request.contains("user-agent: democracydefendermodmanager/"));
+        assert!(request.contains("user-agent: ordnance/"));
         for line in request.lines() {
             if let Some((name, value)) = line.split_once(':') {
                 assert!(!value.trim().is_empty(), "blank header {name}");
             }
         }
-        assert!(request.contains("application-name: democracy defender mod manager"));
+        assert!(request.contains("application-name: ordnance mod manager"));
         assert!(request.contains(&format!("application-version: {}", env!("CARGO_PKG_VERSION"))));
     }
 
@@ -881,7 +881,7 @@ mod tests {
         let lower = request.to_ascii_lowercase();
         assert!(request.contains("authorization: Bearer BearerTokenXYZ"), "{request}");
         assert!(!lower.contains("\napikey:"), "{request}");
-        assert!(lower.contains("application-name: democracy defender mod manager"));
+        assert!(lower.contains("application-name: ordnance mod manager"));
         assert!(lower.contains(&format!("application-version: {}", env!("CARGO_PKG_VERSION"))));
     }
 

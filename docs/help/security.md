@@ -6,21 +6,21 @@ title: Security
 
 ## No logins, and one optional Nexus Mods credential
 
-DDMM never asks for, stores, or transmits a username or password for any mod site. Sites that require being
+Ordnance never asks for, stores, or transmits a username or password for any mod site. Sites that require being
 logged in to download hand the actual download off to your own browser, where your own session (and your own
 login) does the work — see [Mod sites](../using/mod-sites.md). Update checks read public page/API information.
 
-The single exception is optional: so DDMM can check Nexus mods for updates, you can add your own **personal Nexus
+The single exception is optional: so Ordnance can check Nexus mods for updates, you can add your own **personal Nexus
 Mods API key**, or, once it's available (it shows as *Coming soon* until then), **sign in to Nexus Mods** (you log in
-and approve DDMM on the Nexus Mods website; DDMM gets a sign-in token, never your password). Neither is ever
+and approve Ordnance on the Nexus Mods website; Ordnance gets a sign-in token, never your password). Neither is ever
 required, and:
 
-- the sign-in uses OAuth 2.0 with PKCE: DDMM opens your browser, and Nexus hands the approval back to a listener
+- the sign-in uses OAuth 2.0 with PKCE: Ordnance opens your browser, and Nexus hands the approval back to a listener
   on `127.0.0.1:28647` that only this computer can reach, that checks the reply belongs to this sign-in attempt,
   and that closes right after (or after 5 minutes);
 - both are stored in your OS keychain (Windows Credential Manager, macOS Keychain, Linux Secret Service), or, on
-  a Linux desktop without one, in owner-only (`0600`) files in DDMM's data folder, and Settings tells you which;
-- they're never written to `settings.json`, never logged, and never shown in DDMM's window (errors that could
+  a Linux desktop without one, in owner-only (`0600`) files in Ordnance's data folder, and Settings tells you which;
+- they're never written to `settings.json`, never logged, and never shown in Ordnance's window (errors that could
   contain them are scrubbed first);
 - they're only ever sent to Nexus Mods over HTTPS (the sign-in to `https://users.nexusmods.com` and
   `https://api.nexusmods.com`, the key to `https://api.nexusmods.com`; redirects are not followed, so they can't
@@ -29,7 +29,7 @@ required, and:
 - they're only used when you start something yourself (Check for Updates, Sign in, Sign out, Save & verify),
   never by the automatic update checks;
 - **Sign out** deletes the sign-in from this computer and asks Nexus to revoke it; if Nexus stops accepting it
-  (for example, you revoked DDMM on the Nexus website), DDMM deletes it and tells you.
+  (for example, you revoked Ordnance on the Nexus website), Ordnance deletes it and tells you.
 
 See [Updating mods](../using/updating-mods.md#nexus-mods-and-the-optional-api-key).
 
@@ -42,15 +42,15 @@ Every archive (`.zip`, `.7z`, `.rar`) is checked before any of its contents are 
   so a Windows-style `..\..\evil.txt` is caught the same as a Unix-style `../../evil.txt`.
 - Symlink entries are rejected outright. Helldivers 2 mods never need them, and a symlink entry is a classic way
   to smuggle a write outside the destination folder.
-- After extraction, DDMM re-walks what actually landed on disk (without following any symlinks it finds there)
+- After extraction, Ordnance re-walks what actually landed on disk (without following any symlinks it finds there)
   and confirms every file's fully resolved path is still inside the mod's own folder — a backstop for archive
   formats whose extraction routines don't sanitize paths themselves.
 
 If any check fails, the whole archive is rejected and nothing from it is kept.
 
-DDMM's `.7z` library dependency (`sevenz-rust2`) had its own path-traversal issue, tracked as
+Ordnance's `.7z` library dependency (`sevenz-rust2`) had its own path-traversal issue, tracked as
 [CVE-2026-61725 / GHSA-qh76-45cr-8xrc](https://github.com/advisories/GHSA-qh76-45cr-8xrc); the dependency has been
-upgraded to a version with the fix. It's worth noting DDMM's own entry-path checks above already caught and
+upgraded to a version with the fix. It's worth noting Ordnance's own entry-path checks above already caught and
 rejected this exact kind of malicious `.7z` archive before the fix landed — this upgrade removes a second point
 of exposure, it wasn't the only thing standing in the way.
 
@@ -64,7 +64,7 @@ checked against known zip/7z/rar file signatures (not just its name or URL) befo
 
 ## Links opened in your browser
 
-A source's "Open on &lt;site&gt;" page link — whether declared by a mod's manifest, or recorded by DDMM when you
+A source's "Open on &lt;site&gt;" page link — whether declared by a mod's manifest, or recorded by Ordnance when you
 add a mod from a URL — is only ever opened if it's a plain `http://` or `https://` URL. Anything else a manifest
 might contain (`javascript:`, `file:`, a custom scheme) is silently dropped and never handed to your OS's URL
 opener.
@@ -77,30 +77,30 @@ to pull in files you didn't intend to share.
 
 ## The browser handoff only watches, never reads
 
-During a [browser handoff](../using/mod-sites.md#how-the-browser-handoff-works), DDMM polls your configured
+During a [browser handoff](../using/mod-sites.md#how-the-browser-handoff-works), Ordnance polls your configured
 Downloads folder for a new file to appear — it never opens, uploads, or inspects the contents of anything else
 already in that folder, only file names and sizes. A candidate that turns out to be a symlink is refused, the
 same as any other archive install.
 
 ## Browser bridge & deep links
 
-The [browser extension](../using/one-click-install.md) talks to DDMM over a TCP connection bound to
+The [browser extension](../using/one-click-install.md) talks to Ordnance over a TCP connection bound to
 `127.0.0.1` only — never reachable from the network — on a random port chosen at startup. A fresh 256-bit token,
-regenerated every launch, is required before DDMM accepts anything on that connection; it's compared in constant
-time to avoid leaking timing information, and it's written (alongside the port) to `bridge.json` in DDMM's data
+regenerated every launch, is required before Ordnance accepts anything on that connection; it's compared in constant
+time to avoid leaking timing information, and it's written (alongside the port) to `bridge.json` in Ordnance's data
 folder with owner-only file permissions, deleted again on clean exit.
 
-Only the two DDMM browser extensions — identified by extension ID, never by anything a web page could spoof — are
+Only the two Ordnance browser extensions — identified by extension ID, never by anything a web page could spoof — are
 accepted callers; a message from anything else is rejected outright. Message sizes are capped at 1 MB each way,
 and an install still goes through every one of the archive checks above (path traversal, symlinks, magic bytes,
-the 2 GiB size cap) — the bridge changes *how* a file arrives, not what DDMM is willing to do with it once it
-does. The first time a given site asks to install through the extension, DDMM always asks permission first
+the 2 GiB size cap) — the bridge changes *how* a file arrives, not what Ordnance is willing to do with it once it
+does. The first time a given site asks to install through the extension, Ordnance always asks permission first
 (see [Settings → Sites Allowed to Install Through the Extension](../using/settings.md#sites-allowed-to-install-through-the-extension));
 nothing installs silently.
 
-`ddmm://` links work differently: **any** web page can trigger one, so DDMM always shows a confirmation — with no
+`ordnance://` links work differently: **any** web page can trigger one, so Ordnance always shows a confirmation — with no
 "always allow" — and only ever accepts an `https://` target; anything else in the link is ignored. See
-[One-click install](../using/one-click-install.md#ddmminstall-links) for what the user sees.
+[One-click install](../using/one-click-install.md#ordnanceinstall-links) for what the user sees.
 
 As with every other install path, no credentials, cookies, or API keys for any mod site ever cross the bridge (the
 optional Nexus key included) —
@@ -110,7 +110,7 @@ the browser extension downloads using your own logged-in session, the same as th
 ## Update checks are opt-in and size-capped
 
 Update checks never run unless you ask: when you click [Check for Updates](../using/updating-mods.md), or, if you
-turned it on in Settings (off by default), when DDMM starts and optionally every N hours while it's open. The
+turned it on in Settings (off by default), when Ordnance starts and optionally every N hours while it's open. The
 automatic checks never contact Nexus Mods: your optional Nexus API key is only used for things you start
 yourself (Check for Updates, Save & verify), as Nexus's API policy requires. Each
 request (an AyakaMods mod page, or the GitHub, GameBanana, ModWorkshop or Nexus Mods APIs) is `https://` only,

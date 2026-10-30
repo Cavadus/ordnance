@@ -48,7 +48,7 @@
 
 <button
     bind:this={button}
-    class="hd2mm-button-nop p-2"
+    class="ordnance-button-nop p-2"
     class:border-yellow-300={isOpen}
     onclick={toggle}
 >

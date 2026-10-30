@@ -66,19 +66,19 @@
             <p class="text-yellow-300">{t("recovery.data_folder.restarting")}</p>
         {:else}
             <div class="flex flex-row flex-wrap gap-2">
-                <button class="hd2mm-button flex flex-row gap-1 items-center" onclick={onRetry} disabled={busy}>
+                <button class="ordnance-button flex flex-row gap-1 items-center" onclick={onRetry} disabled={busy}>
                     <ArrowRepeat />
                     {t("recovery.data_folder.retry_button")}
                 </button>
-                <button class="hd2mm-button flex flex-row gap-1 items-center" onclick={onLocate} disabled={busy}>
+                <button class="ordnance-button flex flex-row gap-1 items-center" onclick={onLocate} disabled={busy}>
                     <Folder2Open />
                     {t("recovery.data_folder.locate_button")}
                 </button>
-                <button class="hd2mm-button flex flex-row gap-1 items-center" onclick={onReset} disabled={busy}>
+                <button class="ordnance-button flex flex-row gap-1 items-center" onclick={onReset} disabled={busy}>
                     <ArrowCounterclockwise />
                     {t("recovery.data_folder.reset_button")}
                 </button>
-                <button class="hd2mm-button flex flex-row gap-1 items-center" onclick={() => forceExit()} disabled={busy}>
+                <button class="ordnance-button flex flex-row gap-1 items-center" onclick={() => forceExit()} disabled={busy}>
                     <XLg />
                     {t("recovery.data_folder.quit_button")}
                 </button>

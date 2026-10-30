@@ -1,4 +1,4 @@
-/* DDMM popup: dark theme, yellow/black brand, compact. */
+/* Ordnance popup: dark theme, yellow/black brand, compact. */
 :root {
   color-scheme: dark;
 }
@@ -13,7 +13,7 @@ body {
   font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-.ddmm-header {
+.ordnance-header {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -21,24 +21,24 @@ body {
   border-bottom: 2px solid #FFC61A;
 }
 
-.ddmm-title {
+.ordnance-title {
   font-weight: 700;
   color: #FFC61A;
   font-size: 15px;
   letter-spacing: 0.02em;
 }
 
-.ddmm-tagline {
+.ordnance-tagline {
   font-size: 10px;
   color: #b8b8b8;
 }
 
-.ddmm-card {
+.ordnance-card {
   padding: 10px 14px;
   border-bottom: 1px solid #1e1e20;
 }
 
-.ddmm-card h2 {
+.ordnance-card h2 {
   margin: 0 0 4px;
   font-size: 11px;
   text-transform: uppercase;
@@ -46,29 +46,29 @@ body {
   color: #FFC61A;
 }
 
-.ddmm-note {
+.ordnance-note {
   margin: 0 0 8px;
   color: #9a9a9a;
   font-size: 11px;
 }
 
-.ddmm-status {
+.ordnance-status {
   font-weight: 600;
 }
 
-.ddmm-status[data-ok="true"] { color: #2ecc71; }
-.ddmm-status[data-ok="false"] { color: #ff6b6b; }
+.ordnance-status[data-ok="true"] { color: #2ecc71; }
+.ordnance-status[data-ok="false"] { color: #ff6b6b; }
 
-.ddmm-substatus {
+.ordnance-substatus {
   margin-top: 4px;
   color: #b8b8b8;
 }
 
-.ddmm-help a {
+.ordnance-help a {
   color: #FFC61A;
 }
 
-.ddmm-toggle-row {
+.ordnance-toggle-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -89,7 +89,7 @@ select {
   padding: 5px 6px;
 }
 
-.ddmm-list {
+.ordnance-list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -97,7 +97,7 @@ select {
   overflow-y: auto;
 }
 
-.ddmm-list li {
+.ordnance-list li {
   display: flex;
   justify-content: space-between;
   gap: 8px;
@@ -105,20 +105,20 @@ select {
   border-bottom: 1px solid #17171a;
 }
 
-.ddmm-list li:last-child { border-bottom: none; }
+.ordnance-list li:last-child { border-bottom: none; }
 
-.ddmm-list .ddmm-empty {
+.ordnance-list .ordnance-empty {
   color: #7a7a7a;
   justify-content: center;
 }
 
-.ddmm-install-name {
+.ordnance-install-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.ddmm-install-meta {
+.ordnance-install-meta {
   color: #7a7a7a;
   flex-shrink: 0;
 }

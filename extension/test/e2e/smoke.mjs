@@ -80,7 +80,7 @@ async function main() {
 
     // The fixture is served under /mods/hd2-auto-reload.4084/ so
     // sourceFromPageUrl (and hence the reused ayakamods finder functions --
-    // see DDMM.content.runTestAdapter / content/sites/test-fixture.js) sees
+    // see Ordnance.content.runTestAdapter / content/sites/test-fixture.js) sees
     // the same URL shape it would on the real site; only the host
     // (localhost, test-build-only permission) differs from production.
     await page.goto(`http://localhost:${port}/mods/hd2-auto-reload.4084/`);
@@ -88,7 +88,7 @@ async function main() {
     // The button lives inside an open shadow root (see content/common.js
     // for why 'open' -- the real isolation comes from event.isTrusted, not
     // shadow-root privacy), which Playwright's locators pierce by default.
-    const button = page.locator('.ddmm-btn');
+    const button = page.locator('.ordnance-btn');
     await button.waitFor({ state: 'attached', timeout: 10_000 });
     console.log('PASS: the "Install with Ordnance" button appeared on the fixture page.');
 

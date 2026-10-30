@@ -4,7 +4,7 @@ title: Mod sites
 
 # Mod sites
 
-DDMM doesn't privilege any one mod site. A mod's origin is just a `Provider` string (see
+Ordnance doesn't privilege any one mod site. A mod's origin is just a `Provider` string (see
 [The Sources field](../authors/sources.md)) — well-known ones get a nice display name and an automatic page-URL
 template, anything else still works with an explicit link.
 
@@ -15,31 +15,31 @@ Paste anything into **Add URL** (tip: "Add a mod from a direct download link.") 
 
 What happens next depends on the link:
 
-- **AyakaMods or Nexus Mods mod-page links** always go straight to the **browser handoff** below — DDMM never
+- **AyakaMods or Nexus Mods mod-page links** always go straight to the **browser handoff** below — Ordnance never
   even attempts to download these itself, since both sites gate the actual file behind being logged in.
 - **Any other link** (a direct file link, a ModWorkshop/GameBanana/GitHub page, a personal file host, ...) —
-  DDMM tries downloading it directly first. If what comes back is HTML instead of an archive (a login wall, a
-  page with a JavaScript download button), DDMM asks:
+  Ordnance tries downloading it directly first. If what comes back is HTML instead of an archive (a login wall, a
+  page with a JavaScript download button), Ordnance asks:
 
   > **Open in Browser Instead?** — That link didn't serve a downloadable archive directly. Open it on &lt;site&gt;
-  > in your browser and let DDMM install it automatically once it downloads?
+  > in your browser and let Ordnance install it automatically once it downloads?
 
   Confirming starts the same browser handoff.
 
-DDMM never asks for your login on any mod site — every handoff downloads through your own, already-logged-in
+Ordnance never asks for your login on any mod site — every handoff downloads through your own, already-logged-in
 browser session.
 
 ## How the browser handoff works
 
-1. DDMM opens the mod's page in your default browser.
+1. Ordnance opens the mod's page in your default browser.
 2. A **"Browser Handoff"** popup appears: "Download the mod in the browser tab that just opened for &lt;site&gt;.
-   DDMM installs it automatically as soon as it lands in &lt;your Downloads folder&gt;." with a spinner reading
+   Ordnance installs it automatically as soon as it lands in &lt;your Downloads folder&gt;." with a spinner reading
    "Waiting for the download...".
 3. You click download on the site as normal, logged in as yourself.
-4. DDMM polls your [Downloads folder](settings.md#downloads-folder) once a second for a new archive: it ignores
+4. Ordnance polls your [Downloads folder](settings.md#downloads-folder) once a second for a new archive: it ignores
    files that already existed before the handoff started, ignores browser in-progress names
    (`.crdownload`, `.part`, `.tmp`, `.download`, `.partial`), and ignores anything that isn't a `.zip`/`.7z`/`.rar`
-   file (or is a symlink). Once a candidate appears, DDMM waits for its file size to stop changing for two
+   file (or is a symlink). Once a candidate appears, Ordnance waits for its file size to stop changing for two
    consecutive checks before treating the download as finished, then installs it — the popup switches to
    "Installing...".
 5. If nothing matching shows up within **15 minutes**, the handoff gives up and tells you so.
@@ -52,14 +52,14 @@ gets an "Open on &lt;site&gt;" menu entry afterward.
 
 ## AyakaMods
 
-Made with love for the AyakaMods community ❤️ — one of the best homes for Helldivers 2 modding, and DDMM's home
+Made with love for the AyakaMods community ❤️ — one of the best homes for Helldivers 2 modding, and Ordnance's home
 turf. Go say hi: [ayakamods.com/games/helldivers-2](https://ayakamods.com/games/helldivers-2.119/).
 
-[AyakaMods](https://ayakamods.com) is a first-class, built-in `Provider` in DDMM: its page-URL shape
+[AyakaMods](https://ayakamods.com) is a first-class, built-in `Provider` in Ordnance: its page-URL shape
 (`https://ayakamods.com/mods/<slug>.<id>/` or `https://ayakamods.com/mods/<id>/`) is recognized directly, mod
 pages always use the browser handoff above, and [update checks](updating-mods.md) read the same page's published
-version automatically. At install time, DDMM also fetches the mod page once to record its current version for
-future update checks — see [Updating mods](updating-mods.md#how-ddmm-knows-a-mods-installed-version).
+version automatically. At install time, Ordnance also fetches the mod page once to record its current version for
+future update checks — see [Updating mods](updating-mods.md#how-ordnance-knows-a-mods-installed-version).
 
 ## Nexus Mods
 
@@ -70,7 +70,7 @@ Update checks for Nexus Mods need your own personal Nexus Mods API key in Settin
 instead is coming soon). It's **optional**; without it, Nexus mods show "Optional: add a Nexus Mods key in Settings
 to check" and everything
 else works the same.
-DDMM never downloads from Nexus through the API: updating a Nexus mod always goes through your browser. See
+Ordnance never downloads from Nexus through the API: updating a Nexus mod always goes through your browser. See
 [Updating mods](updating-mods.md#nexus-mods-and-the-optional-api-key).
 
 ## ModWorkshop, GameBanana
@@ -78,7 +78,7 @@ DDMM never downloads from Nexus through the API: updating a Nexus mod always goe
 Both are supported `Provider` values with an automatic page-URL template (see
 [The Sources field](../authors/sources.md)), so a mod declaring one gets an "Open on ModWorkshop" / "Open on
 GameBanana" menu entry. Pasting a link from either isn't hardcoded to the browser handoff the way AyakaMods and
-Nexus Mods are: DDMM tries a direct download first, and only offers the browser handoff if that comes back as an
+Nexus Mods are: Ordnance tries a direct download first, and only offers the browser handoff if that comes back as an
 HTML page rather than an archive.
 
 [Update checks](updating-mods.md) use each site's public API (no key), and because both serve files publicly, an
@@ -92,9 +92,9 @@ repository's latest release, and updates install with one click from the release
 
 ## Other / unrecognized sites
 
-Any other link is still handled sensibly: DDMM tries a direct download, and if the response turns out to be HTML
+Any other link is still handled sensibly: Ordnance tries a direct download, and if the response turns out to be HTML
 instead of an archive, it offers the same "Open in Browser Instead?" handoff rather than just failing.
 
 A mod's manifest can also declare any custom `Provider` string it wants (see
-[The Sources field](../authors/sources.md)); DDMM shows it as-is in the "Open on &lt;site&gt;" menu using
+[The Sources field](../authors/sources.md)); Ordnance shows it as-is in the "Open on &lt;site&gt;" menu using
 whatever page URL the manifest gives it, though only the sites listed above get handoff/update-check integration.

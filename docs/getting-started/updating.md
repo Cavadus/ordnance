@@ -1,41 +1,41 @@
 ---
-title: Updating DDMM
+title: Updating Ordnance
 ---
 
-# Updating DDMM
+# Updating Ordnance
 
-Updating DDMM doesn't touch your mods, settings, or profiles — those live in your
+Updating Ordnance doesn't touch your mods, settings, or profiles — those live in your
 [data folder](download.md#data-location), separate from the app itself either way.
 
 === "Windows installer"
 
-    Download and run the new `DDMM-<version>-windows-x64-setup.exe` from the
-    [releases page](https://github.com/katsyk/DemocracyDefenderModManager/releases) — it installs over the
-    existing one. Your data (in `%APPDATA%\io.github.katsyk.ddmm`) is untouched.
+    Download and run the new `Ordnance-<version>-windows-x64-setup.exe` from the
+    [releases page](https://github.com/Cavadus/ordnance/releases) — it installs over the
+    existing one. Your data (in `%APPDATA%\com.cavadus.ordnance`) is untouched.
 
 === "Windows portable"
 
-    1. Download the new `DDMM-<version>-windows-x64-portable.zip`.
-    2. Replace `ddmm.exe` in your existing portable folder with the new one (keep `portable.txt`,
+    1. Download the new `Ordnance-<version>-windows-x64-portable.zip`.
+    2. Replace `ordnance.exe` in your existing portable folder with the new one (keep `portable.txt`,
        `settings.json`, `profiles.json`, `mods/`, and `logs/` where they are).
     3. Run it as usual.
 
 === "Linux .deb"
 
     ```sh
-    sudo apt install ./DDMM-<version>-linux-amd64.deb
+    sudo apt install ./Ordnance-<version>-linux-amd64.deb
     ```
 
-    Your data (in `~/.local/share/io.github.katsyk.ddmm`) is untouched.
+    Your data (in `~/.local/share/com.cavadus.ordnance`) is untouched.
 
 === "Linux .rpm"
 
     ```sh
-    sudo dnf install ./DDMM-<version>-linux-x86_64.rpm
+    sudo dnf install ./Ordnance-<version>-linux-x86_64.rpm
     ```
 
-    (openSUSE: `sudo zypper install --allow-unsigned-rpm ./DDMM-<version>-linux-x86_64.rpm`.) Your data (in
-    `~/.local/share/io.github.katsyk.ddmm`) is untouched.
+    (openSUSE: `sudo zypper install --allow-unsigned-rpm ./Ordnance-<version>-linux-x86_64.rpm`.) Your data (in
+    `~/.local/share/com.cavadus.ordnance`) is untouched.
 
 === "Linux AppImage / tar.gz"
 

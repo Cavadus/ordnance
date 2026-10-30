@@ -12,7 +12,7 @@ import {
 
 const BACKGROUND_MAIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'src', 'background', 'main.js');
 
-// The real key, from /home/rabite/dev/ddmm-secrets/manifest-key.txt (base64
+// The real key, from /home/rabite/dev/ordnance-secrets/manifest-key.txt (base64
 // DER SubjectPublicKeyInfo). Safe to hardcode: it's a *public* key, and this
 // exact value is already published in docs/development/bridge-protocol.md
 // as the thing that derives the pinned extension id.
@@ -89,10 +89,10 @@ describe('buildChromeManifest', () => {
 });
 
 describe('buildFirefoxManifest', () => {
-  const manifest = buildFirefoxManifest({ version: '1.2.3', geckoId: 'ddmm@katsyk.github.io', minFirefoxVersion: '109.0' });
+  const manifest = buildFirefoxManifest({ version: '1.2.3', geckoId: 'ordnance@cavadus.github.io', minFirefoxVersion: '109.0' });
 
   it('sets the gecko id and never a Chrome key', () => {
-    expect(manifest.browser_specific_settings.gecko.id).toBe('ddmm@katsyk.github.io');
+    expect(manifest.browser_specific_settings.gecko.id).toBe('ordnance@cavadus.github.io');
     expect(manifest.browser_specific_settings.gecko.strict_min_version).toBe('109.0');
     expect(manifest.key).toBeUndefined();
   });
@@ -103,7 +103,7 @@ describe('buildFirefoxManifest', () => {
   });
 
   // Firefox's event page has no importScripts, so every library main.js
-  // needs must be listed ahead of it -- otherwise DDMM is undefined there.
+  // needs must be listed ahead of it -- otherwise Ordnance is undefined there.
   it('loads every background library before main.js', () => {
     expect(manifest.background).toEqual({ scripts: [...BACKGROUND_LIBS, 'background/main.js'] });
   });
@@ -133,8 +133,8 @@ describe('background/main.js dependency loading', () => {
   });
 
   // Chrome now exposes a `browser` namespace in extension service workers,
-  // so gating importScripts on `!browser` skipped it and left DDMM
-  // undefined ("Uncaught ReferenceError: DDMM is not defined").
+  // so gating importScripts on `!browser` skipped it and left Ordnance
+  // undefined ("Uncaught ReferenceError: Ordnance is not defined").
   it('does not gate importScripts on the browser namespace', () => {
     const guard = source.match(/if \(typeof importScripts === 'function'[^)]*\)/);
     expect(guard).not.toBeNull();

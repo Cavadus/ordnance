@@ -4,17 +4,17 @@ title: Installing on Linux
 
 # Installing on Linux
 
-DDMM ships four Linux downloads, all for 64-bit x86 PCs (`x86_64` / `amd64`). They all contain the same app. The
+Ordnance ships four Linux downloads, all for 64-bit x86 PCs (`x86_64` / `amd64`). They all contain the same app. The
 only difference is how it gets onto your system and what it expects your system to already have.
 
-Every command on this page is tested automatically on each change to DDMM's packaging, inside clean Fedora, Arch,
+Every command on this page is tested automatically on each change to Ordnance's packaging, inside clean Fedora, Arch,
 Ubuntu, Debian and openSUSE systems (see [How this is tested](#how-this-is-tested)).
 
 ## Which file do I pick?
 
 | Your distribution | Pick | Why |
 | --- | --- | --- |
-| Fedora, Nobara, openSUSE | **`.rpm`** | Your package manager installs everything DDMM needs, and adds a menu entry. |
+| Fedora, Nobara, openSUSE | **`.rpm`** | Your package manager installs everything Ordnance needs, and adds a menu entry. |
 | Ubuntu, Debian, Linux Mint, Pop!_OS, Zorin, elementary | **`.deb`** | Same, for `apt`-based systems. |
 | Arch, CachyOS, EndeavourOS, Manjaro | **`.tar.gz`** (plus one package) | There's no Arch package yet (an AUR package may come later). |
 | Anything else, or you don't want to install anything system-wide | **AppImage** | Carries WebKitGTK inside it and runs from anywhere, but relies on your desktop's graphics and font libraries. |
@@ -22,14 +22,14 @@ Ubuntu, Debian and openSUSE systems (see [How this is tested](#how-this-is-teste
 When in doubt, use the `.rpm`, `.deb` or `.tar.gz`. They use your distribution's own WebKitGTK, which is built for
 your graphics drivers. The AppImage is the fallback.
 
-The files on the [Releases page](https://github.com/katsyk/DemocracyDefenderModManager/releases) are named:
+The files on the [Releases page](https://github.com/Cavadus/ordnance/releases) are named:
 
-- `DDMM-<version>-linux-x86_64.rpm`
-- `DDMM-<version>-linux-amd64.deb`
-- `DDMM-<version>-linux-x86_64.AppImage`
-- `DDMM-<version>-linux-x64.tar.gz`
+- `Ordnance-<version>-linux-x86_64.rpm`
+- `Ordnance-<version>-linux-amd64.deb`
+- `Ordnance-<version>-linux-x86_64.AppImage`
+- `Ordnance-<version>-linux-x64.tar.gz`
 
-DDMM needs glibc 2.35 or newer and WebKitGTK 4.1. That covers Ubuntu 22.04, Debian 12 and anything more recent,
+Ordnance needs glibc 2.35 or newer and WebKitGTK 4.1. That covers Ubuntu 22.04, Debian 12 and anything more recent,
 and any current Fedora, Arch or openSUSE Tumbleweed.
 
 ## .rpm (Fedora, openSUSE)
@@ -37,38 +37,38 @@ and any current Fedora, Arch or openSUSE Tumbleweed.
 === "Fedora / RHEL-like"
 
     ```sh
-    sudo dnf install ./DDMM-*-linux-x86_64.rpm
+    sudo dnf install ./Ordnance-*-linux-x86_64.rpm
     ```
 
 === "openSUSE"
 
     ```sh
-    sudo zypper install --allow-unsigned-rpm ./DDMM-*-linux-x86_64.rpm
+    sudo zypper install --allow-unsigned-rpm ./Ordnance-*-linux-x86_64.rpm
     ```
 
 The `./` matters: it tells the package manager to install the file you downloaded, and to fetch WebKitGTK and GTK
-from your distribution's repositories if they're missing. Then start **Democracy Defender Mod Manager** from your
-app menu, or run `ddmm` in a terminal.
+from your distribution's repositories if they're missing. Then start **Ordnance** from your
+app menu, or run `ordnance` in a terminal.
 
 The package isn't signed yet, which is why openSUSE needs `--allow-unsigned-rpm`. To remove it later:
-`sudo dnf remove democracy-defender-mod-manager` (or `sudo zypper remove democracy-defender-mod-manager`).
+`sudo dnf remove ordnance-mod-manager` (or `sudo zypper remove ordnance-mod-manager`).
 
 On an immutable Fedora (Silverblue, Kinoite, Bazzite, Aurora), the AppImage is the simplest choice.
-`rpm-ostree install ./DDMM-*-linux-x86_64.rpm` followed by a reboot should also work, but the automated tests
+`rpm-ostree install ./Ordnance-*-linux-x86_64.rpm` followed by a reboot should also work, but the automated tests
 don't cover it.
 
 ## .deb (Debian, Ubuntu, Mint)
 
 ```sh
-sudo apt install ./DDMM-*-linux-amd64.deb
+sudo apt install ./Ordnance-*-linux-amd64.deb
 ```
 
-Then start **Democracy Defender Mod Manager** from your app menu, or run `ddmm` in a terminal. To remove it:
+Then start **Ordnance** from your app menu, or run `ordnance` in a terminal. To remove it:
 `sudo apt remove democracy-defender-mod-manager`.
 
 ## .tar.gz (Arch, CachyOS, or anything else)
 
-The tarball is just the `ddmm` program and a quick-start text file. It uses your system's WebKitGTK, so install
+The tarball is just the `ordnance` program and a quick-start text file. It uses your system's WebKitGTK, so install
 that first:
 
 === "Arch / CachyOS / Manjaro"
@@ -95,12 +95,12 @@ that first:
     sudo zypper install libwebkit2gtk-4_1-0
     ```
 
-Each of these pulls in GTK 3 and everything else DDMM links against. Then extract and run it:
+Each of these pulls in GTK 3 and everything else Ordnance links against. Then extract and run it:
 
 ```sh
-mkdir -p ~/Applications/DDMM
-tar -xzf DDMM-*-linux-x64.tar.gz -C ~/Applications/DDMM
-~/Applications/DDMM/ddmm
+mkdir -p ~/Applications/Ordnance
+tar -xzf Ordnance-*-linux-x64.tar.gz -C ~/Applications/Ordnance
+~/Applications/Ordnance/ordnance
 ```
 
 If it says `error while loading shared libraries: libwebkit2gtk-4.1.so.0` (or `libgdk-3.so.0`,
@@ -109,8 +109,8 @@ If it says `error while loading shared libraries: libwebkit2gtk-4.1.so.0` (or `l
 ## AppImage
 
 ```sh
-chmod +x DDMM-*-linux-x86_64.AppImage
-./DDMM-*-linux-x86_64.AppImage
+chmod +x Ordnance-*-linux-x86_64.AppImage
+./Ordnance-*-linux-x86_64.AppImage
 ```
 
 The AppImage carries WebKitGTK and most of GTK inside it. Like every AppImage, it deliberately does *not* carry
@@ -153,7 +153,7 @@ use the `.tar.gz` instead (or the `.rpm` from a later release).
 
 ### FUSE
 
-An AppImage normally mounts itself with FUSE. DDMM's AppImage uses the current AppImage runtime, which only needs
+An AppImage normally mounts itself with FUSE. Ordnance's AppImage uses the current AppImage runtime, which only needs
 the `fusermount3` helper from the `fuse3` package, which most desktops already have.
 You do **not** need the old `fuse` / `fuse2` / `libfuse2` package that older guides mention.
 
@@ -162,7 +162,7 @@ then unpacks itself to a temporary folder and runs from there instead. That work
 To skip the FUSE attempt entirely, run it with:
 
 ```sh
-./DDMM-*-linux-x86_64.AppImage --appimage-extract-and-run
+./Ordnance-*-linux-x86_64.AppImage --appimage-extract-and-run
 ```
 
 To install FUSE anyway: `sudo dnf install fuse3` (Fedora), `sudo pacman -S fuse3` (Arch),
@@ -174,14 +174,14 @@ If the terminal shows `Could not create default EGL display: EGL_BAD_PARAMETER. 
 rc.5 (or older) AppImage, that's the bundled-library bug described under [AppImage](#appimage). Use the `.tar.gz`
 or a newer release instead; the setting below won't fix it.
 
-If DDMM opens but the window stays white, grey or black, or the terminal shows `EGL` / `DMABUF` / `GBM` errors,
-that's a WebKitGTK graphics issue, most often with NVIDIA's driver or under Wayland. Start DDMM with the DMA-BUF
+If Ordnance opens but the window stays white, grey or black, or the terminal shows `EGL` / `DMABUF` / `GBM` errors,
+that's a WebKitGTK graphics issue, most often with NVIDIA's driver or under Wayland. Start Ordnance with the DMA-BUF
 renderer turned off:
 
 ```sh
-WEBKIT_DISABLE_DMABUF_RENDERER=1 ddmm                                   # .rpm / .deb
-WEBKIT_DISABLE_DMABUF_RENDERER=1 ./DDMM-*-linux-x86_64.AppImage         # AppImage
-WEBKIT_DISABLE_DMABUF_RENDERER=1 ~/Applications/DDMM/ddmm               # tar.gz
+WEBKIT_DISABLE_DMABUF_RENDERER=1 ordnance                                   # .rpm / .deb
+WEBKIT_DISABLE_DMABUF_RENDERER=1 ./Ordnance-*-linux-x86_64.AppImage         # AppImage
+WEBKIT_DISABLE_DMABUF_RENDERER=1 ~/Applications/Ordnance/ordnance               # tar.gz
 ```
 
 If that doesn't help, also try `WEBKIT_DISABLE_COMPOSITING_MODE=1`, or forcing X11 with `GDK_BACKEND=x11`. When
@@ -189,22 +189,22 @@ one works, add it to the `Exec=` line of your menu entry, or put it in a small l
 
 ## Steam installed as a Flatpak
 
-DDMM's auto-detect also looks in the Flatpak (and Snap) Steam locations and in every extra Steam library, so
-Flatpak Steam needs nothing special. Run DDMM itself natively (from the `.rpm`, `.deb`, tar.gz or AppImage), not
-inside the Steam Flatpak. The exact game path for each kind of Steam install, and what to do when DDMM says the
+Ordnance's auto-detect also looks in the Flatpak (and Snap) Steam locations and in every extra Steam library, so
+Flatpak Steam needs nothing special. Run Ordnance itself natively (from the `.rpm`, `.deb`, tar.gz or AppImage), not
+inside the Steam Flatpak. The exact game path for each kind of Steam install, and what to do when Ordnance says the
 path is invalid, are in
 [Troubleshooting → Linux](../help/troubleshooting.md#game-path-is-invalid-even-though-the-path-is-right).
 
 ## Seeing errors: run it from a terminal
 
-If DDMM doesn't start, or starts and closes, run it from a terminal. The terminal shows the same output as the
-log file ([where it is on Linux](../help/troubleshooting.md#where-the-log-is-on-linux)), plus any error from the system before DDMM's own logging starts (a missing library,
+If Ordnance doesn't start, or starts and closes, run it from a terminal. The terminal shows the same output as the
+log file ([where it is on Linux](../help/troubleshooting.md#where-the-log-is-on-linux)), plus any error from the system before Ordnance's own logging starts (a missing library,
 for example):
 
 ```sh
-ddmm                                   # installed from .rpm / .deb
-./DDMM-*-linux-x86_64.AppImage         # AppImage
-~/Applications/DDMM/ddmm               # tar.gz, wherever you extracted it
+ordnance                                   # installed from .rpm / .deb
+./Ordnance-*-linux-x86_64.AppImage         # AppImage
+~/Applications/Ordnance/ordnance               # tar.gz, wherever you extracted it
 ```
 
 When [reporting a bug](../help/bugs.md), include that output together with:
@@ -216,12 +216,12 @@ lspci -k | grep -EA3 'VGA|3D|Display'
 ```
 
 These show your distribution, whether you're on Wayland or X11, and your GPU and driver. For the tar.gz, also
-include the output of `ldd ~/Applications/DDMM/ddmm | grep 'not found'`.
+include the output of `ldd ~/Applications/Ordnance/ordnance | grep 'not found'`.
 
 ## How this is tested
 
-The `Linux distros` workflow in DDMM's repository (`.github/workflows/linux-distros.yml`) builds all four
+The `Linux distros` workflow in Ordnance's repository (`.github/workflows/linux-distros.yml`) builds all four
 downloads. For each distribution (Fedora 44, Arch, Ubuntu 22.04 and 24.04, Debian 12 and 13, openSUSE
 Tumbleweed), it starts a clean container and installs only the packages listed on this page. It then checks that
-every library resolves and launches DDMM on a virtual display until the app reports it has finished starting. The
+every library resolves and launches Ordnance on a virtual display until the app reports it has finished starting. The
 `.rpm` and `.deb` are installed with `dnf` / `zypper` / `apt` in a fresh container that has nothing else installed.

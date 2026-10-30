@@ -224,7 +224,7 @@ async fn dispatch(app: &AppHandle, line: &str) -> String {
 
     // Any authenticated request from the extension means it's installed and
     // connected -- a browser-based mod update can then finish with its
-    // "Update with DDMM" button (see commands::updates).
+    // "Update with Ordnance" button (see commands::updates).
     *app.state::<AppState>().bridge_last_seen.lock().await = Some(tokio::time::Instant::now());
 
     match kind.as_str() {
@@ -261,8 +261,8 @@ async fn handle_hello(app: &AppHandle, id: String) -> String {
     serde_json::to_string(&reply).unwrap()
 }
 
-/// `open`: bring DDMM's window to the front (the extension popup's "Start
-/// DDMM" button). Installs nothing, so no consent prompt; the origin
+/// `open`: bring Ordnance's window to the front (the extension popup's "Start
+/// Ordnance" button). Installs nothing, so no consent prompt; the origin
 /// allowlist above still applies.
 fn handle_open(app: &AppHandle, id: String) -> String {
     focus_main_window(app);
@@ -345,7 +345,7 @@ async fn handle_query(app: &AppHandle, raw: serde_json::Value, id: String) -> St
                 ),
                 _ => None,
             };
-            // DDMM's own update check found one for this mod: not a guess.
+            // Ordnance's own update check found one for this mod: not a guess.
             // Covers pages that don't expose a version (Nexus) and pages
             // whose version didn't change for a same-day update (AyakaMods
             // versions are often just the date).
@@ -396,7 +396,7 @@ async fn handle_install_queued(app: &AppHandle, raw: serde_json::Value, id: Stri
         return ErrorReply::new(
             id,
             ErrorCode::Busy,
-            "DDMM is moving its data folder; try again once it has restarted",
+            "Ordnance is moving its data folder; try again once it has restarted",
         )
         .to_line();
     };
@@ -463,7 +463,7 @@ async fn handle_install(app: &AppHandle, raw: serde_json::Value, id: String, arr
             return ErrorReply::new(
                 id,
                 ErrorCode::Internal,
-                "DDMM couldn't show the permission prompt. Open DDMM's Mods page and try again.",
+                "Ordnance couldn't show the permission prompt. Open Ordnance's Mods page and try again.",
             )
             .to_line();
         }
@@ -580,7 +580,7 @@ async fn handle_install(app: &AppHandle, raw: serde_json::Value, id: String, arr
     } else {
         log::warn!("Frontend never became ready; skipping the afterInstall step for a bridge install");
         InstallCompletion {
-            warnings: vec!["Installed to the library only: DDMM's Mods page wasn't open to add it to a profile.".to_string()],
+            warnings: vec!["Installed to the library only: Ordnance's Mods page wasn't open to add it to a profile.".to_string()],
             ..InstallCompletion::default()
         }
     };

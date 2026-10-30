@@ -783,7 +783,7 @@ async fn wait_until_stable(path: &Path, cancel: &AtomicBool, limits: WaitLimits)
             return Err(InstallError::new(
                 subject,
                 InstallStep::Download,
-                anyhow::anyhow!("the file in the Downloads folder is a symbolic link, and DDMM never installs through one"),
+                anyhow::anyhow!("the file in the Downloads folder is a symbolic link, and Ordnance never installs through one"),
             )
             .with_hint("Download the mod again so the real file lands in the Downloads folder, or add the file it points to with Add."));
         }
@@ -861,7 +861,7 @@ fn downloads_folder_error(subject: &str, dir: &Path, e: std::io::Error) -> Insta
         InstallStep::Download,
         crate::archive::io_error(e, &format!("reading the Downloads folder ({}) failed", dir.display())),
     )
-    .with_hint("Check that the Downloads folder in Settings exists and DDMM can open it, then try again.")
+    .with_hint("Check that the Downloads folder in Settings exists and Ordnance can open it, then try again.")
 }
 
 #[cfg(test)]
@@ -1273,7 +1273,7 @@ mod tests {
         let e = snapshot_names(&missing).await.unwrap_err();
         let msg = downloads_folder_error("https://example.com/mod", &missing, e).to_string();
         assert!(msg.starts_with("Couldn't install \"https://example.com/mod\".\nStep: downloading it\nCause: reading the Downloads folder ("), "{msg}");
-        assert!(msg.ends_with("Hint: Check that the Downloads folder in Settings exists and DDMM can open it, then try again."), "{msg}");
+        assert!(msg.ends_with("Hint: Check that the Downloads folder in Settings exists and Ordnance can open it, then try again."), "{msg}");
     }
 
     /// The handoff used to take the empty placeholder as "finished" after

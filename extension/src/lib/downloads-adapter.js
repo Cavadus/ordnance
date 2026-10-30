@@ -15,7 +15,7 @@
 (function initDownloadsAdapter(root) {
   'use strict';
 
-  const DDMM = (root.DDMM = root.DDMM || {});
+  const Ordnance = (root.Ordnance = root.Ordnance || {});
 
   /**
    * @typedef {object} NormalizedDownload
@@ -59,5 +59,5 @@
     };
   }
 
-  DDMM.downloadsAdapter = { normalizeDownloadItem, normalizeChangedDelta };
+  Ordnance.downloadsAdapter = { normalizeDownloadItem, normalizeChangedDelta };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

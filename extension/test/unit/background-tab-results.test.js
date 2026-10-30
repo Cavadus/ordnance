@@ -80,7 +80,7 @@ const FILE = 'https://github.com/o/r/releases/download/v1/mod.zip';
 /** The content script's direct-link click, from tab 5. */
 function clickInstall() {
   return new Promise((resolve) => {
-    listeners.onMessage[0]({ type: 'ddmm:installDirect', url: FILE, pageUrl: PAGE, pageVersion: null }, { tab: { id: 5 } }, resolve);
+    listeners.onMessage[0]({ type: 'ordnance:installDirect', url: FILE, pageUrl: PAGE, pageVersion: null }, { tab: { id: 5 } }, resolve);
   });
 }
 
@@ -88,7 +88,7 @@ function changeState(id, current, previous = 'in_progress') {
   listeners.onChanged.forEach((fn) => fn({ id, state: { current, previous } }));
 }
 
-const resultsFor = (tabId) => tabMessages.filter((m) => m.tabId === tabId && m.msg.type === 'ddmm:installResult');
+const resultsFor = (tabId) => tabMessages.filter((m) => m.tabId === tabId && m.msg.type === 'ordnance:installResult');
 
 describe('direct-link installs whose download never completes', () => {
   it('tells the tab when the download is cancelled or fails', async () => {
@@ -135,7 +135,7 @@ describe('auto-captured installs', () => {
     await flush();
     localStore = {};
     expect(installs).toHaveLength(1);
-    const results = tabMessages.filter((m) => m.msg.type === 'ddmm:installResult');
+    const results = tabMessages.filter((m) => m.msg.type === 'ordnance:installResult');
     expect(results.map((m) => m.tabId)).toEqual([8, 9]);
     for (const { msg } of results) {
       expect(msg).toMatchObject({ broadcast: true, pageUrl: 'https://www.nexusmods.com/helldivers2/mods/123?tab=files' });
@@ -146,7 +146,7 @@ describe('auto-captured installs', () => {
 describe('right-click installs', () => {
   const OTHER_FILE = 'https://github.com/someone/else/releases/download/v2/other.zip';
   const rightClick = (linkUrl) =>
-    listeners.onClicked.forEach((fn) => fn({ menuItemId: 'ddmm-install-link', linkUrl }, { id: 5, url: PAGE }));
+    listeners.onClicked.forEach((fn) => fn({ menuItemId: 'ordnance-install-link', linkUrl }, { id: 5, url: PAGE }));
 
   it("never report another mod's download to the page's button", async () => {
     nextDownload = 50;
@@ -156,7 +156,7 @@ describe('right-click installs', () => {
     await flush();
     expect(resultsFor(5)).toHaveLength(0);
     // Nobody's button is waiting on it, so the failure is a notification.
-    expect(notifications.map((n) => n.title)).toEqual(['DDMM install failed']);
+    expect(notifications.map((n) => n.title)).toEqual(['Ordnance install failed']);
 
     nextDownload = 51;
     rightClick(OTHER_FILE);
@@ -178,7 +178,7 @@ describe('right-click installs', () => {
 });
 
 describe('direct-download bookkeeping', () => {
-  const bg = () => globalThis.DDMM.background;
+  const bg = () => globalThis.Ordnance.background;
 
   it('reports a download that failed before it was even registered, once', async () => {
     nextDownload = 60;

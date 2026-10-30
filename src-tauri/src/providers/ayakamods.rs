@@ -3,13 +3,13 @@
 //! version and whose `dateModified` is when the mod was last updated.
 //! Downloads need a login, so updates go through the browser.
 //!
-//! The site sits behind Cloudflare, so DDMM is careful to be a polite,
+//! The site sits behind Cloudflare, so Ordnance is careful to be a polite,
 //! honest client (never a disguised browser):
 //!
 //! - every AyakaMods request, from update checks and installs alike, goes
 //!   through one gate: strictly one at a time, at least [`REQUEST_GAP`]
 //!   apart;
-//! - normal `Accept` / `Accept-Language` headers next to DDMM's own
+//! - normal `Accept` / `Accept-Language` headers next to Ordnance's own
 //!   User-Agent;
 //! - the page's canonical address (`/mods/<slug>.<id>/`) is remembered, so
 //!   later checks skip the `/mods/<id>/` redirect hop;
@@ -81,7 +81,7 @@ impl AyakaError {
         }
     }
 
-    /// Whether the site as a whole is turning DDMM away right now, so the
+    /// Whether the site as a whole is turning Ordnance away right now, so the
     /// rest of this check shouldn't ask it again.
     pub fn site_is_refusing(&self) -> bool {
         matches!(self, AyakaError::Challenge | AyakaError::Busy { .. })
@@ -544,7 +544,7 @@ mod tests {
         let (base, seen) = server(vec![reply("200 OK", "", &page("1.0"))]).await;
         fetch_from(&client(), &base, "1", FAST).await.unwrap();
         let req = seen.lock().unwrap()[0].to_ascii_lowercase();
-        assert!(req.contains("user-agent: democracydefendermodmanager/"), "{req}");
+        assert!(req.contains("user-agent: ordnance/"), "{req}");
         assert!(req.contains("accept: text/html"), "{req}");
         assert!(req.contains("accept-language: en"), "{req}");
     }

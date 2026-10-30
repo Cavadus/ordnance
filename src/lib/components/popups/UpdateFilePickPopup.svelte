@@ -49,8 +49,8 @@
         {/each}
     </ul>
     <div class="flex flex-row gap-2 justify-between">
-        <button class="hd2mm-button" onclick={() => popup.close(null)}>{t("popup.update_file_pick.cancel_button.text")}</button>
-        <button class="hd2mm-success-button" disabled={!selected} onclick={confirm}>
+        <button class="ordnance-button" onclick={() => popup.close(null)}>{t("popup.update_file_pick.cancel_button.text")}</button>
+        <button class="ordnance-success-button" disabled={!selected} onclick={confirm}>
             {t("popup.update_file_pick.confirm_button.text")}
         </button>
     </div>

@@ -1,6 +1,6 @@
 /**
  * @file Background service worker (Chrome) / event page (Firefox) entry
- * point. Owns the single native-messaging connection to DDMM, the
+ * point. Owns the single native-messaging connection to Ordnance, the
  * `downloads` capture logic, the context menu, and message routing for
  * content scripts and the popup.
  *
@@ -8,7 +8,7 @@
  * `importScripts` below): browser-shim.js, sources.js, errors.js,
  * protocol-client.js, capture.js, downloads-adapter.js, storage.js.
  */
-/* global DDMM, importScripts */
+/* global Ordnance, importScripts */
 (function initBackground(root) {
   'use strict';
 
@@ -19,7 +19,7 @@
   // scope already, making importScripts both unavailable and unnecessary
   // there. Don't key this off `browser` being defined: current Chrome
   // exposes a `browser` namespace in the service worker too, which left
-  // DDMM undefined and the whole background script dead.
+  // Ordnance undefined and the whole background script dead.
   if (typeof importScripts === 'function') {
     importScripts(
       '../lib/browser-shim.js',
@@ -32,9 +32,9 @@
     );
   }
 
-  const api = DDMM.browserApi;
-  const client = new DDMM.ProtocolClient();
-  const captureRegistry = new DDMM.capture.CaptureRegistry();
+  const api = Ordnance.browserApi;
+  const client = new Ordnance.ProtocolClient();
+  const captureRegistry = new Ordnance.capture.CaptureRegistry();
 
   /**
    * Chrome shuts an idle MV3 service worker down after ~30 s, and nothing
@@ -43,7 +43,7 @@
    * `storage.session` and restored on the next wake-up. Memory-only where
    * `storage.session` doesn't exist.
    */
-  const SESSION_KEY = 'ddmmCapture';
+  const SESSION_KEY = 'ordnanceCapture';
   const registryReady = (async () => {
     if (!api.storage.session) return;
     try {
@@ -66,7 +66,7 @@
   /** site -> timer that fires if an armed capture never matches. */
   const armTimers = new Map();
   /**
-   * pageUrl -> the version its content script scraped, from the `ddmm:query`
+   * pageUrl -> the version its content script scraped, from the `ordnance:query`
    * each mod page sends on load. Lets capture installs send the version of
    * the page the download came from -- only ever when the file is that same
    * mod (see sendableVersion).
@@ -95,7 +95,7 @@
   }
 
   const EXTENSION_VERSION = api.runtime.getManifest().version;
-  const BROWSER_NAME = DDMM.isFirefox ? 'firefox' : 'chrome';
+  const BROWSER_NAME = Ordnance.isFirefox ? 'firefox' : 'chrome';
 
   // ---------------------------------------------------------------------
   // Native messaging helpers
@@ -113,7 +113,7 @@
   }
 
   /**
-   * Never starts DDMM (the host only launches it for `install`/`open`), so
+   * Never starts Ordnance (the host only launches it for `install`/`open`), so
    * it's safe to call just because a mod page loaded.
    * @returns {Promise<object>} The hello reply, or an error reply.
    */
@@ -129,7 +129,7 @@
    * @param {{name: string, provider: string, version: string|null, updated: boolean}} mod
    */
   async function recordInstall(mod, updated) {
-    await DDMM.storage.pushRecentInstall({
+    await Ordnance.storage.pushRecentInstall({
       name: mod && mod.name,
       provider: mod && mod.source && mod.source.provider,
       version: mod && mod.version,
@@ -156,7 +156,7 @@
    * @returns {Promise<object>} The reply message (success or `{ok:false, error}`).
    */
   async function runInstall(params) {
-    const override = await DDMM.storage.getAfterInstallOverride();
+    const override = await Ordnance.storage.getAfterInstallOverride();
     try {
       const reply = await client.install({
         ...params,
@@ -165,16 +165,16 @@
       if (reply.ok) {
         await recordInstall(reply.mod, reply.updated);
         notify(
-          'DDMM',
+          'Ordnance',
           `${reply.mod ? reply.mod.name : 'Mod'} installed${reply.deployed ? ' and deployed' : ''}.`,
         );
       } else {
-        notify('DDMM install failed', DDMM.errors.describeError(reply.error && reply.error.code, reply.error && reply.error.message));
+        notify('Ordnance install failed', Ordnance.errors.describeError(reply.error && reply.error.code, reply.error && reply.error.message));
       }
       return reply;
     } catch (e) {
-      const message = DDMM.errors.describeError(e && e.code, e && e.message);
-      notify('DDMM install failed', message);
+      const message = Ordnance.errors.describeError(e && e.code, e && e.message);
+      notify('Ordnance install failed', message);
       return { ok: false, error: { code: (e && e.code) || 'INTERNAL', message } };
     }
   }
@@ -215,7 +215,7 @@
   }
 
   api.downloads.onChanged.addListener((delta) => {
-    const changed = DDMM.downloadsAdapter.normalizeChangedDelta(delta);
+    const changed = Ordnance.downloadsAdapter.normalizeChangedDelta(delta);
     if (changed.state === 'interrupted') {
       reportInterruptedDirectDownload(changed.id);
       return;
@@ -247,10 +247,10 @@
     if (!context || context.interrupted) return;
     context.interrupted = true;
     if (context.tabId != null) {
-      sendToTab(context.tabId, { type: 'ddmm:installResult', reply: downloadFailedReply() });
+      sendToTab(context.tabId, { type: 'ordnance:installResult', reply: downloadFailedReply() });
     } else {
       // No button is waiting on it (a right-clicked link to another mod).
-      notify('DDMM install failed', DDMM.errors.describeError('DOWNLOAD_FAILED'));
+      notify('Ordnance install failed', Ordnance.errors.describeError('DOWNLOAD_FAILED'));
     }
   }
 
@@ -258,7 +258,7 @@
   async function handleCompletedDownload(downloadId) {
     const [item] = await api.downloads.search({ id: downloadId });
     if (!item) return;
-    const normalized = DDMM.downloadsAdapter.normalizeDownloadItem(item);
+    const normalized = Ordnance.downloadsAdapter.normalizeDownloadItem(item);
 
     if (directDownloads.has(downloadId)) {
       const context = directDownloads.get(downloadId);
@@ -272,7 +272,7 @@
         pageVersion: context.pageVersion || null,
       });
       if (context.tabId != null) {
-        sendToTab(context.tabId, { type: 'ddmm:installResult', reply });
+        sendToTab(context.tabId, { type: 'ordnance:installResult', reply });
       }
       return;
     }
@@ -290,12 +290,12 @@
       return;
     }
 
-    for (const site of Object.keys(DDMM.capture.SITE_HOSTS)) {
-      if (!DDMM.capture.isFromSite(normalized, site)) continue;
-      if (!DDMM.capture.isArchiveDownload(normalized)) continue;
+    for (const site of Object.keys(Ordnance.capture.SITE_HOSTS)) {
+      if (!Ordnance.capture.isFromSite(normalized, site)) continue;
+      if (!Ordnance.capture.isArchiveDownload(normalized)) continue;
       // eslint-disable-next-line no-await-in-loop -- at most 5 sites, and short-circuits on the first host match
-      if (await DDMM.storage.isAutoCaptureEnabled(site)) {
-        const attribution = DDMM.sources.attributeDownload({
+      if (await Ordnance.storage.isAutoCaptureEnabled(site)) {
+        const attribution = Ordnance.sources.attributeDownload({
           contextPageUrl: normalized.referrer,
           downloadUrl: normalized.finalUrl,
           trustPage: true,
@@ -306,7 +306,7 @@
           downloadUrl: normalized.finalUrl,
           pageVersion: sendableVersion(attribution, normalized.referrer),
         });
-        broadcastToSiteTabs(site, { type: 'ddmm:installResult', reply, broadcast: true, pageUrl: attribution.pageUrl });
+        broadcastToSiteTabs(site, { type: 'ordnance:installResult', reply, broadcast: true, pageUrl: attribution.pageUrl });
         return;
       }
       break;
@@ -326,7 +326,7 @@
    */
   async function installCaptured(normalized, armed) {
     const contextPageUrl = armed.pageUrl || normalized.referrer;
-    const attribution = DDMM.sources.attributeDownload({
+    const attribution = Ordnance.sources.attributeDownload({
       contextPageUrl,
       downloadUrl: normalized.finalUrl,
       trustPage: true,
@@ -337,14 +337,14 @@
       armed.tabId != null
         ? sendToTab(armed.tabId, message)
         : broadcastToSiteTabs(armed.site, { ...message, broadcast: true, pageUrl: attribution.pageUrl });
-    notifyTab({ type: 'ddmm:captureStarted', site: armed.site });
+    notifyTab({ type: 'ordnance:captureStarted', site: armed.site });
     const reply = await runInstall({
       file: normalized.filename,
       pageUrl: attribution.pageUrl,
       downloadUrl: normalized.finalUrl,
       pageVersion: sendableVersion(attribution, contextPageUrl, armed.pageVersion),
     });
-    notifyTab({ type: 'ddmm:installResult', reply });
+    notifyTab({ type: 'ordnance:installResult', reply });
   }
 
   /** @param {string} site */
@@ -371,7 +371,7 @@
    * @param {object} message
    */
   async function broadcastToSiteTabs(site, message) {
-    const hosts = DDMM.capture.SITE_HOSTS[site] || [];
+    const hosts = Ordnance.capture.SITE_HOSTS[site] || [];
     const patterns = hosts.map((h) => `*://*.${h}/*`).concat(hosts.map((h) => `*://${h}/*`));
     try {
       const tabs = await api.tabs.query({ url: patterns });
@@ -399,9 +399,9 @@
    * @returns {{pageUrl: string|null, pageVersion: string|null, tabId: number|null}|null}
    */
   function contextMenuInstallContext(info, tab) {
-    if (info.menuItemId !== 'ddmm-install-link' || !info.linkUrl) return null;
+    if (info.menuItemId !== 'ordnance-install-link' || !info.linkUrl) return null;
     const tabUrl = (tab && tab.url) || null;
-    const attribution = DDMM.sources.attributeDownload({
+    const attribution = Ordnance.sources.attributeDownload({
       contextPageUrl: tabUrl,
       downloadUrl: info.linkUrl,
       trustPage: false,
@@ -417,7 +417,7 @@
 
   if (api.contextMenus) {
     api.contextMenus.create({
-      id: 'ddmm-install-link',
+      id: 'ordnance-install-link',
       title: 'Install with Ordnance',
       contexts: ['link'],
     });
@@ -426,7 +426,7 @@
       const payload = contextMenuInstallContext(info, tab);
       if (!payload) return;
       startDirectDownload(info.linkUrl, payload).catch((e) =>
-        notify('DDMM', `Couldn't start that download: ${e.message}`),
+        notify('Ordnance', `Couldn't start that download: ${e.message}`),
       );
     });
   }
@@ -443,10 +443,10 @@
    */
   async function handleMessage(message, sender) {
     switch (message && message.type) {
-      case 'ddmm:hello':
+      case 'ordnance:hello':
         return tryHello();
 
-      case 'ddmm:query': {
+      case 'ordnance:query': {
         rememberPageVersion(message.pageUrl, message.pageVersion);
         try {
           return await client.query({ pageUrl: message.pageUrl, pageVersion: message.pageVersion ?? null });
@@ -455,7 +455,7 @@
         }
       }
 
-      case 'ddmm:status': {
+      case 'ordnance:status': {
         try {
           return await client.status();
         } catch (e) {
@@ -464,8 +464,8 @@
       }
 
       // The popup's "Start Ordnance" button: an explicit user action, so it may
-      // launch DDMM (see bridge-protocol.md).
-      case 'ddmm:open': {
+      // launch Ordnance (see bridge-protocol.md).
+      case 'ordnance:open': {
         try {
           return await client.open();
         } catch (e) {
@@ -473,7 +473,7 @@
         }
       }
 
-      case 'ddmm:installDirect': {
+      case 'ordnance:installDirect': {
         const tabId = sender.tab ? sender.tab.id : null;
         try {
           const downloadId = await startDirectDownload(message.url, {
@@ -487,12 +487,12 @@
           // (Firefox rejects then): no download will ever complete, so the
           // tab hears it now instead of waiting on "Installing…".
           const reply = downloadFailedReply(e && e.message);
-          if (tabId != null) sendToTab(tabId, { type: 'ddmm:installResult', reply });
+          if (tabId != null) sendToTab(tabId, { type: 'ordnance:installResult', reply });
           return reply;
         }
       }
 
-      case 'ddmm:armCapture': {
+      case 'ordnance:armCapture': {
         const tabId = sender.tab ? sender.tab.id : null;
         const pageUrl = message.pageUrl ?? null;
         const pageVersion = message.pageVersion ?? null;
@@ -519,39 +519,39 @@
           setTimeout(() => {
             armTimers.delete(message.site);
             if (tabId != null) {
-              sendToTab(tabId, { type: 'ddmm:captureExpired', site: message.site });
+              sendToTab(tabId, { type: 'ordnance:captureExpired', site: message.site });
             }
-          }, DDMM.capture.DEFAULT_ARM_WINDOW_MS),
+          }, Ordnance.capture.DEFAULT_ARM_WINDOW_MS),
         );
         return { ok: true, claimed: false };
       }
 
-      case 'ddmm:disarmCapture':
+      case 'ordnance:disarmCapture':
         await registryReady;
         captureRegistry.disarm(message.site);
         persistRegistry();
         clearArmTimer(message.site);
         return { ok: true };
 
-      case 'ddmm:getAutoCapture':
-        return { enabled: await DDMM.storage.isAutoCaptureEnabled(message.site) };
+      case 'ordnance:getAutoCapture':
+        return { enabled: await Ordnance.storage.isAutoCaptureEnabled(message.site) };
 
-      case 'ddmm:getAllAutoCapture':
-        return { sites: await DDMM.storage.getAllAutoCapture() };
+      case 'ordnance:getAllAutoCapture':
+        return { sites: await Ordnance.storage.getAllAutoCapture() };
 
-      case 'ddmm:setAutoCapture':
-        await DDMM.storage.setAutoCaptureEnabled(message.site, message.enabled);
+      case 'ordnance:setAutoCapture':
+        await Ordnance.storage.setAutoCaptureEnabled(message.site, message.enabled);
         return { ok: true };
 
-      case 'ddmm:getAfterInstallOverride':
-        return { value: await DDMM.storage.getAfterInstallOverride() };
+      case 'ordnance:getAfterInstallOverride':
+        return { value: await Ordnance.storage.getAfterInstallOverride() };
 
-      case 'ddmm:setAfterInstallOverride':
-        await DDMM.storage.setAfterInstallOverride(message.value);
+      case 'ordnance:setAfterInstallOverride':
+        await Ordnance.storage.setAfterInstallOverride(message.value);
         return { ok: true };
 
-      case 'ddmm:getRecentInstalls':
-        return { installs: await DDMM.storage.getRecentInstalls() };
+      case 'ordnance:getRecentInstalls':
+        return { installs: await Ordnance.storage.getRecentInstalls() };
 
       default:
         return { ok: false, error: { code: 'UNSUPPORTED', message: `Unknown message type: ${message && message.type}` } };
@@ -563,5 +563,5 @@
     return true; // keep the message channel open for the async response
   });
 
-  DDMM.background = { handleMessage, runInstall, captureRegistry, directDownloads, contextMenuInstallContext };
+  Ordnance.background = { handleMessage, runInstall, captureRegistry, directDownloads, contextMenuInstallContext };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

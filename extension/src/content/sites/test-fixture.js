@@ -9,18 +9,18 @@
  * extension/test/fixtures/ayakamods-mod.html) so the smoke test exercises
  * the actual button/query/install pipeline end to end, just against a page
  * that isn't one of the five real mod-site hosts (so `sourceFromPageUrl`
- * would otherwise reject it -- see `DDMM.content.runTestAdapter`).
+ * would otherwise reject it -- see `Ordnance.content.runTestAdapter`).
  */
-/* global DDMM */
+/* global Ordnance */
 (function initTestFixture() {
   'use strict';
 
-  if (!DDMM.siteAdapters || !DDMM.siteAdapters.ayakamods) return;
+  if (!Ordnance.siteAdapters || !Ordnance.siteAdapters.ayakamods) return;
 
-  DDMM.content.runTestAdapter({
+  Ordnance.content.runTestAdapter({
     name: 'test-fixture',
-    findInsertionPoint: DDMM.siteAdapters.ayakamods.findInsertionPoint,
-    findDirectDownloadUrl: DDMM.siteAdapters.ayakamods.findDirectDownloadUrl,
-    scrapeVersion: DDMM.siteAdapters.ayakamods.scrapeVersion,
+    findInsertionPoint: Ordnance.siteAdapters.ayakamods.findInsertionPoint,
+    findDirectDownloadUrl: Ordnance.siteAdapters.ayakamods.findDirectDownloadUrl,
+    scrapeVersion: Ordnance.siteAdapters.ayakamods.scrapeVersion,
   });
 })();

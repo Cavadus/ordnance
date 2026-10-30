@@ -1,11 +1,11 @@
-//! Moving DDMM's data folder: "Change" and "Reset to default" next to the
+//! Moving Ordnance's data folder: "Change" and "Reset to default" next to the
 //! data folder in Settings. See `docs/using/data-folder.md`.
 //!
 //! Safety rules, in order:
 //!
 //! 1. [`plan`] refuses anything that could nest a folder inside itself (the
 //!    destination is, is inside, or contains the current data folder), touch
-//!    the game install, or mix DDMM's files into an unrelated folder.
+//!    the game install, or mix Ordnance's files into an unrelated folder.
 //! 2. [`execute`] copies into a temporary folder *inside* the destination,
 //!    checks every file's size against what was copied, then renames the
 //!    items into place. Only after that does it call `commit` (which writes
@@ -15,7 +15,7 @@
 //!    can't delete (a log file still open on Windows) is recorded and retried
 //!    at the next start by [`run_pending_cleanup`].
 //!
-//! Only DDMM's own items ([`MOVED_ITEMS`]) are moved. The data folder can be
+//! Only Ordnance's own items ([`MOVED_ITEMS`]) are moved. The data folder can be
 //! shared with other files: the executable itself in a portable copy, or the
 //! webview's own cache in the Linux app data folder.
 
@@ -30,7 +30,7 @@ use serde::Serialize;
 
 use crate::fs_util::{is_cross_device, path_overlap, PathOverlap};
 
-/// DDMM's own files and folders in the data folder, copied by a move.
+/// Ordnance's own files and folders in the data folder, copied by a move.
 pub const MOVED_ITEMS: &[&str] = &[
     "mods",
     "settings.json",
@@ -41,15 +41,15 @@ pub const MOVED_ITEMS: &[&str] = &[
     "logs",
 ];
 
-/// DDMM's own items that are recreated as needed (download staging, the
+/// Ordnance's own items that are recreated as needed (download staging, the
 /// Windows native messaging manifests, which are rewritten at every start,
 /// and `bridge.json`, which the restarted app writes again in the new
 /// folder): never copied, but removed from the old folder after a move.
 pub const REGENERATED_ITEMS: &[&str] = &[".downloads", "native-messaging", "bridge.json"];
 
 /// Items that may already exist in the default folder when moving back
-/// there ("Reset to default") without making it an existing DDMM data
-/// folder: leftovers DDMM itself recreates.
+/// there ("Reset to default") without making it an existing Ordnance data
+/// folder: leftovers Ordnance itself recreates.
 const STALE_ITEMS: &[&str] = &["logs"];
 
 /// Files some operating systems drop into any folder they display. A folder
@@ -59,15 +59,15 @@ const OS_CLUTTER: &[&str] = &[".DS_Store", "Thumbs.db", "desktop.ini"];
 /// Created in the destination before copying and removed only once
 /// everything is in place, so a folder left behind by a crash (or power
 /// loss) mid-move is never mistaken for complete data.
-pub const INCOMPLETE_MARKER: &str = ".ddmm-move-incomplete";
-const TEMP_PREFIX: &str = ".ddmm-move-";
+pub const INCOMPLETE_MARKER: &str = ".ordnance-move-incomplete";
+const TEMP_PREFIX: &str = ".ordnance-move-";
 /// Holds a stale `logs` folder of the default location while moving back.
 const STALE_ASIDE: &str = "stale";
 /// Old items [`cleanup_old`] couldn't delete, retried at the next start.
-pub const CLEANUP_FILE: &str = ".ddmm-cleanup-pending.json";
-/// Created inside a non-empty folder the user picked, so DDMM's files are
+pub const CLEANUP_FILE: &str = ".ordnance-cleanup-pending.json";
+/// Created inside a non-empty folder the user picked, so Ordnance's files are
 /// never mixed in with someone else's.
-pub const SUBFOLDER_NAME: &str = "DDMM Data";
+pub const SUBFOLDER_NAME: &str = "Ordnance Data";
 /// Headroom kept free on the destination beyond the data itself.
 const FREE_SPACE_MARGIN: u64 = 64 * 1024 * 1024;
 
@@ -79,14 +79,14 @@ pub struct MovePlan {
     pub source: PathBuf,
     /// The folder the user picked.
     pub picked: PathBuf,
-    /// Where the data will actually live (`picked`, or `picked/DDMM Data`).
+    /// Where the data will actually live (`picked`, or `picked/Ordnance Data`).
     pub target: PathBuf,
     /// Moving back to the default location (the pointer file is removed).
     pub is_reset: bool,
-    /// `target` is a `DDMM Data` folder inside a non-empty `picked`.
+    /// `target` is a `Ordnance Data` folder inside a non-empty `picked`.
     pub used_subfolder: bool,
-    /// `target` already holds DDMM data: it can be used as is ("adopt"),
-    /// but DDMM won't copy over it.
+    /// `target` already holds Ordnance data: it can be used as is ("adopt"),
+    /// but Ordnance won't copy over it.
     pub existing_data: bool,
     pub total_bytes: u64,
     pub total_files: u64,
@@ -115,7 +115,7 @@ pub fn plan(input: &PlanInput, free_space: &dyn Fn(&Path) -> Option<u64>) -> any
 
     if is_reset {
         if matches!(path_overlap(current, default_path)?, Some(PathOverlap::Same)) {
-            bail!("DDMM's data is already in the default location ({}).", default_path.display());
+            bail!("Ordnance's data is already in the default location ({}).", default_path.display());
         }
     } else if !picked.is_dir() {
         bail!("{} doesn't exist or isn't a folder.", picked.display());
@@ -126,7 +126,7 @@ pub fn plan(input: &PlanInput, free_space: &dyn Fn(&Path) -> Option<u64>) -> any
 
     // Where the data goes.
     let mut used_subfolder = false;
-    let target = if is_reset || is_effectively_empty(picked)? || is_ddmm_data_dir(picked) {
+    let target = if is_reset || is_effectively_empty(picked)? || is_ordnance_data_dir(picked) {
         picked.to_path_buf()
     } else {
         used_subfolder = true;
@@ -134,15 +134,15 @@ pub fn plan(input: &PlanInput, free_space: &dyn Fn(&Path) -> Option<u64>) -> any
     };
     check_not_overlapping_current(current, &target)?;
 
-    // An interrupted move (DDMM killed, power cut) leaves its marker in the
+    // An interrupted move (Ordnance killed, power cut) leaves its marker in the
     // folder it was copying into: the picked folder itself, or its
-    // `DDMM Data` subfolder. Never treat either as empty, adoptable or
+    // `Ordnance Data` subfolder. Never treat either as empty, adoptable or
     // usable until the user has cleaned it up.
     for dir in [picked, target.as_path()] {
         if dir.join(INCOMPLETE_MARKER).exists() {
             bail!(
                 "{} holds an unfinished copy from an earlier data folder move that was interrupted: \
-                 the \"{}\" file and \"{}...\" folder(s). DDMM never uses them; delete them, then try again.",
+                 the \"{}\" file and \"{}...\" folder(s). Ordnance never uses them; delete them, then try again.",
                 dir.display(),
                 INCOMPLETE_MARKER,
                 TEMP_PREFIX
@@ -150,7 +150,7 @@ pub fn plan(input: &PlanInput, free_space: &dyn Fn(&Path) -> Option<u64>) -> any
         }
     }
 
-    let existing_data = target.is_dir() && is_ddmm_data_dir(&target);
+    let existing_data = target.is_dir() && is_ordnance_data_dir(&target);
     if !existing_data && target.exists() {
         if !target.is_dir() {
             bail!("{} exists but isn't a folder.", target.display());
@@ -163,7 +163,7 @@ pub fn plan(input: &PlanInput, free_space: &dyn Fn(&Path) -> Option<u64>) -> any
                 .collect();
             if !clashes.is_empty() {
                 bail!(
-                    "The default location ({}) already has {} in it, but it isn't a complete DDMM \
+                    "The default location ({}) already has {} in it, but it isn't a complete Ordnance \
                      data folder. Move or delete those first.",
                     target.display(),
                     clashes.join(", ")
@@ -182,7 +182,7 @@ pub fn plan(input: &PlanInput, free_space: &dyn Fn(&Path) -> Option<u64>) -> any
         for p in [picked, target.as_path()] {
             if path_overlap(p, game)?.is_some() {
                 bail!(
-                    "{} is inside, or contains, the Helldivers 2 install ({}). Keep DDMM's data \
+                    "{} is inside, or contains, the Helldivers 2 install ({}). Keep Ordnance's data \
                      outside the game folder.",
                     p.display(),
                     game.display()
@@ -192,9 +192,9 @@ pub fn plan(input: &PlanInput, free_space: &dyn Fn(&Path) -> Option<u64>) -> any
     }
 
     let existing_ancestor = nearest_existing_ancestor(&target)
-        .with_context(|| format!("{} isn't on any drive DDMM can see", target.display()))?;
+        .with_context(|| format!("{} isn't on any drive Ordnance can see", target.display()))?;
     if !crate::data_dir::is_dir_writable(&existing_ancestor) {
-        bail!("DDMM can't write to {}. Pick a folder you have write access to.", existing_ancestor.display());
+        bail!("Ordnance can't write to {}. Pick a folder you have write access to.", existing_ancestor.display());
     }
 
     let free_bytes = free_space(&existing_ancestor);
@@ -209,7 +209,7 @@ pub fn plan(input: &PlanInput, free_space: &dyn Fn(&Path) -> Option<u64>) -> any
         if let Some(free) = free_bytes {
             if free < total_bytes.saturating_add(FREE_SPACE_MARGIN) {
                 bail!(
-                    "Not enough free space on the destination drive: DDMM's data needs {} (plus {} \
+                    "Not enough free space on the destination drive: Ordnance's data needs {} (plus {} \
                      headroom) and only {} is free.",
                     human_bytes(total_bytes),
                     human_bytes(FREE_SPACE_MARGIN),
@@ -235,15 +235,15 @@ pub fn plan(input: &PlanInput, free_space: &dyn Fn(&Path) -> Option<u64>) -> any
 fn check_not_overlapping_current(current: &Path, dest: &Path) -> anyhow::Result<()> {
     match path_overlap(current, dest)? {
         None => Ok(()),
-        Some(PathOverlap::Same) => bail!("{} is already DDMM's data folder.", dest.display()),
+        Some(PathOverlap::Same) => bail!("{} is already Ordnance's data folder.", dest.display()),
         Some(PathOverlap::SecondInsideFirst) => bail!(
-            "{} is inside DDMM's current data folder ({}). Pick a folder outside it: copying a \
+            "{} is inside Ordnance's current data folder ({}). Pick a folder outside it: copying a \
              folder into itself would never finish.",
             dest.display(),
             current.display()
         ),
         Some(PathOverlap::FirstInsideSecond) => bail!(
-            "{} contains DDMM's current data folder ({}). Pick a folder that isn't above it.",
+            "{} contains Ordnance's current data folder ({}). Pick a folder that isn't above it.",
             dest.display(),
             current.display()
         ),
@@ -254,9 +254,9 @@ fn nearest_existing_ancestor(path: &Path) -> Option<PathBuf> {
     path.ancestors().find(|a| a.is_dir()).map(Path::to_path_buf)
 }
 
-/// Whether `dir` holds DDMM data: a `settings.json` or `profiles.json` that
-/// parses as DDMM's own.
-pub fn is_ddmm_data_dir(dir: &Path) -> bool {
+/// Whether `dir` holds Ordnance data: a `settings.json` or `profiles.json` that
+/// parses as Ordnance's own.
+pub fn is_ordnance_data_dir(dir: &Path) -> bool {
     let parses = |name: &str, check: &dyn Fn(&[u8]) -> bool| {
         std::fs::read(dir.join(name)).map(|data| check(&data)).unwrap_or(false)
     };
@@ -288,7 +288,7 @@ struct Entry {
 
 /// Every file and folder under the [`MOVED_ITEMS`] that exist in `base`,
 /// parents before children. Refuses symlinks (and Windows junctions)
-/// anywhere: following one could copy far more than DDMM's data, and
+/// anywhere: following one could copy far more than Ordnance's data, and
 /// skipping one would silently leave something behind.
 fn scan_items(base: &Path) -> anyhow::Result<Vec<Entry>> {
     let mut entries = Vec::new();
@@ -303,7 +303,7 @@ fn scan_items(base: &Path) -> anyhow::Result<Vec<Entry>> {
 fn scan_one(path: &Path, rel: PathBuf, meta: std::fs::Metadata, out: &mut Vec<Entry>) -> anyhow::Result<()> {
     if meta.file_type().is_symlink() {
         bail!(
-            "{} is a symbolic link (or junction). DDMM won't move links; replace it with the real \
+            "{} is a symbolic link (or junction). Ordnance won't move links; replace it with the real \
              folder or file, or move the data by hand.",
             path.display()
         );
@@ -321,7 +321,7 @@ fn scan_one(path: &Path, rel: PathBuf, meta: std::fs::Metadata, out: &mut Vec<En
     } else if meta.is_file() {
         out.push(Entry { rel, is_dir: false, size: meta.len() });
     } else {
-        bail!("{} isn't a regular file or folder; DDMM can't move it.", path.display());
+        bail!("{} isn't a regular file or folder; Ordnance can't move it.", path.display());
     }
     Ok(())
 }
@@ -390,7 +390,7 @@ fn real_rename(from: &Path, to: &Path) -> io::Result<()> {
 
 pub const REAL_OPS: MoveOps<'static> = MoveOps { copy_file: &real_copy, rename: &real_rename };
 
-/// Copy DDMM's data to `plan.target`, verify it, put it in place and call
+/// Copy Ordnance's data to `plan.target`, verify it, put it in place and call
 /// `commit` (which writes the pointer file). On any error, including from
 /// `commit`, everything this created is removed again and the old data is
 /// left exactly as it was. The old data is *not* deleted here: call
@@ -402,7 +402,7 @@ pub fn execute(
     progress: &mut dyn FnMut(&MoveProgress),
 ) -> anyhow::Result<()> {
     if plan.existing_data {
-        bail!("{} already holds DDMM data; use it as is instead of moving.", plan.target.display());
+        bail!("{} already holds Ordnance data; use it as is instead of moving.", plan.target.display());
     }
     let target = &plan.target;
     let created_target = !target.exists();
@@ -511,7 +511,7 @@ fn copy_entries(
 
 /// Every file that was copied is in the temp folder with the size that was
 /// copied, nothing else is there, and (except log files, which keep growing
-/// while DDMM runs) nothing changed in the source while it was copied.
+/// while Ordnance runs) nothing changed in the source while it was copied.
 fn verify(
     tmp: &Path,
     entries: &[Entry],
@@ -624,7 +624,7 @@ pub fn rewrite_path(path: &Path, old_base: &Path, new_base: &Path) -> Option<Pat
 }
 
 /// Fix absolute paths in the moved `settings.json` that pointed into the
-/// old data folder. Everything else DDMM stores is relative to the data
+/// old data folder. Everything else Ordnance stores is relative to the data
 /// folder already (mod folders are found by scanning `mods/`, manifests use
 /// relative paths, profiles hold only ids).
 fn rewrite_stored_paths(old_base: &Path, new_base: &Path) -> anyhow::Result<()> {
@@ -649,7 +649,7 @@ fn rewrite_stored_paths(old_base: &Path, new_base: &Path) -> anyhow::Result<()> 
     Ok(())
 }
 
-/// Delete DDMM's items from the old data folder after a committed move.
+/// Delete Ordnance's items from the old data folder after a committed move.
 /// Returns what couldn't be deleted (also recorded in [`CLEANUP_FILE`] in
 /// the new folder, so the next start retries it). The old folder itself is
 /// removed if that leaves it empty and it isn't the default location.
@@ -695,7 +695,7 @@ fn record_pending_cleanup(new_base: &Path, paths: &[PathBuf]) {
 }
 
 /// Retry deleting old data a previous move couldn't (see [`cleanup_old`]).
-/// Only ever deletes DDMM's own item names, and never anything overlapping
+/// Only ever deletes Ordnance's own item names, and never anything overlapping
 /// the current data folder.
 pub fn run_pending_cleanup(base: &Path) {
     let file = base.join(CLEANUP_FILE);

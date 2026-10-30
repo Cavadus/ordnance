@@ -34,7 +34,7 @@
     <p class="min-w-60 max-w-120 text-sm text-zinc-400">{t("popup.replace.keeps")}</p>
     <p class="min-w-60 max-w-120 text-xs text-zinc-500 font-mono break-all">{t("popup.replace.file", { file: offer.fileName })}</p>
     <div class="flex flex-row gap-2 justify-between">
-        <button class="hd2mm-button" onclick={() => popup.close(true)}>{t("popup.replace.replace_button.text")}</button>
-        <button class="hd2mm-button" use:focusOnShow onclick={() => popup.close(false)}>{t("popup.replace.cancel_button.text")}</button>
+        <button class="ordnance-button" onclick={() => popup.close(true)}>{t("popup.replace.replace_button.text")}</button>
+        <button class="ordnance-button" use:focusOnShow onclick={() => popup.close(false)}>{t("popup.replace.cancel_button.text")}</button>
     </div>
 </PopupBase>

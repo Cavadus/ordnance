@@ -45,7 +45,7 @@ list wins.") and labels the two ends **Lowest priority (loaded first)** and **Hi
 Hover the grip at the left of any mod for a reminder.
 
 Why: Helldivers 2 loads each game file's patches in number order (`<name>.patch_0`, then `.patch_1`, and so on),
-and a higher number overrides a lower one. When you [deploy](deploy-purge.md), DDMM numbers each file's patches
+and a higher number overrides a lower one. When you [deploy](deploy-purge.md), Ordnance numbers each file's patches
 in your list order, top to bottom. So the first mod in the list that touches a file gets `.patch_0`, the next one
 that touches the same file gets `.patch_1`, and the last one gets the highest number. A mod that ships several
 patches for the same file keeps them in its own order. (If that file is in your
@@ -68,19 +68,19 @@ To see Red Armor instead, move it below Blue Armor and deploy.
 ## Deleting a mod entirely
 
 The Library panel's trash-can button permanently uninstalls a mod: after confirming ("Are you sure you want to
-delete this mod?"), DDMM deletes the mod's files from `mods/` and removes it from every profile that referenced
+delete this mod?"), Ordnance deletes the mod's files from `mods/` and removes it from every profile that referenced
 it. This is different from a profile's **Remove**, which only takes the mod out of the current profile and leaves
 it installed in your Library.
 
-A delete is all or nothing. If DDMM can't take the mod's folder out of `mods/` (on Windows, usually because a file in
+A delete is all or nothing. If Ordnance can't take the mod's folder out of `mods/` (on Windows, usually because a file in
 it is open in the game or in File Explorer), nothing is deleted and the mod stays installed. The message says
 **Couldn't remove "…"**, with the step, the cause and a hint. Close whatever has the file open and delete it again.
-If only a few files are still in use after the mod is gone, DDMM deletes them the next time it starts. You can add
+If only a few files are still in use after the mod is gone, Ordnance deletes them the next time it starts. You can add
 the mod again right away.
 
 ## Mods that can't be found
 
-If a mod in a profile isn't in your Library when DDMM starts (its folder was removed by hand, or its
+If a mod in a profile isn't in your Library when Ordnance starts (its folder was removed by hand, or its
 `manifest.json` is damaged), the profile keeps its entry, shown as **Mod not found**, in the same place in the load
 order. Fix or re-add the mod and it's back where it was; **Remove** takes the entry out for good, straight away.
 A mod you deleted with the trash-can button never shows up here.
@@ -88,10 +88,10 @@ A mod you deleted with the trash-can button never shows up here.
 - **Deploy** skips missing mods and says how many it skipped. If *every* mod in the profile is missing, it refuses
   and leaves the game's mods as they are.
 - If a mod comes back changed (different options, or another manifest version), the options you had chosen may no
-  longer fit. DDMM then resets that mod's options to the defaults, keeps it on or off as it was, and tells you
+  longer fit. Ordnance then resets that mod's options to the defaults, keeps it on or off as it was, and tells you
   which mods it reset.
 
 ## Saving
 
 Profiles (and their mod order, enabled state, and options) are saved automatically whenever you navigate away
-from the Mods page or close DDMM — there's no separate "save" button.
+from the Mods page or close Ordnance — there's no separate "save" button.

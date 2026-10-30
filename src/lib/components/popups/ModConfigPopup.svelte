@@ -189,5 +189,5 @@
             {/each}
         </div>
     {/await}
-    <button class="hd2mm-button self-end" onclick={onClose}>{t("popup.config.ok_button.text")}</button>
+    <button class="ordnance-button self-end" onclick={onClose}>{t("popup.config.ok_button.text")}</button>
 </PopupBase>

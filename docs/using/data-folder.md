@@ -4,154 +4,154 @@ title: Data folder
 
 # Data folder
 
-DDMM keeps your installed mods (`mods/`), `settings.json`, `profiles.json`, its logs and a few small caches in one
-**data folder**. Where that is by default depends on how you run DDMM; see
+Ordnance keeps your installed mods (`mods/`), `settings.json`, `profiles.json`, its logs and a few small caches in one
+**data folder**. Where that is by default depends on how you run Ordnance; see
 [Data location](../getting-started/download.md#data-location). You can move it anywhere you like, for example to
 a bigger drive, since a Helldivers 2 mod collection can easily reach several GB.
 
 ## Seeing where it is
 
-**Settings → Data Folder** shows the folder DDMM is using right now. **Open Folder** opens it in your file
+**Settings → Data Folder** shows the folder Ordnance is using right now. **Open Folder** opens it in your file
 manager. If you chose the folder yourself, the default location is shown underneath, with **Reset to Default**.
 
 ## Moving it
 
 1. Open **Settings** and click **Change...** next to **Data Folder**.
-2. Pick the folder you want DDMM to use. An empty folder, or a new one you create in the picker, is simplest.
-3. DDMM checks the folder (see [what it refuses](#what-ddmm-refuses) below) and shows what it's about to do: the
+2. Pick the folder you want Ordnance to use. An empty folder, or a new one you create in the picker, is simplest.
+3. Ordnance checks the folder (see [what it refuses](#what-ordnance-refuses) below) and shows what it's about to do: the
    folder it moves from and to, how much data that is, and how much space is free there.
-4. Click **Move**. A progress bar shows the copy. Don't close DDMM while it runs (DDMM ignores the close button
+4. Click **Move**. A progress bar shows the copy. Don't close Ordnance while it runs (Ordnance ignores the close button
    until it's done).
-5. DDMM restarts by itself, already using the new folder.
+5. Ordnance restarts by itself, already using the new folder.
 
 What happens during the move, in order:
 
 1. Mod operations pause: installing, deleting, deploying, update checks, browser installs and auto-import all
-   wait until DDMM restarts. A browser install that arrives meanwhile is told to try again later.
-2. DDMM copies its own files into a temporary folder *inside* the destination.
+   wait until Ordnance restarts. A browser install that arrives meanwhile is told to try again later.
+2. Ordnance copies its own files into a temporary folder *inside* the destination.
 3. It checks that every file arrived complete (same number of files, same sizes).
-4. It moves the copy into place, then records the new location (see [How DDMM remembers the folder](#how-ddmm-remembers-the-folder)).
+4. It moves the copy into place, then records the new location (see [How Ordnance remembers the folder](#how-ordnance-remembers-the-folder)).
 5. Only after that does it delete the old copy.
 6. It restarts. Everything that refers to the data folder (mod images, the browser extension's connection, logs)
    follows the new folder from then on.
 
-If anything fails before step 5 (the drive fills up or is unplugged, a file can't be read, and so on), DDMM
+If anything fails before step 5 (the drive fills up or is unplugged, a file can't be read, and so on), Ordnance
 removes its partial copy, leaves your data exactly where it was, and tells you what went wrong. Nothing is ever
 deleted from the old folder until the new one is complete and in use.
 
-If DDMM is killed during the copy anyway (Task Manager, a crash, a power cut), your data is still safe: the old
-folder and DDMM's record of where the data is haven't changed yet, so DDMM starts normally with your data where it
-was. The destination is left with an unfinished copy (a `.ddmm-move-incomplete` file and a `.ddmm-move-...` folder)
-that DDMM never uses; delete it before picking that folder again. If it's killed after the switch (step 4) but
-before the old copy is deleted, DDMM starts with the new folder, and the old copy is simply left over.
+If Ordnance is killed during the copy anyway (Task Manager, a crash, a power cut), your data is still safe: the old
+folder and Ordnance's record of where the data is haven't changed yet, so Ordnance starts normally with your data where it
+was. The destination is left with an unfinished copy (a `.ordnance-move-incomplete` file and a `.ordnance-move-...` folder)
+that Ordnance never uses; delete it before picking that folder again. If it's killed after the switch (step 4) but
+before the old copy is deleted, Ordnance starts with the new folder, and the old copy is simply left over.
 
 Moving between drives (for example from `C:` to `D:`, or to a USB drive) works the same way.
 
-Only DDMM's own files are moved: `mods/`, `settings.json`, `profiles.json`, `logs/`, the update-check cache, and
+Only Ordnance's own files are moved: `mods/`, `settings.json`, `profiles.json`, `logs/`, the update-check cache, and
 (on Linux without a keychain) the owner-only files holding an optional Nexus Mods sign-in or API key. Anything
 else in the old folder stays where it is. That matters for a portable copy, where the data folder is also the
-folder with `ddmm.exe` in it, and on Linux, where the default folder also holds the app window's own cache.
+folder with `ordnance.exe` in it, and on Linux, where the default folder also holds the app window's own cache.
 
-If an old file can't be deleted straight away (on Windows, a log file that's still open), DDMM deletes it the
+If an old file can't be deleted straight away (on Windows, a log file that's still open), Ordnance deletes it the
 next time it starts.
 
 ### Picking a folder that isn't empty
 
-- **A folder that already holds DDMM data** (it has DDMM's `settings.json` or `profiles.json`, for example a copy
-  on a USB drive, or a folder you used before): DDMM offers **Use the Existing Data**. That switches DDMM to that
+- **A folder that already holds Ordnance data** (it has Ordnance's `settings.json` or `profiles.json`, for example a copy
+  on a USB drive, or a folder you used before): Ordnance offers **Use the Existing Data**. That switches Ordnance to that
   folder and restarts. Nothing is copied or deleted, and your current data stays where it is, so you can switch
-  back later. DDMM never copies over existing DDMM data.
-- **Any other folder with files in it** (your Documents folder, a drive's root folder, ...): DDMM doesn't mix its
-  files with yours. It creates a `DDMM Data` folder inside the one you picked and moves the data there. The
+  back later. Ordnance never copies over existing Ordnance data.
+- **Any other folder with files in it** (your Documents folder, a drive's root folder, ...): Ordnance doesn't mix its
+  files with yours. It creates a `Ordnance Data` folder inside the one you picked and moves the data there. The
   confirmation says so before anything happens.
 
-### What DDMM refuses
+### What Ordnance refuses
 
-DDMM says why and changes nothing when the folder you pick:
+Ordnance says why and changes nothing when the folder you pick:
 
 - **is the current data folder, is inside it, or contains it.** Copying a folder into itself never finishes.
-- **is inside, or contains, your Helldivers 2 install.** Keep DDMM's data outside the game folder.
+- **is inside, or contains, your Helldivers 2 install.** Keep Ordnance's data outside the game folder.
 - **can't be written to** (a read-only drive, or a folder you don't have permission for).
 - **is on a drive without enough free space** for the data plus 64 MB of headroom.
 - **contains an unfinished move** from an earlier attempt that was interrupted (for example by a power cut).
-  Delete the `.ddmm-move-incomplete` file and `.ddmm-move-...` folder(s) there (DDMM never uses them), then try again.
-- **contains a symbolic link or junction** inside DDMM's data. DDMM won't follow or drop links; replace the link
+  Delete the `.ordnance-move-incomplete` file and `.ordnance-move-...` folder(s) there (Ordnance never uses them), then try again.
+- **contains a symbolic link or junction** inside Ordnance's data. Ordnance won't follow or drop links; replace the link
   with the real folder first, or move the data by hand.
 
 ## Resetting to the default location
 
 With a folder you chose, **Settings → Data Folder** also shows **Reset to Default**. It moves the data back to the
 default location in exactly the same way, then forgets the chosen folder. If the default location already holds
-DDMM data (say, from before you moved it), you're offered to use that instead, as above.
+Ordnance data (say, from before you moved it), you're offered to use that instead, as above.
 
-## How DDMM remembers the folder
+## How Ordnance remembers the folder
 
-The chosen folder is stored in a small file named `ddmm-data-location.json`. For an installed copy it's kept
+The chosen folder is stored in a small file named `ordnance-data-location.json`. For an installed copy it's kept
 outside the default data folder, so it survives the move, and deleting the old default folder afterwards doesn't
-make DDMM forget where your data went:
+make Ordnance forget where your data went:
 
 - **Installed** (Windows installer, `.deb`, `.rpm`, or an AppImage in a read-only location): in its own per-user
-  folder, `%APPDATA%\io.github.katsyk.ddmm.location\` on Windows (next to the default data folder, not inside it)
-  and `~/.config/io.github.katsyk.ddmm/` on Linux.
-  Earlier versions kept it in `%APPDATA%\io.github.katsyk.ddmm\` on Windows, which is also the default data folder.
-  DDMM copies that file to the new place the first time it starts, and **keeps the old one**, updating it along with
+  folder, `%APPDATA%\com.cavadus.ordnance.location\` on Windows (next to the default data folder, not inside it)
+  and `~/.config/com.cavadus.ordnance/` on Linux.
+  Earlier versions kept it in `%APPDATA%\com.cavadus.ordnance\` on Windows, which is also the default data folder.
+  Ordnance copies that file to the new place the first time it starts, and **keeps the old one**, updating it along with
   the new one whenever you change the data folder (as long as that old folder still exists). That way an earlier
-  version of DDMM still finds your data if you ever go back to it. If the two files ever disagree, DDMM uses the one
+  version of Ordnance still finds your data if you ever go back to it. If the two files ever disagree, Ordnance uses the one
   whose folder exists (or, if both do, the one written last) and says so in its log; it never deletes either.
-- **Portable**: next to `ddmm.exe` (or the `.AppImage`), so the portable folder describes itself.
+- **Portable**: next to `ordnance.exe` (or the `.AppImage`), so the portable folder describes itself.
 
-When DDMM starts it picks its data folder in this order, first match wins:
+When Ordnance starts it picks its data folder in this order, first match wins:
 
-1. `ddmm-data-location.json` next to the executable;
+1. `ordnance-data-location.json` next to the executable;
 2. the executable's own folder, if it's a [portable copy](../getting-started/download.md#data-location) and
    writable;
-3. `ddmm-data-location.json` in the per-user folder above;
+3. `ordnance-data-location.json` in the per-user folder above;
 4. the per-user app data folder.
 
 So a location you chose always wins over the default, and a portable copy never picks up an installed copy's
-choice. The browser extension's helper uses the same rules, so it finds DDMM after a move without any repair.
+choice. The browser extension's helper uses the same rules, so it finds Ordnance after a move without any repair.
 
 !!! note "Portable copies in a read-only folder"
     A portable copy only uses its own folder for data while that folder is writable (otherwise it behaves like an
     installed copy). Moving the data works either way: when the program's folder is read-only, the location is
-    stored in the per-user folder instead. Once `ddmm-data-location.json` sits next to the executable, the
+    stored in the per-user folder instead. Once `ordnance-data-location.json` sits next to the executable, the
     program's folder no longer needs to be writable at all.
 
 ### Moving a whole portable folder
 
-If you move or rename the portable folder (the one with `ddmm.exe` and `ddmm-data-location.json` in it):
+If you move or rename the portable folder (the one with `ordnance.exe` and `ordnance-data-location.json` in it):
 
-- **Data somewhere else** (for example `D:\DDMM Data`): nothing changes. The location file still points there.
-- **Data in a folder inside the portable folder** (for example `...\DDMM\Mod Data`, after you moved the data there
+- **Data somewhere else** (for example `D:\Ordnance Data`): nothing changes. The location file still points there.
+- **Data in a folder inside the portable folder** (for example `...\Ordnance\Mod Data`, after you moved the data there
   from another drive): the location is stored *relative* to the portable folder, so it keeps working after the
   move. You can't get there straight from the portable folder itself, though: while the data is *in* the portable
-  folder, DDMM refuses to move it into one of that folder's own subfolders (see
-  [what DDMM refuses](#what-ddmm-refuses)).
+  folder, Ordnance refuses to move it into one of that folder's own subfolders (see
+  [what Ordnance refuses](#what-ordnance-refuses)).
 - **Data in the portable folder itself** (you never chose another folder): there's no location file, and the
   data moves with the folder as always.
 
 ## If the folder is missing at startup
 
-If DDMM starts and the chosen folder isn't there, for example because the USB drive it's on is unplugged, a
-drive letter changed, or the folder was deleted, DDMM does **not** create a new empty folder (which would look like all your mods were gone).
+If Ordnance starts and the chosen folder isn't there, for example because the USB drive it's on is unplugged, a
+drive letter changed, or the folder was deleted, Ordnance does **not** create a new empty folder (which would look like all your mods were gone).
 Instead it shows **Data Folder Not Found**, with the missing path and these options:
 
-- **Retry**: connect the drive, then click this. DDMM restarts normally if the folder is back.
-- **Locate Folder...**: pick where the data is now (for example the same folder under a new drive letter). DDMM
-  only accepts a folder that holds DDMM data, or one with a `DDMM Data` folder in it, and never one holding the
+- **Retry**: connect the drive, then click this. Ordnance restarts normally if the folder is back.
+- **Locate Folder...**: pick where the data is now (for example the same folder under a new drive letter). Ordnance
+  only accepts a folder that holds Ordnance data, or one with a `Ordnance Data` folder in it, and never one holding the
   unfinished copy of an interrupted move.
 - **Use the Default Location**: forget the chosen folder and restart with the default location, which may be
   empty. The missing folder isn't touched, so you can switch back to it later with **Change...** and
   **Use the Existing Data**.
 - **Quit**.
 
-The same screen appears if `ddmm-data-location.json` itself is damaged. Until you choose, DDMM doesn't touch
+The same screen appears if `ordnance-data-location.json` itself is damaged. Until you choose, Ordnance doesn't touch
 any data folder: no mod list, no browser connection, no update checks. That session's log goes to a
-`io.github.katsyk.ddmm-logs` folder in your system's temp folder.
+`com.cavadus.ordnance-logs` folder in your system's temp folder.
 
 ## Moving it by hand
 
-You can also move the data yourself: close DDMM, move the folder, start DDMM, and use **Locate Folder...** on the
+You can also move the data yourself: close Ordnance, move the folder, start Ordnance, and use **Locate Folder...** on the
 recovery screen (for a folder you chose before), or **Change...** → **Use the Existing Data** (otherwise). Don't
-edit `ddmm-data-location.json` by hand unless you have to; if you do, it looks like
-`{"Version": 1, "Path": "D:\\DDMM Data"}`.
+edit `ordnance-data-location.json` by hand unless you have to; if you do, it looks like
+`{"Version": 1, "Path": "D:\\Ordnance Data"}`.

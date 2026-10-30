@@ -30,10 +30,10 @@ beforeAll(async () => {
 });
 
 const PAGE_A = 'https://ayakamods.com/mods/mod-a.4084/';
-const MENU = 'ddmm-install-link';
+const MENU = 'ordnance-install-link';
 
 function payload(linkUrl, tabUrl = PAGE_A) {
-  return globalThis.DDMM.background.contextMenuInstallContext(
+  return globalThis.Ordnance.background.contextMenuInstallContext(
     { menuItemId: MENU, linkUrl },
     { url: tabUrl, id: 7 },
   );
@@ -60,8 +60,8 @@ describe('context-menu install payload', () => {
   });
 
   it("a link to the page's own mod keeps the page URL and may send its scraped version", async () => {
-    // The page's content script reported its version via ddmm:query on load.
-    for (const fn of listeners.onMessage) fn({ type: 'ddmm:query', pageUrl: PAGE_A, pageVersion: '1.2' }, {}, () => {});
+    // The page's content script reported its version via ordnance:query on load.
+    for (const fn of listeners.onMessage) fn({ type: 'ordnance:query', pageUrl: PAGE_A, pageVersion: '1.2' }, {}, () => {});
     const p = payload('https://ayakamods.com/mods/mod-a.4084/download');
     expect(p.pageUrl).toBe(PAGE_A);
     expect(p.pageVersion).toBe('1.2');
@@ -69,7 +69,7 @@ describe('context-menu install payload', () => {
   });
 
   it('ignores other menu items and links-less clicks', () => {
-    const bg = globalThis.DDMM.background;
+    const bg = globalThis.Ordnance.background;
     expect(bg.contextMenuInstallContext({ menuItemId: 'other', linkUrl: 'https://x/y.zip' }, {})).toBeNull();
     expect(bg.contextMenuInstallContext({ menuItemId: MENU }, {})).toBeNull();
   });
@@ -78,21 +78,21 @@ describe('context-menu install payload', () => {
 describe('attributeDownload (capture paths)', () => {
 
   it('same mod as the page -> page URL, version allowed', () => {
-    const a = globalThis.DDMM.sources.attributeDownload({
+    const a = globalThis.Ordnance.sources.attributeDownload({
       contextPageUrl: PAGE_A, downloadUrl: 'https://ayakamods.com/mods/mod-a.4084/download', trustPage: true,
     });
     expect(a).toEqual({ pageUrl: PAGE_A, sameModAsPage: true });
   });
 
   it('a different mod than the page -> that mod, no version', () => {
-    const a = globalThis.DDMM.sources.attributeDownload({
+    const a = globalThis.Ordnance.sources.attributeDownload({
       contextPageUrl: PAGE_A, downloadUrl: 'https://ayakamods.com/mods/mod-b.5555/download', trustPage: true,
     });
     expect(a).toEqual({ pageUrl: 'https://ayakamods.com/mods/mod-b.5555/download', sameModAsPage: false });
   });
 
   it('an opaque CDN download keeps the trusted page but never claims the version', () => {
-    const a = globalThis.DDMM.sources.attributeDownload({
+    const a = globalThis.Ordnance.sources.attributeDownload({
       contextPageUrl: 'https://www.nexusmods.com/helldivers2/mods/123',
       downloadUrl: 'https://supporter-files.nexus-cdn.com/x/123/file.zip',
       trustPage: true,

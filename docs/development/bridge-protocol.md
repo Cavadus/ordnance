@@ -1,19 +1,19 @@
 # Browser bridge protocol (v1)
 
-This page is the contract between the **DDMM browser extension**, the **native messaging host**, and the
-**running DDMM app**. It also defines the `ddmm://` link format. Both sides are implemented against this document.
+This page is the contract between the **Ordnance browser extension**, the **native messaging host**, and the
+**running Ordnance app**. It also defines the `ordnance://` link format. Both sides are implemented against this document.
 If you change the protocol, change this page in the same pull request and bump `protocol` if it's incompatible.
 
 ## Goals
 
 - **One click from any mod site.** AyakaMods, Nexus Mods, ModWorkshop, GameBanana, GitHub and any other site are
   equal. No site is special-cased in a way that makes another site second-class.
-- **The browser downloads, DDMM installs.** Login-gated downloads work because the *browser* fetches the file with the
-  user's own session. No credentials, cookies or API keys for any site cross the bridge. (The only credentials DDMM
+- **The browser downloads, Ordnance installs.** Login-gated downloads work because the *browser* fetches the file with the
+  user's own session. No credentials, cookies or API keys for any site cross the bridge. (The only credentials Ordnance
   itself can hold are the user's optional Nexus Mods API key and, where signing in is available, Nexus Mods sign-in
   tokens, both only for update checks and both staying inside the app.)
-- **Web pages can't drive DDMM.** Only the extension (via native messaging) can hand DDMM a file. `ddmm://` links, which
-  any page can trigger, always require explicit confirmation in DDMM.
+- **Web pages can't drive Ordnance.** Only the extension (via native messaging) can hand Ordnance a file. `ordnance://` links, which
+  any page can trigger, always require explicit confirmation in Ordnance.
 
 ## Components
 
@@ -21,35 +21,35 @@ If you change the protocol, change this page in the same pull request and bump `
  mod site page ──(content script button / context menu / download capture)──► extension (background)
                                                                                    │ chrome.runtime.connectNative
                                                                                    ▼
-                                               native messaging host  =  ddmm executable in host mode
+                                               native messaging host  =  ordnance executable in host mode
                                                                                    │ 127.0.0.1 TCP + token
                                                                                    ▼
-                                                                            running DDMM app
+                                                                            running Ordnance app
 ```
 
 ### Identifiers
 
 | What | Value |
 | --- | --- |
-| Native messaging host name | `io.github.katsyk.ddmm` |
+| Native messaging host name | `com.cavadus.ordnance` |
 | Chrome/Edge/Brave extension ID (unpacked, from the manifest `key`) | `inomhciahaeeefhgdkiaabdponcfdane` |
-| Firefox extension ID (`browser_specific_settings.gecko.id`) | `ddmm@katsyk.github.io` |
-| Deep-link scheme | `ddmm://` |
+| Firefox extension ID (`browser_specific_settings.gecko.id`) | `ordnance@cavadus.github.io` |
+| Deep-link scheme | `ordnance://` |
 | Protocol version | `1` |
 
 A Chrome Web Store ID will be added to `allowed_origins` once the extension is published there.
 
 ## Native messaging host
 
-The host is the **same `ddmm` executable** started in *host mode*. The browser launches it with:
+The host is the **same `ordnance` executable** started in *host mode*. The browser launches it with:
 
 - Chromium browsers: first argument `chrome-extension://<id>/` (Windows may add `--parent-window=<n>`).
 - Firefox: arguments `<path to host manifest> <extension id>`.
 
-`ddmm` enters host mode when argv matches either shape, and must then **never open a window**. It speaks standard native
+`ordnance` enters host mode when argv matches either shape, and must then **never open a window**. It speaks standard native
 messaging on stdin/stdout: each message is a 32-bit **native-endian** (little-endian on all supported targets) length
 followed by UTF-8 JSON. Messages from the host to the browser must be ≤ 1 MB; messages from the browser are capped at
-64 MB by the browser but DDMM rejects anything > 1 MB. The loopback connection has the same limits: the app rejects a
+64 MB by the browser but Ordnance rejects anything > 1 MB. The loopback connection has the same limits: the app rejects a
 request line over 1 MB (plus room for the added `origin`) with `BAD_REQUEST`, and the host drops a reply line over
 1 MB (its request then times out in the extension) instead of passing on something the browser would refuse.
 
@@ -60,16 +60,16 @@ the app rejects origins not in its allowlist.
 The relay is **full duplex**: it forwards each request as soon as it arrives, without waiting for earlier replies, and
 passes each reply back as soon as the app sends it, matched to its request by `id`. The app handles the requests of
 one connection concurrently too. So a request that waits on the user (an `install` at its consent prompt, up to
-2 minutes, or waiting up to 60 s for DDMM's window to be ready) never delays the `hello`/`query`/`status` the extension
+2 minutes, or waiting up to 60 s for Ordnance's window to be ready) never delays the `hello`/`query`/`status` the extension
 sends meanwhile, which have a 10 s timeout. Replies can therefore arrive in a different order than their requests,
 and requests sent without waiting for an earlier reply may reach the app in any order. At most 64 requests may be
 in progress through one host (32 per app connection); beyond that a request gets `BUSY` at once. The host gives up on
-a request DDMM hasn't answered after a little longer than the extension's own timeout for it (5½ min for `install`,
+a request Ordnance hasn't answered after a little longer than the extension's own timeout for it (5½ min for `install`,
 90 s for `open`, 30 s otherwise) and replies `INTERNAL`, so an unanswered request never holds its place forever.
 
 ### Reaching the running app
 
-When DDMM starts it listens on `127.0.0.1:<random free port>` (never `0.0.0.0`) and writes
+When Ordnance starts it listens on `127.0.0.1:<random free port>` (never `0.0.0.0`) and writes
 `<data folder>/bridge.json`:
 
 ```json
@@ -79,45 +79,45 @@ When DDMM starts it listens on `127.0.0.1:<random free port>` (never `0.0.0.0`) 
 The file is created with owner-only permissions (0600 on Unix, and inherited per-user ACLs under the user profile on
 Windows) and deleted on clean exit. The token is regenerated on every start.
 
-The host resolves the data folder with the **same logic as the app** (a `ddmm-data-location.json` pointer, the
-portable marker, app-data; see [Data folder](../using/data-folder.md#how-ddmm-remembers-the-folder)), reads
+The host resolves the data folder with the **same logic as the app** (a `ordnance-data-location.json` pointer, the
+portable marker, app-data; see [Data folder](../using/data-folder.md#how-ordnance-remembers-the-folder)), reads
 `bridge.json`, connects, and sends `{"hello": "<token>"}` followed by a newline. A `bridge.json` whose `pid` is no
-longer running is stale (DDMM crashed) and is ignored without connecting. Connecting plus the handshake must finish
+longer running is stale (Ordnance crashed) and is ignored without connecting. Connecting plus the handshake must finish
 within 5 s. On the app side the handshake line must be at most 256 bytes and arrive within 5 s, or the connection is
 dropped; nothing else is read from a connection before its token checks out. It resolves the folder again for every
 (re)connect, so a host the browser kept alive finds the app after the user moves the data folder (the app restarts
 after a move and writes a fresh `bridge.json` in the new folder). The host never creates the data folder. The app replies `{"ok": true}` and closes the connection
 on a wrong token. After that, both sides exchange **newline-delimited JSON** (one object per line).
 
-If `bridge.json` is missing, stale (connection refused), or its `pid` is gone, DDMM isn't running. What happens next
+If `bridge.json` is missing, stale (connection refused), or its `pid` is gone, Ordnance isn't running. What happens next
 depends on the request:
 
-- **`install` and `open` may start DDMM.** Both are explicit user actions (a click on "Install with DDMM", or
-  "Start DDMM" in the extension popup). The host **starts DDMM normally** (a detached process, so the GUI appears) and
-  polls for a fresh `bridge.json` for up to **45 s** before replying with `APP_NOT_RUNNING`. It won't launch DDMM again
+- **`install` and `open` may start Ordnance.** Both are explicit user actions (a click on "Install with Ordnance", or
+  "Start Ordnance" in the extension popup). The host **starts Ordnance normally** (a detached process, so the GUI appears) and
+  polls for a fresh `bridge.json` for up to **45 s** before replying with `APP_NOT_RUNNING`. It won't launch Ordnance again
   within 60 s of a previous launch, so a slow start isn't turned into several.
-- **`hello`, `query` and `status` never start DDMM.** The extension sends them just because a mod page loaded, and
-  browsing a mod site must never pop DDMM open. When DDMM isn't running they get `APP_NOT_RUNNING` **immediately**:
+- **`hello`, `query` and `status` never start Ordnance.** The extension sends them just because a mod page loaded, and
+  browsing a mod site must never pop Ordnance open. When Ordnance isn't running they get `APP_NOT_RUNNING` **immediately**:
   no launch, no polling.
 
-The browser can keep one host process alive for much longer than one DDMM session. The host therefore checks the
-connection before relaying each request and, if DDMM has exited since, reconnects the same way (reading a fresh
-`bridge.json`, and starting DDMM only for `install`/`open`). It never resends a request the app may already have
+The browser can keep one host process alive for much longer than one Ordnance session. The host therefore checks the
+connection before relaying each request and, if Ordnance has exited since, reconnects the same way (reading a fresh
+`bridge.json`, and starting Ordnance only for `install`/`open`). It never resends a request the app may already have
 received; a connection lost mid-request gets `APP_NOT_RUNNING` for that request only.
 
 ### Client-side timeouts (extension)
 
 | Request | Timeout | Why |
 | --- | --- | --- |
-| `hello`, `query`, `status` | 10 s | Never launch DDMM, so they answer quickly either way |
-| `open` | 60 s | May be starting DDMM (host waits up to 45 s) |
-| `install` | 5 min | May be starting DDMM, then the user may still be answering the consent prompt |
+| `hello`, `query`, `status` | 10 s | Never launch Ordnance, so they answer quickly either way |
+| `open` | 60 s | May be starting Ordnance (host waits up to 45 s) |
+| `install` | 5 min | May be starting Ordnance, then the user may still be answering the consent prompt |
 
 The extension tells two failures apart. If the **native host itself** can't be started (the browser disconnects
-with "native messaging host not found" / "forbidden", meaning DDMM isn't installed or isn't set up for this
-browser), the button reads **Get DDMM** and links to the install docs. If the host answers but DDMM isn't running
-(`APP_NOT_RUNNING`), the button still reads **Install with DDMM** with the hint "DDMM will start". Clicking it sends
-the install, which starts DDMM, and shows **Starting DDMM…** until the result arrives. In that state the extension
+with "native messaging host not found" / "forbidden", meaning Ordnance isn't installed or isn't set up for this
+browser), the button reads **Get Ordnance** and links to the install docs. If the host answers but Ordnance isn't running
+(`APP_NOT_RUNNING`), the button still reads **Install with Ordnance** with the hint "Ordnance will start". Clicking it sends
+the install, which starts Ordnance, and shows **Starting Ordnance…** until the result arrives. In that state the extension
 doesn't know whether the mod is installed, and never guesses.
 
 ## Messages
@@ -193,7 +193,7 @@ its optional files), so sharing a source isn't enough: the app records which fil
   replaces `cool_mod_blue_….zip`, nor `armor_4k_….zip` replaces `armor_2k_….zip` (or `1440p` `1080p`, or `Option 2`
   `Option 1`). When in doubt, the file installs as a new mod.
 
-Any other file from that page installs as a new mod. The one exception is a mod installed before DDMM recorded its
+Any other file from that page installs as a new mod. The one exception is a mod installed before Ordnance recorded its
 file: when it's the only mod from that page, it's updated in place as before (there's nothing to tell files apart by),
 unless the file's Nexus archive name says it's from a different Nexus mod. Such a file (a requirement linked from
 the page, say) is never an update of the page's mod: it installs as a new mod, recorded as the mod it really is.
@@ -226,13 +226,13 @@ referrer is that mod's page). The armed state is kept in `storage.session`, so a
 `downloadUrl` is the URL the user chose (the right-clicked link or the page's download link).
 
 **Permission check (app side):** the first time a site (registrable domain of `pageUrl`, else `downloadUrl`; only an
-`http(s)` URL names a site) sends an install, DDMM asks: *"Allow the DDMM browser extension to install mods from
+`http(s)` URL names a site) sends an install, Ordnance asks: *"Allow the Ordnance browser extension to install mods from
 **ayakamods.com**?"* with **Always allow**, **Just this once** and **Deny**. "Always allow" is stored in settings
 (`BridgeAllowedSites`) and can be revoked in Settings. The prompt is skipped for allowed sites; that's what makes it one
 click. An install with no `http(s)` URL at all has no site that could have been allowed, so it **always** gets the prompt
 (naming the file, with only **Just this once** and **Deny**).
 
-While DDMM installs a file for the extension, and for 10 minutes after, the opt-in auto-import from the Downloads
+While Ordnance installs a file for the extension, and for 10 minutes after, the opt-in auto-import from the Downloads
 folder doesn't offer that same file.
 
 Reply on success:
@@ -244,7 +244,7 @@ Reply on success:
 
 ### `query`
 
-Lets the extension label its button ("Install with DDMM" / "Installed ✓" / "Update with DDMM").
+Lets the extension label its button ("Install with Ordnance" / "Installed ✓" / "Update with Ordnance").
 
 ```json
 { "id": "3", "type": "query", "pageUrl": "https://ayakamods.com/mods/cool-mod.4084/", "pageVersion": "1.1" }
@@ -254,10 +254,10 @@ Reply:
 { "id": "3", "ok": true, "type": "queryResult", "installed": true,
   "mod": { "guid": "…", "name": "Cool Mod", "installedVersion": "1.0" }, "updateAvailable": true }
 ```
-`updateAvailable` compares `pageVersion` with the installed version (the same comparison as DDMM's update checks:
+`updateAvailable` compares `pageVersion` with the installed version (the same comparison as Ordnance's update checks:
 a leading `v` and `-`/`.` differences are ignored, and a numerically *older* page version isn't an update). When
-the page has no version (for example Nexus Mods pages), it is `true` if DDMM's own most recent update check this
-session found an update for this mod from this site, so the extension can show "Update with DDMM" there too.
+the page has no version (for example Nexus Mods pages), it is `true` if Ordnance's own most recent update check this
+session found an update for this mod from this site, so the extension can show "Update with Ordnance" there too.
 Otherwise it is `null` when either version is unknown. It is never guessed.
 
 ### `status`
@@ -269,7 +269,7 @@ Reply: `{ "id": "4", "ok": true, "type": "status", "gameFound": true, "activePro
 
 ### `open`
 
-Brings DDMM's window to the front, starting DDMM first if it isn't running (the popup's "Start DDMM" button). It
+Brings Ordnance's window to the front, starting Ordnance first if it isn't running (the popup's "Start Ordnance" button). It
 installs nothing, so there is no consent prompt; the origin allowlist still applies.
 
 ```json
@@ -285,7 +285,7 @@ Reply: `{ "id": "5", "ok": true, "type": "opened" }`
 
 | Code | Meaning |
 | --- | --- |
-| `APP_NOT_RUNNING` | DDMM isn't running (`hello`/`query`/`status`), or the host couldn't start or reach it within 45 s (`install`/`open`) |
+| `APP_NOT_RUNNING` | Ordnance isn't running (`hello`/`query`/`status`), or the host couldn't start or reach it within 45 s (`install`/`open`) |
 | `BAD_REQUEST` | Malformed message / missing field / message too large |
 | `UNSUPPORTED` | Unknown message type or protocol version |
 | `FORBIDDEN_ORIGIN` | Caller isn't an allowed extension |
@@ -301,21 +301,21 @@ Reply: `{ "id": "5", "ok": true, "type": "opened" }`
 Installs are serialized in the app; concurrent installs queue (up to 20), and beyond that they get `BUSY`. Other
 requests are answered while installs wait.
 
-## `ddmm://` links
+## `ordnance://` links
 
 Any web page (a mod site, a mod author's page, a Discord message) can link:
 
 ```
-ddmm://install?url=<percent-encoded https URL>
+ordnance://install?url=<percent-encoded https URL>
 ```
 
 `url` is either a mod page (handled like **Add URL**: browser handoff for login-gated sites) or a direct https download.
-DDMM **always** shows a confirmation ("A link wants to install a mod from **example.com**. Install?") with no
-"always allow". Only `https` URLs are accepted. Anything else in the link is ignored. `ddmm://open` just focuses DDMM.
+Ordnance **always** shows a confirmation ("A link wants to install a mod from **example.com**. Install?") with no
+"always allow". Only `https` URLs are accepted. Anything else in the link is ignored. `ordnance://open` just focuses Ordnance.
 
-Deep links reach an already-running DDMM through the single-instance mechanism. A second window is never opened.
+Deep links reach an already-running Ordnance through the single-instance mechanism. A second window is never opened.
 
-A link that starts DDMM arrives before the window has loaded, and the Mods page may not be showing when one arrives
+A link that starts Ordnance arrives before the window has loaded, and the Mods page may not be showing when one arrives
 (Settings, or the data folder recovery screen). So the app queues install links, and the Mods page takes them and
 shows the confirmation once it's ready. Each link is shown once. The same link arriving again while it's still
 waiting, or while its confirmation or install is still in progress, is ignored. Links that arrive on the recovery
@@ -332,7 +332,7 @@ the restart fails with links, it's retried once without them.
   the loopback connection, and the number of requests in progress is capped.
 - App-side origin allowlist (the extension IDs above).
 - Per-site "Always allow" consent for extension installs; an install with no `http(s)` URL is always confirmed.
-  `ddmm://` always confirms.
+  `ordnance://` always confirms.
 - Consent prompts and afterInstall reports are matched to their install by a fresh key the app generates for each,
   never by the extension's request `id` (which restarts when the browser restarts the extension), so a late answer
   can't resolve a different install.

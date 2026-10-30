@@ -142,7 +142,7 @@ pub(crate) fn apply_guid_renames(config: &mut ProfilesConfig, renames: &[(uuid::
 /// Take every entry of the mod `guid` out of every profile in the saved
 /// profiles.json, and return how many there were. Called when a mod is
 /// deleted, so that a deleted mod never comes back as "Mod not found" --
-/// even if DDMM is closed before the frontend saves its profiles again.
+/// even if Ordnance is closed before the frontend saves its profiles again.
 /// Nothing is written when no profile has it (or there's no file yet).
 pub async fn remove_from_saved_profiles(base_path: &std::path::Path, guid: uuid::Uuid) -> anyhow::Result<usize> {
     let _saving = PROFILES_WRITE.lock().await;

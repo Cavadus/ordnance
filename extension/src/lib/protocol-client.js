@@ -1,10 +1,10 @@
 /**
- * @file Native messaging client for the `io.github.katsyk.ddmm` bridge host.
+ * @file Native messaging client for the `com.cavadus.ordnance` bridge host.
  *
  * Implements the request/reply framing from docs/development/bridge-protocol.md:
  * every request carries a string `id`, every reply echoes it; requests
  * time out client-side (installs get 5 minutes, `open` 60 seconds since it
- * may be starting DDMM, everything else 10 seconds, per the spec); the port
+ * may be starting Ordnance, everything else 10 seconds, per the spec); the port
  * reconnects on disconnect; and installs are
  * serialized (one in flight at a time), matching the app's own
  * serialization so a burst of clicks can't race it.
@@ -12,21 +12,21 @@
 (function initProtocolClient(root) {
   'use strict';
 
-  const DDMM = (root.DDMM = root.DDMM || {});
+  const Ordnance = (root.Ordnance = root.Ordnance || {});
 
-  const HOST_NAME = 'io.github.katsyk.ddmm';
+  const HOST_NAME = 'com.cavadus.ordnance';
   const INSTALL_TIMEOUT_MS = 5 * 60 * 1000;
   const DEFAULT_TIMEOUT_MS = 10 * 1000;
-  /** `open` may start DDMM; the host waits up to 45 s for it to come up. */
+  /** `open` may start Ordnance; the host waits up to 45 s for it to come up. */
   const OPEN_TIMEOUT_MS = 60 * 1000;
 
   /**
    * Browser `lastError` messages meaning the native host itself is missing
-   * or unusable (DDMM not installed, or its manifest doesn't allow this
-   * extension) -- as opposed to DDMM merely not running, which the host
+   * or unusable (Ordnance not installed, or its manifest doesn't allow this
+   * extension) -- as opposed to Ordnance merely not running, which the host
    * reports as APP_NOT_RUNNING. Chrome: "Specified native messaging host
    * not found." / "Access to the specified native messaging host is
-   * forbidden."; Firefox: "No such native application io.github.katsyk.ddmm".
+   * forbidden."; Firefox: "No such native application com.cavadus.ordnance".
    */
   const HOST_MISSING_PATTERN = /not found|forbidden|no such native application/i;
 
@@ -53,14 +53,14 @@
      * @param {object} [opts]
      * @param {() => object} [opts.connectFn] - Returns a `Port`-like object
      *   (`postMessage`, `onMessage.addListener`, `onDisconnect.addListener`,
-     *   `disconnect`). Defaults to `DDMM.browserApi.runtime.connectNative`.
+     *   `disconnect`). Defaults to `Ordnance.browserApi.runtime.connectNative`.
      * @param {() => string} [opts.idFn] - Generates request ids. Defaults to
      *   an incrementing counter.
      */
     constructor(opts = {}) {
       this._connectFn =
         opts.connectFn ||
-        (() => DDMM.browserApi.runtime.connectNative(HOST_NAME));
+        (() => Ordnance.browserApi.runtime.connectNative(HOST_NAME));
       this._idFn = opts.idFn || (() => String(++this._counter));
       this._counter = 0;
       /** @type {Map<string, PendingRequest>} */
@@ -96,8 +96,8 @@
       this._port = null;
       // Firefox says why a port closed only on `port.error` (it never sets
       // runtime.lastError here); Chrome only on runtime.lastError.
-      const err = (port && port.error) || DDMM.browserApi.runtime.lastError;
-      const reason = err && err.message ? err.message : 'DDMM disconnected';
+      const err = (port && port.error) || Ordnance.browserApi.runtime.lastError;
+      const reason = err && err.message ? err.message : 'Ordnance disconnected';
       const code = disconnectCode(reason);
       for (const [id, pending] of this._pending) {
         clearTimeout(pending.timer);
@@ -105,7 +105,7 @@
         this._pending.delete(id);
       }
       // Reconnection happens lazily on the next send() call, per the "host
-      // relay starts DDMM if needed" behavior in the protocol doc -- there's
+      // relay starts Ordnance if needed" behavior in the protocol doc -- there's
       // no point holding a port open with nothing to say.
     }
 
@@ -137,7 +137,7 @@
     }
 
     /**
-     * `hello` -- checks whether DDMM is reachable and what version it is.
+     * `hello` -- checks whether Ordnance is reachable and what version it is.
      * @param {{extensionVersion: string, browser: string}} info
      * @returns {Promise<object>}
      */
@@ -155,9 +155,9 @@
     }
 
     /**
-     * `open` -- bring DDMM to the front, starting it if it isn't running
+     * `open` -- bring Ordnance to the front, starting it if it isn't running
      * (the popup's "Start Ordnance" button). One of only two requests that may
-     * launch DDMM; see bridge-protocol.md.
+     * launch Ordnance; see bridge-protocol.md.
      * @returns {Promise<object>}
      */
     open() {
@@ -201,7 +201,7 @@
     }
   }
 
-  DDMM.ProtocolClient = ProtocolClient;
-  DDMM.protocolConstants = { HOST_NAME, INSTALL_TIMEOUT_MS, DEFAULT_TIMEOUT_MS, OPEN_TIMEOUT_MS };
-  DDMM.protocolDisconnectCode = disconnectCode;
+  Ordnance.ProtocolClient = ProtocolClient;
+  Ordnance.protocolConstants = { HOST_NAME, INSTALL_TIMEOUT_MS, DEFAULT_TIMEOUT_MS, OPEN_TIMEOUT_MS };
+  Ordnance.protocolDisconnectCode = disconnectCode;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -10,12 +10,12 @@
  *     sidebar block. For a guest (not logged in) it's a disabled
  *     `<span class="button ... is-disabled">Log in or sign up to
  *     download</span>` -- there's no direct file link at all until you're
- *     logged in, so DDMM must arm capture and let the user click AyakaMods'
+ *     logged in, so Ordnance must arm capture and let the user click AyakaMods'
  *     own (real) download control themselves once they're logged in.
  *   - Version comes from the page's `SoftwareApplication` JSON-LD
  *     (`softwareVersion`), not from any visible text.
  */
-/* global DDMM */
+/* global Ordnance */
 (function initAyakaMods() {
   'use strict';
 
@@ -59,11 +59,11 @@
   }
 
   const adapter = { name: 'ayakamods', findInsertionPoint, findDirectDownloadUrl, scrapeVersion };
-  DDMM.siteAdapters = DDMM.siteAdapters || {};
-  DDMM.siteAdapters.ayakamods = adapter;
+  Ordnance.siteAdapters = Ordnance.siteAdapters || {};
+  Ordnance.siteAdapters.ayakamods = adapter;
 
   // Guarded so this file can be loaded in isolation (unit tests exercise
-  // the finder functions above directly via DDMM.siteAdapters.ayakamods)
+  // the finder functions above directly via Ordnance.siteAdapters.ayakamods)
   // without also loading content/common.js.
-  if (DDMM.content) DDMM.content.runSiteAdapter(adapter);
+  if (Ordnance.content) Ordnance.content.runSiteAdapter(adapter);
 })();

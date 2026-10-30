@@ -159,7 +159,7 @@ export function buildChromeManifest({ version, chromeKey, includeLocalhost = fal
         'content/common.js',
         // ayakamods.js's own runSiteAdapter call is a no-op on localhost
         // (sourceFromPageUrl rejects the host); it's loaded here only to
-        // populate DDMM.siteAdapters.ayakamods, which test-fixture.js reuses.
+        // populate Ordnance.siteAdapters.ayakamods, which test-fixture.js reuses.
         'content/sites/ayakamods.js',
         'content/sites/test-fixture.js',
       ],
@@ -189,7 +189,7 @@ export function buildFirefoxManifest({ version, geckoId, minFirefoxVersion }) {
       // Firefox 109+; pinned a little higher for broader `chrome.*`-shim
       // and downloads-API parity headroom.
       strict_min_version: minFirefoxVersion,
-      // Matches extension/PRIVACY.md: DDMM's extension collects nothing.
+      // Matches extension/PRIVACY.md: Ordnance's extension collects nothing.
       // Newer Firefox requires this disclosure explicitly (see web-ext
       // lint's MISSING_DATA_COLLECTION_PERMISSIONS notice).
       data_collection_permissions: { required: ['none'] },

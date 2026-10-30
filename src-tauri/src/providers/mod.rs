@@ -24,11 +24,11 @@ pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// which have their own limit in `crate::download`).
 pub const MAX_RESPONSE_SIZE: u64 = 5 * 1024 * 1024;
 
-pub const APP_NAME: &str = "Democracy Defender Mod Manager";
+pub const APP_NAME: &str = "Ordnance Mod Manager";
 
 pub fn user_agent() -> String {
     format!(
-        "DemocracyDefenderModManager/{} (+https://github.com/katsyk/DemocracyDefenderModManager)",
+        "Ordnance/{} (+https://github.com/Cavadus/ordnance)",
         env!("CARGO_PKG_VERSION")
     )
 }
@@ -287,7 +287,7 @@ pub fn parse_http_date(s: &str) -> Option<i64> {
 /// included, so `armor_2k` and `armor_4k`, `1080p` and `1440p`, or
 /// `Option 1` and `Option 2` are different files, while
 /// `cool_mod_v1_ab12c.zip` and `cool_mod_v2_ff3bb.zip` are the same one.
-/// (When in doubt, two names are different: DDMM then installs a second
+/// (When in doubt, two names are different: Ordnance then installs a second
 /// mod rather than replacing the wrong one.)
 pub fn file_shape(name: &str) -> String {
     let lower = name.trim().to_ascii_lowercase();

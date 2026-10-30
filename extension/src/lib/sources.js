@@ -1,7 +1,7 @@
 /**
  * @file Mod-page URL parsing, mirroring the desktop app's
  * `source_from_page_url` (src-tauri/src/sources.rs) exactly, so the browser
- * extension and DDMM agree on what a mod page URL means for every site.
+ * extension and Ordnance agree on what a mod page URL means for every site.
  *
  * No provider is privileged: this module is a straight port of the Rust
  * logic, kept in lockstep by the shared unit test fixtures.
@@ -9,7 +9,7 @@
 (function initSources(root) {
   'use strict';
 
-  const DDMM = (root.DDMM = root.DDMM || {});
+  const Ordnance = (root.Ordnance = root.Ordnance || {});
 
   /**
    * @typedef {object} Source
@@ -37,7 +37,7 @@
 
   /**
    * Extract a structured {@link Source} from a mod *page* URL (as opposed to
-   * a direct download link), for the sites DDMM knows the page-URL shape of.
+   * a direct download link), for the sites Ordnance knows the page-URL shape of.
    * Returns `null` for anything else.
    *
    * Query strings and fragments are ignored, trailing slashes don't matter,
@@ -191,8 +191,8 @@
    * (any site), or a Nexus file URL (whose path names the mod). Never
    * guesses: anything else yields `null`.
    *
-   * `pageUrl` is the canonical mod page to send to DDMM, or `null` when the
-   * URL names a mod DDMM can't have a page for (a Nexus file of another
+   * `pageUrl` is the canonical mod page to send to Ordnance, or `null` when the
+   * URL names a mod Ordnance can't have a page for (a Nexus file of another
    * game). `source` is non-null whenever the URL names *some* mod, so a
    * file can be told apart from the page the user was on.
    * @param {string|null|undefined} rawUrl
@@ -226,7 +226,7 @@
    *   - the download URL names the page's mod (a mod URL of it, or a Nexus
    *     file URL with its mod id) -> the page;
    *   - the download URL names some *other* mod -> that mod's page (or null
-   *     when it has none DDMM knows);
+   *     when it has none Ordnance knows);
    *   - the download URL says nothing (CDN, bare file) -> the page only when
    *     `trustPage` (the user started this download from that page: armed
    *     or auto capture), otherwise null so the app falls back to host
@@ -245,7 +245,7 @@
     return { pageUrl: trustPage ? contextPageUrl || null : null, sameModAsPage: false };
   }
 
-  DDMM.sources = {
+  Ordnance.sources = {
     sourceFromPageUrl,
     providerFromUrl,
     extractHost,

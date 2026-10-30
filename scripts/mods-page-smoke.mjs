@@ -81,8 +81,8 @@ const scenarios = {
     // Search, then edit the options of the one mod shown.
     async searchedit(page, r) {
         await page.locator("main input[type=text]").first().fill("First Person (experimental)");
-        await page.locator("main div.rounded button.hd2mm-button-nop.p-2:not(.invisible)").first().click({ timeout: 2000 });
-        await page.locator("button.hd2mm-button.self-end").last().click({ timeout: 2000 });
+        await page.locator("main div.rounded button.ordnance-button-nop.p-2:not(.invisible)").first().click({ timeout: 2000 });
+        await page.locator("button.ordnance-button.self-end").last().click({ timeout: 2000 });
         await page.locator("main input[type=text]").first().fill("");
         await page.waitForTimeout(300);
         const shown = await rows(page);
@@ -139,7 +139,7 @@ const scenarios = {
     // Enter or Space while a popup is shown: never presses the page's
     // button that opened it again (a second deploy behind the first).
     async keysbehind(page, r) {
-        await page.locator("button.hd2mm-success-button", { hasText: "Deploy" }).click({ timeout: 2000 });
+        await page.locator("button.ordnance-success-button", { hasText: "Deploy" }).click({ timeout: 2000 });
         await page.waitForTimeout(400);
         await page.keyboard.press("Enter");
         await page.waitForTimeout(400);
@@ -172,14 +172,14 @@ const scenarios = {
     // Leaving Settings when the backend refuses to save them: the reason
     // is shown, not swallowed.
     settingssavefail: {
-        data: (d) => { d.__fails = { save_settings: "The downloads folder is DDMM's own mod storage." }; },
+        data: (d) => { d.__fails = { save_settings: "The downloads folder is Ordnance's own mod storage." }; },
         async check(page, r) {
             await page.locator("a[href='/settings']").click({ timeout: 2000 });
             await page.waitForTimeout(800);
             await page.locator("a[href='/']").click({ timeout: 2000 });
             await page.waitForTimeout(800);
             r.expect(r.calls.some(c => c.cmd === "save_settings"), "Settings tried to save");
-            r.expect(await page.getByText("DDMM's own mod storage").count() === 1, "the reason is shown");
+            r.expect(await page.getByText("Ordnance's own mod storage").count() === 1, "the reason is shown");
             r.expect(!r.errors.some(e => e.includes("mod storage")), "no unhandled rejection");
         },
     },
@@ -196,7 +196,7 @@ const scenarios = {
             r.expect(!r.calls.some(c => c.cmd === "save_settings"), "nothing is saved over the file");
         },
     },
-    // Closing DDMM from Settings saves them first.
+    // Closing Ordnance from Settings saves them first.
     settingsclose: {
         async check(page, r) {
             await page.locator("a[href='/settings']").click({ timeout: 2000 });
@@ -389,7 +389,7 @@ const scenarios = {
             }, G(1));
             await page.waitForTimeout(800);
             // Waits for the "installed" toast over the button to go.
-            await page.locator("button.hd2mm-success-button", { hasText: "Deploy" }).click({ timeout: 10000 });
+            await page.locator("button.ordnance-success-button", { hasText: "Deploy" }).click({ timeout: 10000 });
             await page.waitForTimeout(800);
             r.expect(r.calls.some(c => c.cmd === "deploy"), "Deploy ran");
             // "Deployed, but 1 missing mod(s) were skipped".

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import '../../src/lib/button-state.js';
 
-const { ButtonState } = globalThis.DDMM;
+const { ButtonState } = globalThis.Ordnance;
 
 describe('ButtonState', () => {
   it('starts in checking', () => {
@@ -60,9 +60,9 @@ describe('ButtonState', () => {
   it('install error shows the friendly message', () => {
     const s = new ButtonState();
     s.startInstalling();
-    s.setError("DDMM couldn't be reached.");
+    s.setError("Ordnance couldn't be reached.");
     expect(s.state).toBe('error');
-    expect(s.label).toBe("DDMM couldn't be reached.");
+    expect(s.label).toBe("Ordnance couldn't be reached.");
     expect(s.clickable).toBe(true);
   });
 
@@ -73,7 +73,7 @@ describe('ButtonState', () => {
     expect(s.state).toBe('checking');
   });
 
-  it('DDMM not running -> still "Install with Ordnance", with the "Ordnance will start" hint', () => {
+  it('Ordnance not running -> still "Install with Ordnance", with the "Ordnance will start" hint', () => {
     const s = new ButtonState();
     s.setAppNotRunning();
     expect(s.label).toBe('Install with Ordnance');
@@ -82,7 +82,7 @@ describe('ButtonState', () => {
     expect(s.updateAvailable).toBe(false);
   });
 
-  it('clicking while DDMM is not running -> "Starting Ordnance…", not clickable, busy', () => {
+  it('clicking while Ordnance is not running -> "Starting Ordnance…", not clickable, busy', () => {
     const s = new ButtonState();
     s.setAppNotRunning();
     s.startInstalling();
@@ -96,7 +96,7 @@ describe('ButtonState', () => {
     expect(s.appRunning).toBe(true);
   });
 
-  it('clicking while DDMM is running -> "Installing…" and no hint', () => {
+  it('clicking while Ordnance is running -> "Installing…" and no hint', () => {
     const s = new ButtonState();
     s.setQueryResult({ installed: false, updateAvailable: null });
     expect(s.hint).toBeNull();
@@ -113,7 +113,7 @@ describe('ButtonState waiting (capture armed)', () => {
     s.waitForDownload();
     expect(s.state).toBe('waiting');
     expect(s.label).toBe('Click Download on this page…');
-    expect(s.hint).toBe(globalThis.DDMM.buttonHints.WAITING_HINT);
+    expect(s.hint).toBe(globalThis.Ordnance.buttonHints.WAITING_HINT);
     expect(s.clickable).toBe(true);
     expect(s.busy).toBe(true);
   });
@@ -126,7 +126,7 @@ describe('ButtonState waiting (capture armed)', () => {
     expect(s.label).toBe('Installing…');
   });
 
-  it('moves to Starting Ordnance… when DDMM was not running', () => {
+  it('moves to Starting Ordnance… when Ordnance was not running', () => {
     const s = new ButtonState();
     s.setAppNotRunning();
     s.waitForDownload();

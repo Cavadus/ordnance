@@ -1,4 +1,4 @@
-//! Filesystem helpers that behave the same on every platform DDMM ships
+//! Filesystem helpers that behave the same on every platform Ordnance ships
 //! for.
 //!
 //! The main one is [`move_path`]: `rename(2)` cannot move anything across
@@ -6,7 +6,7 @@
 //! Linux/macOS and `ERROR_NOT_SAME_DEVICE` on Windows. On a typical Arch /
 //! CachyOS box that is easy to hit: `/tmp` is a tmpfs, `~` is btrfs/ext4,
 //! and the Steam library is often on a second drive (another btrfs volume,
-//! or NTFS/exFAT for dual-booters). Every move DDMM makes goes through here
+//! or NTFS/exFAT for dual-booters). Every move Ordnance makes goes through here
 //! so it falls back to copy + remove instead of failing.
 
 use std::io;
@@ -510,7 +510,7 @@ mod tests {
     fn blocking_replace_retries_a_busy_rename_then_reports_it() {
         use std::sync::atomic::{AtomicUsize, Ordering};
         let dir = tempfile::tempdir().unwrap();
-        let file = dir.path().join("ddmm-data-location.json");
+        let file = dir.path().join("ordnance-data-location.json");
         std::fs::write(&file, b"old").unwrap();
         let delays = [std::time::Duration::from_millis(1); 3];
         let busy = |e: &std::io::Error| e.raw_os_error() == Some(32);

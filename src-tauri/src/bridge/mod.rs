@@ -1,5 +1,5 @@
-//! The browser bridge: a loopback TCP relay that lets the DDMM browser
-//! extension (via a native-messaging host running in the same `ddmm`
+//! The browser bridge: a loopback TCP relay that lets the Ordnance browser
+//! extension (via a native-messaging host running in the same `ordnance`
 //! executable) hand off completed downloads for one-click install. See
 //! `docs/development/bridge-protocol.md` for the full contract.
 
@@ -19,7 +19,7 @@ use std::{
 
 use tokio::sync::oneshot;
 
-/// The exe path used both to launch DDMM detached (from host mode) and to
+/// The exe path used both to launch Ordnance detached (from host mode) and to
 /// point native-messaging manifests at: prefers `$APPIMAGE` over
 /// `current_exe()` so a re-downloaded AppImage or a portable exe moved to a
 /// new location keeps working without re-registering by hand.
@@ -27,10 +27,10 @@ pub fn exe_path() -> PathBuf {
     if let Some(appimage) = std::env::var_os("APPIMAGE") {
         return PathBuf::from(appimage);
     }
-    std::env::current_exe().unwrap_or_else(|_| PathBuf::from("ddmm"))
+    std::env::current_exe().unwrap_or_else(|_| PathBuf::from("ordnance"))
 }
 
-/// How the user answered a per-site consent prompt ("Allow the DDMM
+/// How the user answered a per-site consent prompt ("Allow the Ordnance
 /// browser extension to install mods from **example.com**?").
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConsentDecision {
@@ -91,10 +91,10 @@ impl BridgePending {
     }
 }
 
-/// Downloads the browser extension has asked DDMM to install: while such an
+/// Downloads the browser extension has asked Ordnance to install: while such an
 /// install is running, and for [`RecentBridgeFiles::KEEP_AFTER`] after it
 /// finished, auto-import (which watches the same Downloads folder) doesn't
-/// offer the same file again -- DDMM is already installing it, and
+/// offer the same file again -- Ordnance is already installing it, and
 /// "Install" would then only fail with "already installed".
 #[derive(Default)]
 pub struct RecentBridgeFiles(std::sync::Mutex<HashMap<PathBuf, Option<Instant>>>);

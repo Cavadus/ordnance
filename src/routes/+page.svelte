@@ -99,7 +99,7 @@
      * close and a stray second click both firing before the first request
      * has been resolved). */
     let closeRequestInFlight = false;
-    /** Set when this page is left; queued `ddmm://` links then stay queued
+    /** Set when this page is left; queued `ordnance://` links then stay queued
      * until it's shown again. */
     let unmounted = false;
     /** How many "Import mods" popups are open (normally 0 or 1). */
@@ -265,7 +265,7 @@
             "install://replace-request-closed",
             (e) => replaceQuestions.get(e.payload.requestId)?.close(false),
         );
-        // ddmm:// deep links (see deep_link.rs on the Rust side): the
+        // ordnance:// deep links (see deep_link.rs on the Rust side): the
         // backend queues them and says so; this page takes them once it's
         // ready (below) and whenever a new one is queued.
         const unlistenDeepLinkPending = listen(
@@ -294,12 +294,12 @@
             })
             .catch((ex: unknown) => log.error(`Failed to mark the bridge frontend ready: ${errorMessage(ex)}`));
 
-        // Links that arrived before this page could show them: the one DDMM
+        // Links that arrived before this page could show them: the one Ordnance
         // was started with (issue #32), or any that came in while another
         // page or the data-folder recovery screen was shown.
         unlistenDeepLinkPending
             .then(() => showPendingDeepLinks())
-            .catch((ex: unknown) => log.error(`Failed to listen for ddmm:// links: ${errorMessage(ex)}`));
+            .catch((ex: unknown) => log.error(`Failed to listen for ordnance:// links: ${errorMessage(ex)}`));
 
         return () => {
             unmounted = true;
@@ -377,7 +377,7 @@
         }
         if (repeated.length > 0) {
             // Saved at once, so the repaired list is what's on disk even if
-            // DDMM isn't closed normally.
+            // Ordnance isn't closed normally.
             try {
                 await profilesStore.save();
             } catch (ex: unknown) {
@@ -432,7 +432,7 @@
     }
 
     /** After an update: a mod installed without its manifest.json (so with
-     * an ID of DDMM's own) and updated with its author's has the author's
+     * an ID of Ordnance's own) and updated with its author's has the author's
      * ID now. The backend moved its entries in profiles.json; move them
      * here too (keeping on/off and position, resetting option choices that
      * no longer fit), or the next save would list it as missing. */
@@ -828,7 +828,7 @@
         return result.status;
     }
 
-    /** Shared by the manual "Add URL" button and a `ddmm://install` deep
+    /** Shared by the manual "Add URL" button and a `ordnance://install` deep
      * link: classify the URL and either open a browser handoff or add it
      * directly. */
     async function installFromUrl(url: string) {
@@ -956,7 +956,7 @@
         }
     }
 
-    /** Show the confirmation for every queued `ddmm://install` link, once
+    /** Show the confirmation for every queued `ordnance://install` link, once
      * this page is ready for it (profiles loaded; not when init sent the
      * user to Settings instead). Called on mount and on each
      * `deep-link://pending`. The backend hands each link out only once, so
@@ -974,26 +974,26 @@
         try {
             urls = await takePendingDeepLinks();
         } catch (ex: unknown) {
-            log.error(`Failed to get pending ddmm:// links: ${errorMessage(ex)}`);
+            log.error(`Failed to get pending ordnance:// links: ${errorMessage(ex)}`);
             return;
         }
         for (const url of urls) {
             onDeepLinkInstallRequest({ url })
-                .catch((ex: unknown) => log.error(`ddmm:// install failed: ${errorMessage(ex)}`));
+                .catch((ex: unknown) => log.error(`ordnance:// install failed: ${errorMessage(ex)}`));
         }
     }
 
-    /** `ddmm://install` targets whose confirmation (or the install after
+    /** `ordnance://install` targets whose confirmation (or the install after
      * it) is still in progress -- the same link arriving again meanwhile
      * (one click delivered twice) isn't shown a second time. */
     const deepLinksInProgress = new Set<string>();
 
-    /** A `ddmm://install?url=` link (see `showPendingDeepLinks`).
+    /** A `ordnance://install?url=` link (see `showPendingDeepLinks`).
      * Always confirms (no "always allow"), then runs the same flow as
      * manually pasting the URL into "Add URL". */
     async function onDeepLinkInstallRequest(payload: { url: string }) {
         if (deepLinksInProgress.has(payload.url)) {
-            log.info("This ddmm:// link is already being handled; not asking again.");
+            log.info("This ordnance:// link is already being handled; not asking again.");
             return;
         }
         deepLinksInProgress.add(payload.url);
@@ -1337,7 +1337,7 @@
         iconPaths.delete(updated.guid);
     }
 
-    /** "updated" -- DDMM installed it (needs the redeploy step);
+    /** "updated" -- Ordnance installed it (needs the redeploy step);
      * "updatedByExtension" -- the extension's install already ran the
      * afterInstall step. */
     type UpdateOutcome = "updated" | "updatedByExtension" | "skipped" | "stopped" | "failed";
@@ -1408,7 +1408,7 @@
         return status === "Done" ? "updated" : status === "Cancelled" ? "stopped" : "failed";
     }
 
-    /** After DDMM itself updated mods in place: redeploy per the
+    /** After Ordnance itself updated mods in place: redeploy per the
      * after-install setting ("deploy" redeploys automatically; otherwise
      * ask), but only if an updated mod is enabled in the active profile. */
     async function afterUpdates(updatedGuids: UUID[]) {
@@ -1789,7 +1789,7 @@
         <!-- Search -->
         <div class="flex flex-row gap-1">
             <input
-                class="flex-1 hd2mm-input"
+                class="flex-1 ordnance-input"
                 type="text"
                 placeholder={t("pages.mods.search_input.placeholder")}
                 autocomplete="off"
@@ -1799,7 +1799,7 @@
                 bind:value={searchText}
             />
             <button
-                class="hd2mm-button"
+                class="ordnance-button"
                 title={t("pages.mods.clear_search_button.tip")}
                 onclick={() => (searchText = "")}
                 disabled={!enableClearSearch}
@@ -1813,7 +1813,7 @@
             <div class="flex-1 pr-1 overflow-y-scroll h-full min-w-0">
                 <div class="flex flex-row flex-wrap items-center gap-1 px-1 pb-1">
                     <button
-                        class="hd2mm-button flex flex-row gap-1 items-center px-2 py-1 text-xs"
+                        class="ordnance-button flex flex-row gap-1 items-center px-2 py-1 text-xs"
                         class:border-yellow-300={groupByCategory}
                         class:text-yellow-300={groupByCategory}
                         onclick={() => groupByCategory = !groupByCategory}
@@ -1823,13 +1823,13 @@
                         <span>{t("pages.mods.categories.group")}</span>
                     </button>
                     <input
-                        class="hd2mm-input flex-1 min-w-28"
+                        class="ordnance-input flex-1 min-w-28"
                         placeholder={t("pages.mods.categories.new_placeholder")}
                         bind:value={newCategoryName}
                         onkeydown={(e) => { if (e.key === "Enter") onCreateCategory(); }}
                     />
                     <button
-                        class="hd2mm-button flex flex-row gap-1 items-center px-2 py-1 text-xs"
+                        class="ordnance-button flex flex-row gap-1 items-center px-2 py-1 text-xs"
                         disabled={!newCategoryName.trim()}
                         onclick={onCreateCategory}
                         title={t("pages.mods.categories.create_tip")}
@@ -1864,7 +1864,7 @@
                                     : t("pages.mods.empty_state.import_found", { count: source.Count, path: source.Path })}
                             </span>
                         {/each}
-                        <button class="hd2mm-button flex flex-row gap-1 items-center mt-1" onclick={() => onImport()} data-testid="empty-import-button">
+                        <button class="ordnance-button flex flex-row gap-1 items-center mt-1" onclick={() => onImport()} data-testid="empty-import-button">
                             <BoxArrowInDown />
                             {t("pages.mods.empty_state.import_button")}
                         </button>
@@ -2039,7 +2039,7 @@
                                 </div>
                                 {#if hasUpdateAvailable(mod.guid)}
                                     <button
-                                        class="hd2mm-success-button text-sm px-2 shrink-0 flex flex-row gap-1 items-center"
+                                        class="ordnance-success-button text-sm px-2 shrink-0 flex flex-row gap-1 items-center"
                                         title={t("pages.mods.update_mod_button.tip", { version: bestUpdateFor(mod.guid)?.LatestVersion ?? "", site: bestUpdateFor(mod.guid)?.DisplayName ?? "" })}
                                         onclick={() => onUpdateMod(mod)}
                                     >
@@ -2050,7 +2050,7 @@
                                 <ToggleSwitch bind:checked={config.Enabled} />
                                 {#if config.For === "Legacy"}
                                     {#if !("Version" in mod.Manifest) && mod.Manifest.Options}
-                                        <select class="w-32 hd2mm-select" bind:value={config.Selected}>
+                                        <select class="w-32 ordnance-select" bind:value={config.Selected}>
                                             {#each mod.Manifest.Options as option, i }
                                                 <option value={i}>{option}</option>
                                             {/each}
@@ -2058,7 +2058,7 @@
                                     {/if}
                                 {:else}
                                     <button
-                                        class="hd2mm-button-nop p-2"
+                                        class="ordnance-button-nop p-2"
                                         class:invisible={!Array.isArray(mod.Manifest.Options)}
                                         onclick={() => onEditConfig(ci)}
                                     >
@@ -2179,7 +2179,7 @@
                     : 'w-8'}"
             >
                 <button
-                    class="hd2mm-button-nop w-6"
+                    class="ordnance-button-nop w-6"
                     title={t("pages.mods.library_button.tip")}
                     onclick={onToggleLibrary}
                     disabled={!libraryEnabled}
@@ -2211,7 +2211,7 @@
                         {#each libraryMods as mod, i}
                             <li class="grid grid-cols-[min-content_1fr_min-content] gap-1 text-zinc-300 bg-zinc-800 rounded mb-1 p-1">
                                 <button
-                                    class="hd2mm-button-nop p-1"
+                                    class="ordnance-button-nop p-1"
                                     title={t("pages.mods.library.insert_top_button.tip")}
                                     onclick={() => onInsertTop(i)}
                                 >
@@ -2224,14 +2224,14 @@
                                     {/if}
                                 </span>
                                 <button
-                                    class="hd2mm-button-nop p-1"
+                                    class="ordnance-button-nop p-1"
                                     title={t("pages.mods.library.delete_button.tip")}
                                     onclick={() => onDelete(i)}
                                 >
                                     <Trash3 class="block m-auto" width="16" height="16" />
                                 </button>
                                 <button
-                                    class="hd2mm-button-nop p-1"
+                                    class="ordnance-button-nop p-1"
                                     title={t("pages.mods.library.insert_bottom_button.tip")}
                                     onclick={() => onInsertBottom(i)}
                                 >
@@ -2239,7 +2239,7 @@
                                 </button>
                                 <span class="text-sm truncate">{mod.description}</span>
                                 <button
-                                    class="hd2mm-button-nop p-1"
+                                    class="ordnance-button-nop p-1"
                                     title={t("pages.mods.library.update_button.tip")}
                                     onclick={() => onUpdate(i)}
                                     disabled={!hasUpdateAvailable(mod.guid)}
@@ -2255,14 +2255,14 @@
         <!-- Buttons -->
         <div class="flex flex-row gap-1">
             <button
-                class="hd2mm-button"
+                class="ordnance-button"
                 title={t("pages.mods.add_button.tip")}
                 onclick={onAddMod}
             >
                 {t("pages.mods.add_button.text")}
             </button>
             <button
-                class="hd2mm-button flex flex-row gap-1 items-center"
+                class="ordnance-button flex flex-row gap-1 items-center"
                 title={t("pages.mods.add_folder_button.tip")}
                 onclick={onAddFolder}
             >
@@ -2270,7 +2270,7 @@
                 {t("pages.mods.add_folder_button.text")}
             </button>
             <button
-                class="hd2mm-button flex flex-row gap-1 items-center"
+                class="ordnance-button flex flex-row gap-1 items-center"
                 title={t("pages.mods.add_url_button.tip")}
                 onclick={onAddUrl}
             >
@@ -2278,7 +2278,7 @@
                 {t("pages.mods.add_url_button.text")}
             </button>
             <button
-                class="hd2mm-button flex flex-row gap-1 items-center"
+                class="ordnance-button flex flex-row gap-1 items-center"
                 title={t("pages.mods.import_button.tip")}
                 onclick={() => onImport()}
                 data-testid="import-button"
@@ -2287,7 +2287,7 @@
                 {t("pages.mods.import_button.text")}
             </button>
             <button
-                class="hd2mm-button flex flex-row gap-1 items-center"
+                class="ordnance-button flex flex-row gap-1 items-center"
                 title={t("pages.mods.check_updates_button.tip")}
                 onclick={onCheckUpdates}
             >
@@ -2299,7 +2299,7 @@
             </button>
             {#if updatesAvailableCount > 0}
                 <button
-                    class="hd2mm-success-button flex flex-row gap-1 items-center whitespace-nowrap"
+                    class="ordnance-success-button flex flex-row gap-1 items-center whitespace-nowrap"
                     title={t("pages.mods.update_all_button.tip")}
                     onclick={onUpdateAll}
                 >
@@ -2309,21 +2309,21 @@
             {/if}
             <div class="flex-1"></div>
             <button
-                class="hd2mm-danger-button"
+                class="ordnance-danger-button"
                 title={t("pages.mods.purge_button.tip")}
                 onclick={onPurge}
             >
                 {t("pages.mods.purge_button.text")}
             </button>
             <button
-                class="hd2mm-success-button"
+                class="ordnance-success-button"
                 title={t("pages.mods.deploy_button.tip")}
                 onclick={onDeploy}
             >
                 {t("pages.mods.deploy_button.text")}
             </button>
             <button
-                class="hd2mm-button"
+                class="ordnance-button"
                 title={t("pages.mods.launch_button.tip")}
                 onclick={onLaunch}
             >

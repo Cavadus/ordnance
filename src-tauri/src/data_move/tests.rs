@@ -20,7 +20,7 @@ fn make_data(dir: &Path) {
     std::fs::write(dir.join("profiles.json"), PROFILES).unwrap();
     std::fs::write(dir.join("update-cache.json"), b"{}").unwrap();
     std::fs::create_dir_all(dir.join("logs")).unwrap();
-    std::fs::write(dir.join("logs/ddmm.log"), b"log line\n").unwrap();
+    std::fs::write(dir.join("logs/ordnance.log"), b"log line\n").unwrap();
     std::fs::create_dir_all(dir.join(".downloads/abc")).unwrap();
     std::fs::create_dir_all(dir.join("native-messaging")).unwrap();
     std::fs::write(dir.join("bridge.json"), b"{}").unwrap();
@@ -74,7 +74,7 @@ fn rejects_the_current_folder_itself() {
     let data = root.path().join("data");
     make_data(&data);
     let msg = plan_err(&input(&data, &data, &root.path().join("default")));
-    assert!(msg.contains("already DDMM's data folder"), "{msg}");
+    assert!(msg.contains("already Ordnance's data folder"), "{msg}");
 }
 
 #[test]
@@ -84,7 +84,7 @@ fn rejects_a_folder_inside_the_current_one() {
     make_data(&data);
     let inside = data.join("mods");
     let msg = plan_err(&input(&data, &inside, &root.path().join("default")));
-    assert!(msg.contains("inside DDMM's current data folder"), "{msg}");
+    assert!(msg.contains("inside Ordnance's current data folder"), "{msg}");
 }
 
 #[test]
@@ -93,7 +93,7 @@ fn rejects_a_folder_containing_the_current_one() {
     let data = root.path().join("data");
     make_data(&data);
     let msg = plan_err(&input(&data, root.path(), &root.path().join("default")));
-    assert!(msg.contains("contains DDMM's current data folder"), "{msg}");
+    assert!(msg.contains("contains Ordnance's current data folder"), "{msg}");
 }
 
 #[test]
@@ -179,7 +179,7 @@ fn rejects_a_leftover_unfinished_move() {
 /// marker and a half-filled temp folder in the destination. The old data
 /// and pointer were never touched (the commit comes last), and picking
 /// that destination again is refused instead of treating it as "a
-/// non-empty folder" and nesting a `DDMM Data` next to the leftovers.
+/// non-empty folder" and nesting a `Ordnance Data` next to the leftovers.
 #[test]
 fn a_move_killed_mid_copy_leaves_old_data_and_is_refused_until_cleaned_up() {
     let root = tempfile::tempdir().unwrap();
@@ -249,7 +249,7 @@ fn rejects_symlinks_inside_the_data() {
 }
 
 #[test]
-fn unrelated_non_empty_folder_gets_a_ddmm_data_subfolder() {
+fn unrelated_non_empty_folder_gets_a_ordnance_data_subfolder() {
     let root = tempfile::tempdir().unwrap();
     let data = root.path().join("data");
     make_data(&data);
@@ -263,7 +263,7 @@ fn unrelated_non_empty_folder_gets_a_ddmm_data_subfolder() {
     assert_eq!(p.target, dest.join(SUBFOLDER_NAME));
     assert!(p.total_files >= 7, "{p:?}");
 
-    // An existing, unrelated "DDMM Data" with files in it is refused.
+    // An existing, unrelated "Ordnance Data" with files in it is refused.
     std::fs::create_dir(dest.join(SUBFOLDER_NAME)).unwrap();
     std::fs::write(dest.join(SUBFOLDER_NAME).join("x.txt"), b"x").unwrap();
     assert!(plan_err(&input(&data, &dest, &root.path().join("default"))).contains("already has"));
@@ -283,7 +283,7 @@ fn empty_folder_is_used_directly_even_with_os_clutter() {
 }
 
 #[test]
-fn existing_ddmm_data_is_offered_for_adoption_not_overwritten() {
+fn existing_ordnance_data_is_offered_for_adoption_not_overwritten() {
     let root = tempfile::tempdir().unwrap();
     let data = root.path().join("data");
     make_data(&data);
@@ -296,10 +296,10 @@ fn existing_ddmm_data_is_offered_for_adoption_not_overwritten() {
     assert_eq!(p.target, other);
     // And execute refuses to copy over it.
     let err = execute(&p, &REAL_OPS, &mut no_commit, &mut |_| {}).unwrap_err();
-    assert!(format!("{err:#}").contains("already holds DDMM data"));
+    assert!(format!("{err:#}").contains("already holds Ordnance data"));
     assert_eq!(std::fs::read_to_string(other.join("profiles.json")).unwrap(), PROFILES);
 
-    // Also found as the "DDMM Data" subfolder of a picked parent.
+    // Also found as the "Ordnance Data" subfolder of a picked parent.
     let parent = root.path().join("drive");
     std::fs::create_dir_all(parent.join(SUBFOLDER_NAME)).unwrap();
     std::fs::write(parent.join("other.txt"), b"x").unwrap();
@@ -310,12 +310,12 @@ fn existing_ddmm_data_is_offered_for_adoption_not_overwritten() {
 }
 
 #[test]
-fn a_file_named_settings_json_is_not_ddmm_data() {
+fn a_file_named_settings_json_is_not_ordnance_data() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("settings.json"), br#"{"theme":"dark"}"#).unwrap();
-    assert!(!is_ddmm_data_dir(dir.path()));
+    assert!(!is_ordnance_data_dir(dir.path()));
     std::fs::write(dir.path().join("settings.json"), SETTINGS).unwrap();
-    assert!(is_ddmm_data_dir(dir.path()));
+    assert!(is_ordnance_data_dir(dir.path()));
 }
 
 #[test]
@@ -333,7 +333,7 @@ fn reset_refuses_when_already_default_and_when_default_has_partial_data() {
     std::fs::create_dir_all(clean_default.join("mods")).unwrap();
     let mut i = input(&data, &clean_default, &clean_default);
     i.reset = true;
-    assert!(plan_err(&i).contains("isn't a complete DDMM data folder"));
+    assert!(plan_err(&i).contains("isn't a complete Ordnance data folder"));
 }
 
 // ---- moving -------------------------------------------------------------
@@ -352,9 +352,9 @@ fn successful_move_copies_everything_rewrites_paths_and_cleans_up() {
         "DownloadsPath": data.join("mods").join("incoming").to_string_lossy(),
     });
     std::fs::write(data.join("settings.json"), serde_json::to_vec(&settings).unwrap()).unwrap();
-    // Something that isn't DDMM's (a portable copy's exe, or the webview's
+    // Something that isn't Ordnance's (a portable copy's exe, or the webview's
     // cache) stays put.
-    std::fs::write(data.join("ddmm.exe"), b"MZ").unwrap();
+    std::fs::write(data.join("ordnance.exe"), b"MZ").unwrap();
     let default_path = data.clone();
     let before = snapshot(&data);
 
@@ -404,7 +404,7 @@ fn successful_move_copies_everything_rewrites_paths_and_cleans_up() {
     for name in MOVED_ITEMS.iter().chain(REGENERATED_ITEMS) {
         assert!(!data.join(name).exists(), "{name} should be gone from the old folder");
     }
-    assert!(data.join("ddmm.exe").exists(), "non-DDMM files stay");
+    assert!(data.join("ordnance.exe").exists(), "non-Ordnance files stay");
     assert!(!data.join("bridge.json").exists(), "the old bridge.json goes too; the restarted app writes a new one");
 }
 
@@ -445,7 +445,7 @@ fn reset_sets_a_stale_default_logs_folder_aside() {
     i.reset = true;
     let p = plan(&i, &no_free_space_info).unwrap();
     execute(&p, &REAL_OPS, &mut no_commit, &mut |_| {}).unwrap();
-    assert!(default_path.join("logs/ddmm.log").is_file());
+    assert!(default_path.join("logs/ordnance.log").is_file());
     assert!(!default_path.join("logs/old.log").exists());
 }
 
@@ -501,7 +501,7 @@ fn failure_while_putting_items_in_place_or_committing_rolls_back() {
     let before = snapshot(&data);
 
     // Rename fails on the third item, after two were already placed. The
-    // subfolder DDMM created for an unrelated folder is removed again.
+    // subfolder Ordnance created for an unrelated folder is removed again.
     let dest = root.path().join("dest");
     std::fs::create_dir(&dest).unwrap();
     std::fs::write(dest.join("unrelated.txt"), b"keep me").unwrap();
@@ -597,8 +597,8 @@ fn leftovers_are_recorded_and_retried_safely() {
     std::fs::create_dir(&base).unwrap();
     let old = root.path().join("old");
     std::fs::create_dir_all(old.join("logs")).unwrap();
-    std::fs::write(old.join("logs/ddmm.log"), b"x").unwrap();
-    std::fs::write(old.join("important.txt"), b"not DDMM's").unwrap();
+    std::fs::write(old.join("logs/ordnance.log"), b"x").unwrap();
+    std::fs::write(old.join("important.txt"), b"not Ordnance's").unwrap();
     std::fs::create_dir_all(base.join("mods")).unwrap();
 
     record_pending_cleanup(
@@ -607,7 +607,7 @@ fn leftovers_are_recorded_and_retried_safely() {
     );
     run_pending_cleanup(&base);
     assert!(!old.join("logs").exists());
-    assert!(old.join("important.txt").exists(), "only DDMM's own item names are ever deleted");
+    assert!(old.join("important.txt").exists(), "only Ordnance's own item names are ever deleted");
     assert!(base.join("mods").exists(), "never anything in the current data folder");
     assert!(!base.join(CLEANUP_FILE).exists());
 }
@@ -626,7 +626,7 @@ fn rewrite_path_only_touches_paths_inside_moved_items() {
 }
 
 #[test]
-fn moved_items_match_the_names_the_rest_of_ddmm_uses() {
+fn moved_items_match_the_names_the_rest_of_ordnance_uses() {
     assert!(MOVED_ITEMS.contains(&crate::commands::mods::MODS_DIRECTORY.trim_end_matches('/')));
     assert!(MOVED_ITEMS.contains(&crate::secrets::API_KEY_SLOT.file_name));
     assert!(MOVED_ITEMS.contains(&crate::secrets::OAUTH_SLOT.file_name));
@@ -676,7 +676,7 @@ fn free_space_is_reported_for_a_folder_and_a_not_yet_created_subfolder() {
     let dir = tempfile::tempdir().unwrap();
     let free = available_space(dir.path()).expect("free space of the temp dir");
     assert!(free > 0);
-    assert!(available_space(&dir.path().join("DDMM Data").join("new")).is_some());
+    assert!(available_space(&dir.path().join("Ordnance Data").join("new")).is_some());
 }
 
 #[test]

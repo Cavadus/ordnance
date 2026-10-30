@@ -1,5 +1,5 @@
 //! Opt-in, off by default: while enabled (`Settings::auto_import_enabled`),
-//! watches the Downloads folder the whole time DDMM is running (not just
+//! watches the Downloads folder the whole time Ordnance is running (not just
 //! during a [`crate::commands::handoff`]) for a new, finished archive that
 //! looks like a Helldivers 2 mod, and asks the frontend to offer installing
 //! it. Never installs anything itself -- see
@@ -87,7 +87,7 @@ async fn run(app: AppHandle) {
             continue;
         }
 
-        // Never watch DDMM's own mod storage (or a folder inside it): see
+        // Never watch Ordnance's own mod storage (or a folder inside it): see
         // `check_downloads_path`. Settings refuses to save such a path, but
         // an older or hand-edited settings.json could still have one.
         if let Err(e) = crate::commands::settings::check_downloads_path(&state.base_path, settings.downloads_path()) {
@@ -129,7 +129,7 @@ async fn run(app: AppHandle) {
             let Ok(size) = tokio::fs::metadata(&path).await.map(|m| m.len()) else {
                 continue;
             };
-            // The browser extension already handed this file to DDMM (it's
+            // The browser extension already handed this file to Ordnance (it's
             // being installed, or just was): offering it too would only
             // end in "already installed". Remembered as seen, so it isn't
             // offered later either unless it changes.

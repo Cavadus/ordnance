@@ -17,14 +17,14 @@
     {/if}
     <div class="flex flex-col gap-1">
         {#if popup.site}
-            <button class="hd2mm-button" onclick={() => popup.close("AlwaysAllow")}>
+            <button class="ordnance-button" onclick={() => popup.close("AlwaysAllow")}>
                 {t("popup.bridge_consent.always_allow_button.text")}
             </button>
         {/if}
-        <button class="hd2mm-button" onclick={() => popup.close("JustOnce")}>
+        <button class="ordnance-button" onclick={() => popup.close("JustOnce")}>
             {t("popup.bridge_consent.just_once_button.text")}
         </button>
-        <button class="hd2mm-button" onclick={() => popup.close("Deny")}>
+        <button class="ordnance-button" onclick={() => popup.close("Deny")}>
             {t("popup.bridge_consent.deny_button.text")}
         </button>
     </div>

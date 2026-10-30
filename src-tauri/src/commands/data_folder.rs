@@ -116,7 +116,7 @@ async fn lock_data_ops(state: &AppState) -> anyhow::Result<tokio::sync::OwnedRwL
         .await
         .map_err(|_| {
             anyhow::anyhow!(
-                "DDMM is still busy (an install, update or check is running, or waiting for your \
+                "Ordnance is still busy (an install, update or check is running, or waiting for your \
                  answer). Finish it and try again."
             )
         })
@@ -139,7 +139,7 @@ fn commit_location(state_dir: &data_dir::DataDirDecision, target: &Path, is_rese
         data_dir::commit_pointer(state_dir, target).map_err(|e| {
             if state_dir.kind == BaseDirKind::Portable {
                 e.context(format!(
-                    "DDMM keeps the data folder location next to its program file, in {}",
+                    "Ordnance keeps the data folder location next to its program file, in {}",
                     state_dir.pointer_file.display()
                 ))
             } else {
@@ -153,7 +153,7 @@ fn commit_location(state_dir: &data_dir::DataDirDecision, target: &Path, is_rese
 /// released) and start the app again **without this process's
 /// arguments** (only install links that were never shown): not
 /// `AppHandle::request_restart`, which replays this process's arguments
-/// (a `ddmm://` link would prompt again). See `app_lifecycle`.
+/// (a `ordnance://` link would prompt again). See `app_lifecycle`.
 fn restart_soon(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(RESTART_DELAY).await;
@@ -171,7 +171,7 @@ pub struct MoveResult {
     pub leftovers: Vec<String>,
 }
 
-/// Move DDMM's data to `destination` (or back to the default location with
+/// Move Ordnance's data to `destination` (or back to the default location with
 /// `reset`), then restart. On failure nothing is changed.
 #[tauri::command]
 pub async fn move_data_folder(
@@ -187,7 +187,7 @@ pub async fn move_data_folder(
     let plan = make_plan(&state, destination, reset).await.into_ta_result()?;
     if plan.existing_data {
         return anyhow::anyhow!(
-            "{} already holds DDMM data. Use it as is, or pick another folder.",
+            "{} already holds Ordnance data. Use it as is, or pick another folder.",
             plan.target.display()
         )
         .into_ta_result();
@@ -245,7 +245,7 @@ pub async fn move_data_folder(
     })
 }
 
-/// Switch to a folder that already holds DDMM data, without copying or
+/// Switch to a folder that already holds Ordnance data, without copying or
 /// deleting anything, then restart.
 #[tauri::command]
 pub async fn adopt_data_folder(
@@ -257,10 +257,10 @@ pub async fn adopt_data_folder(
     let guard = lock_data_ops(&state).await.into_ta_result()?;
     let plan = make_plan(&state, destination, reset).await.into_ta_result()?;
     if !plan.existing_data {
-        return anyhow::anyhow!("{} doesn't hold DDMM data.", plan.target.display()).into_ta_result();
+        return anyhow::anyhow!("{} doesn't hold Ordnance data.", plan.target.display()).into_ta_result();
     }
     commit_location(&state.data_dir, &plan.target, plan.is_reset).into_ta_result()?;
-    log::info!("Now using the existing DDMM data in {:?} (the old folder {:?} was left as it was).", plan.target, plan.source);
+    log::info!("Now using the existing Ordnance data in {:?} (the old folder {:?} was left as it was).", plan.target, plan.source);
     state.freeze_data_ops(Some(guard));
     restart_soon(app);
     Ok(plan.target.to_string_lossy().into_owned())
@@ -286,8 +286,8 @@ pub async fn retry_data_folder(app: AppHandle) -> TAResult<()> {
 }
 
 /// The data folder the recovery screen's Locate means by `picked`: the
-/// folder itself, or the `DDMM Data` folder inside it. The folder actually
-/// used must hold complete DDMM data -- not an unfinished move.
+/// folder itself, or the `Ordnance Data` folder inside it. The folder actually
+/// used must hold complete Ordnance data -- not an unfinished move.
 fn located_folder(picked: &Path) -> anyhow::Result<PathBuf> {
     if !picked.is_dir() {
         anyhow::bail!("{} doesn't exist or isn't a folder.", picked.display());
@@ -295,20 +295,20 @@ fn located_folder(picked: &Path) -> anyhow::Result<PathBuf> {
     let sub = picked.join(data_move::SUBFOLDER_NAME);
     let chosen = [picked.to_path_buf(), sub]
         .into_iter()
-        .find(|dir| data_move::is_ddmm_data_dir(dir) || dir.join(data_move::INCOMPLETE_MARKER).exists())
+        .find(|dir| data_move::is_ordnance_data_dir(dir) || dir.join(data_move::INCOMPLETE_MARKER).exists())
         .ok_or_else(|| {
             anyhow::anyhow!(
-                "{} doesn't look like a DDMM data folder (no settings.json or profiles.json from DDMM in it).",
+                "{} doesn't look like a Ordnance data folder (no settings.json or profiles.json from Ordnance in it).",
                 picked.display()
             )
         })?;
     if chosen.join(data_move::INCOMPLETE_MARKER).exists() {
-        anyhow::bail!("{} holds an unfinished data folder move, not complete DDMM data.", chosen.display());
+        anyhow::bail!("{} holds an unfinished data folder move, not complete Ordnance data.", chosen.display());
     }
     Ok(chosen)
 }
 
-/// Recovery screen: point DDMM at the folder its data is in now (e.g. the
+/// Recovery screen: point Ordnance at the folder its data is in now (e.g. the
 /// drive letter changed), then restart.
 #[tauri::command]
 pub async fn locate_data_folder(app: AppHandle, state: State<'_, AppState>, folder: String) -> TAResult<()> {
@@ -412,7 +412,7 @@ mod tests {
         std::fs::write(direct.join("settings.json"), settings).unwrap();
         assert_eq!(located_folder(&direct).unwrap(), direct);
 
-        // Its "DDMM Data" subfolder is, complete.
+        // Its "Ordnance Data" subfolder is, complete.
         let parent = root.path().join("usb");
         let sub = parent.join(data_move::SUBFOLDER_NAME);
         std::fs::create_dir_all(&sub).unwrap();
@@ -425,7 +425,7 @@ mod tests {
         let err = located_folder(&parent).unwrap_err();
         assert!(format!("{err}").contains("unfinished"), "{err}");
 
-        // A half-copied subfolder without DDMM files yet is refused too.
+        // A half-copied subfolder without Ordnance files yet is refused too.
         std::fs::remove_file(sub.join("settings.json")).unwrap();
         assert!(format!("{}", located_folder(&parent).unwrap_err()).contains("unfinished"));
 

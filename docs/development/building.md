@@ -26,7 +26,7 @@ pnpm tauri build
 
 This runs `pnpm build:checked` first (an i18n key check, then the SvelteKit static build via
 `@sveltejs/adapter-static`), then compiles the Tauri/Rust side and links the frontend in. The resulting binary is
-`src-tauri/target/release/ddmm` (`ddmm.exe` on Windows) — DDMM ships as a bare executable
+`src-tauri/target/release/ordnance` (`ordnance.exe` on Windows) — Ordnance ships as a bare executable
 (`bundle.active` is `false` in `tauri.conf.json`), not an installer or platform bundle.
 
 ## Develop
@@ -52,4 +52,4 @@ See `package.json` for the full list; the most relevant ones:
 
 The project's own release workflow (`.github/workflows/build.yml`) builds on `windows-latest` and `ubuntu-latest`
 using the same `pnpm install` / `pnpm tauri build` steps described above, triggered by pushing a `v*` or
-`v*_preview*` tag, and attaches the resulting `ddmm.exe` / `ddmm` to a draft pre-release.
+`v*_preview*` tag, and attaches the resulting `ordnance.exe` / `ordnance` to a draft pre-release.

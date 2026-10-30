@@ -1,13 +1,13 @@
 ---
-title: Using DDMM
+title: Using Ordnance
 ---
 
-# Using DDMM
+# Using Ordnance
 
-- [Adding mods](adding-mods.md) — every way to get a mod into DDMM
+- [Adding mods](adding-mods.md) — every way to get a mod into Ordnance
 - [Importing mods](importing-mods.md) — bring over hundreds of mods at once from another mod manager or a folder of downloads
 - [Mod sites](mod-sites.md) — AyakaMods, Nexus Mods, ModWorkshop, GameBanana, GitHub, and everything else
-- [One-click install](one-click-install.md) — the browser extension and `ddmm://` links
+- [One-click install](one-click-install.md) — the browser extension and `ordnance://` links
 - [Profiles](profiles.md) — separate, reorderable mod loadouts
 - [Mod options & variants](options-variants.md) — mods that offer a choice at deploy time
 - [Deploy & purge](deploy-purge.md) — what actually happens to your game files

@@ -6,29 +6,29 @@ title: FAQ
 
 ### Do I need an account on Nexus Mods, AyakaMods, or any other site?
 
-No. DDMM never asks for your login on any mod site. Sites that require being logged in to download hand the
+No. Ordnance never asks for your login on any mod site. Sites that require being logged in to download hand the
 actual download off to your own browser session — see [Mod sites](../using/mod-sites.md). The one optional
 extra is adding a personal Nexus Mods API key (or, once available, signing in to Nexus Mods on the Nexus Mods
-website, never in DDMM), used only to check Nexus mods for updates; see
+website, never in Ordnance), used only to check Nexus mods for updates; see
 [Updating mods](../using/updating-mods.md#nexus-mods-and-the-optional-api-key).
 
-### Where does DDMM store my mods and settings?
+### Where does Ordnance store my mods and settings?
 
-Depends on how you're running DDMM — either right next to its own executable ("portable") or your OS's normal
+Depends on how you're running Ordnance — either right next to its own executable ("portable") or your OS's normal
 per-user application data directory. Either way: mods in `mods/`, settings in `settings.json`, profiles in
 `profiles.json`, logs in `logs/`. Open **Settings** and check **Data Folder** to see exactly which one, or see
 [Data location](../getting-started/download.md#data-location) for the full rules.
 
 ### I have hundreds of mods already. Do I have to add them one by one?
 
-No. Click **Import** on the Mods page. If another mod manager already has your mods, DDMM finds its folder and
+No. Click **Import** on the Mods page. If another mod manager already has your mods, Ordnance finds its folder and
 lists what's there. Otherwise, point it at the folder with your downloaded archives. You pick from a checklist,
-and DDMM imports them all with one progress bar, keeping Nexus Mods ids and versions for update checks. See
+and Ordnance imports them all with one progress bar, keeping Nexus Mods ids and versions for update checks. See
 [Importing mods](../using/importing-mods.md).
 
 ### Can I mix mods from different sites in one profile?
 
-Yes — DDMM doesn't care where a mod came from. A profile can freely mix mods installed from AyakaMods, Nexus Mods,
+Yes — Ordnance doesn't care where a mod came from. A profile can freely mix mods installed from AyakaMods, Nexus Mods,
 GitHub, a direct link, and a local folder.
 
 ### I installed a mod with options, but nothing happens when I deploy it
@@ -41,12 +41,12 @@ way to `V1` and `V2` manifests.
 ### My game shows a "files may be corrupt" / fatal error after a game update
 
 This generally means one of your deployed mods hasn't been updated for the game's latest patch — the mod's patch
-files no longer match what the game expects, not a problem DDMM itself caused. Purge, then re-deploy only mods you
+files no longer match what the game expects, not a problem Ordnance itself caused. Purge, then re-deploy only mods you
 know are up to date for the current game version; see [Deploy & purge](../using/deploy-purge.md).
 
 ### "Add URL" failed
 
-An AyakaMods or Nexus Mods **mod page** link shouldn't hit this — DDMM recognizes both and goes straight to the
+An AyakaMods or Nexus Mods **mod page** link shouldn't hit this — Ordnance recognizes both and goes straight to the
 [browser handoff](../using/mod-sites.md#how-the-browser-handoff-works) instead of attempting a direct download.
 For any other site, this means the link didn't serve a downloadable archive directly (and either you weren't
 offered the "Open in Browser Instead?" handoff, or you declined it, or the handoff itself failed/timed out too).
@@ -65,13 +65,13 @@ before the handoff started), use **"I already downloaded it -- choose file"** in
 Update checks only cover mods with a recognized, [supported](../using/updating-mods.md#which-sites-are-supported)
 source (AyakaMods, GitHub, GameBanana, ModWorkshop, or Nexus Mods with your optional API key) *and* a recorded
 installed version to compare against — see
-[How DDMM knows a mod's installed version](../using/updating-mods.md#how-ddmm-knows-a-mods-installed-version).
+[How Ordnance knows a mod's installed version](../using/updating-mods.md#how-ordnance-knows-a-mods-installed-version).
 The results after **Check for Updates** show each mod's state, including "unknown" (no installed version on
 record) and "needs a Nexus API key". A mod installed manually with no `Sources` declared, or sourced only from an
-unsupported site, has nothing for DDMM to check.
+unsupported site, has nothing for Ordnance to check.
 
 ### Where do I ask questions or get help that isn't a bug report?
 
 See [Reporting bugs](bugs.md) for the distinction, and the project's
-[GitHub Issues](https://github.com/katsyk/DemocracyDefenderModManager/issues) and
-[repository](https://github.com/katsyk/DemocracyDefenderModManager) for where the project is discussed.
+[GitHub Issues](https://github.com/Cavadus/ordnance/issues) and
+[repository](https://github.com/Cavadus/ordnance) for where the project is discussed.

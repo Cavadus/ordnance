@@ -179,7 +179,7 @@ export class HandoffPopup extends Popup<HandoffResult> {
 }
 
 /**
- * "Allow the DDMM browser extension to install mods from **site**?" -- the
+ * "Allow the Ordnance browser extension to install mods from **site**?" -- the
  * per-site consent prompt the bridge asks the first time a site tries to
  * install through the extension. See `docs/development/bridge-protocol.md`.
  */
@@ -303,11 +303,11 @@ export type BrowserUpdateDecision = "Done" | "Handoff" | "Skip" | "Stop";
 
 /**
  * An update that needs the browser (login-gated site such as AyakaMods or
- * Nexus Mods). With the extension connected, DDMM opens the mod page and
- * the extension's "Update with DDMM" button finishes it; otherwise (or on
+ * Nexus Mods). With the extension connected, Ordnance opens the mod page and
+ * the extension's "Update with Ordnance" button finishes it; otherwise (or on
  * request) it falls back to the Downloads-folder handoff.
  */
-/** "move": copy the data there. "adopt": use the DDMM data already there. */
+/** "move": copy the data there. "adopt": use the Ordnance data already there. */
 export type DataFolderMoveDecision = "move" | "adopt" | null;
 
 /** Confirms a data folder move (or adopting existing data) with the plan's

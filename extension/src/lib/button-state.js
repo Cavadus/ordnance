@@ -10,7 +10,7 @@
  *   - `install`      -> "Install with Ordnance" (also when Ordnance isn't running:
  *                       then with the hint "Ordnance will start", since
  *                       clicking starts it)
- *   - `starting`     -> "Starting Ordnance…" (clicked while DDMM wasn't running;
+ *   - `starting`     -> "Starting Ordnance…" (clicked while Ordnance wasn't running;
  *                       the install launches it)
  *   - `installed`    -> "Installed ✓" (click -> reinstall/open)
  *   - `update`       -> "Update with Ordnance"
@@ -24,7 +24,7 @@
 (function initButtonState(root) {
   'use strict';
 
-  const DDMM = (root.DDMM = root.DDMM || {});
+  const Ordnance = (root.Ordnance = root.Ordnance || {});
 
   /** @type {Record<string, string>} */
   const LABELS = {
@@ -54,7 +54,7 @@
       /** @type {boolean} */
       this.updateAvailable = false;
       /**
-       * Whether DDMM answered the last check. When it didn't, installed /
+       * Whether Ordnance answered the last check. When it didn't, installed /
        * update status is unknown and never guessed.
        * @type {boolean}
        */
@@ -78,7 +78,7 @@
       return this.state !== 'installing' && this.state !== 'checking' && this.state !== 'starting';
     }
 
-    /** DDMM isn't reachable -> "Get Ordnance". */
+    /** Ordnance isn't reachable -> "Get Ordnance". */
     setUnreachable() {
       this.state = 'unreachable';
       this.errorMessage = null;
@@ -87,7 +87,7 @@
     /**
      * The native host answered but Ordnance isn't running (APP_NOT_RUNNING, or
      * it didn't answer in time). Still installable -- the install starts
-     * DDMM -- but whether this mod is installed is unknown, so don't guess.
+     * Ordnance -- but whether this mod is installed is unknown, so don't guess.
      */
     setAppNotRunning() {
       this.state = 'install';
@@ -114,7 +114,7 @@
 
     /**
      * Transition to the mid-flight state: "Installing…", or "Starting Ordnance…"
-     * when DDMM wasn't running and this install is what launches it.
+     * when Ordnance wasn't running and this install is what launches it.
      */
     startInstalling() {
       this.state = this.appRunning ? 'installing' : 'starting';
@@ -133,7 +133,7 @@
 
     /**
      * @returns {boolean} Whether an install is in flight (or armed and
-     *   waiting for its download), so a late DDMM check mustn't relabel it.
+     *   waiting for its download), so a late Ordnance check mustn't relabel it.
      */
     get busy() {
       return this.state === 'installing' || this.state === 'starting' || this.state === 'waiting';
@@ -166,7 +166,7 @@
     }
   }
 
-  DDMM.ButtonState = ButtonState;
-  DDMM.buttonLabels = LABELS;
-  DDMM.buttonHints = { NOT_RUNNING_HINT, WAITING_HINT };
+  Ordnance.ButtonState = ButtonState;
+  Ordnance.buttonLabels = LABELS;
+  Ordnance.buttonHints = { NOT_RUNNING_HINT, WAITING_HINT };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -77,7 +77,7 @@
     font-family: 'Blockletter';
 }
 
-.hd2mm-button {
+.ordnance-button {
     @apply
         px-3
         py-1.5
@@ -99,7 +99,7 @@
     font-family: 'FS Sinclair';
 }
 
-.hd2mm-button-nop {
+.ordnance-button-nop {
     @apply
         border
         text-zinc-300
@@ -118,7 +118,7 @@
     font-family: 'FS Sinclair';
 }
 
-.hd2mm-danger-button {
+.ordnance-danger-button {
     @apply
         px-3
         py-1.5
@@ -137,7 +137,7 @@
     font-family: 'FS Sinclair';
 }
 
-.hd2mm-success-button {
+.ordnance-success-button {
     @apply
         px-3
         py-1.5
@@ -156,7 +156,7 @@
     font-family: 'FS Sinclair';
 }
 
-.hd2mm-input {
+.ordnance-input {
     @apply
         px-2
         py-1
@@ -172,7 +172,7 @@
     ;
 }
 
-.hd2mm-select {
+.ordnance-select {
     appearance: none;
     -webkit-appearance: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23d4d4d8' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
@@ -194,7 +194,7 @@
     ;
 }
 
-.hd2mm-select option {
+.ordnance-select option {
     @apply
         bg-zinc-900
         text-zinc-300

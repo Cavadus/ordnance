@@ -7,9 +7,9 @@
  * (`/…/releases/expanded_assets/<tag>`) -- even a single tag page's initial
  * HTML has no `a[href*="/releases/download/"]` links, on either the list or
  * tag view. In a real browser those load in once the "Assets" section is
- * expanded (a user action DDMM never simulates).
+ * expanded (a user action Ordnance never simulates).
  *
- * DDMM only looks for direct asset links at *click* time, by which point
+ * Ordnance only looks for direct asset links at *click* time, by which point
  * the user has had a chance to expand Assets themselves; if none are found
  * yet, the extension falls back to arming capture with a hint to expand
  * Assets and click a file -- the right-click "Install with Ordnance" context
@@ -20,7 +20,7 @@
  * page as that repo's mod source -- showing an install button on a repo's
  * issue tracker would be nonsensical.
  */
-/* global DDMM */
+/* global Ordnance */
 (function initGitHub() {
   'use strict';
 
@@ -42,13 +42,13 @@
   }
 
   const adapter = { name: 'github', findInsertionPoint, findDirectDownloadUrl };
-  DDMM.siteAdapters = DDMM.siteAdapters || {};
-  DDMM.siteAdapters.github = adapter;
+  Ordnance.siteAdapters = Ordnance.siteAdapters || {};
+  Ordnance.siteAdapters.github = adapter;
 
   // Only run on /releases… pages -- see file header. Guarded the same way
   // as the other site adapters so this file can be loaded in isolation for
   // unit tests.
-  if (DDMM.content && location.pathname.includes('/releases')) {
-    DDMM.content.runSiteAdapter(adapter);
+  if (Ordnance.content && location.pathname.includes('/releases')) {
+    Ordnance.content.runSiteAdapter(adapter);
   }
 })();

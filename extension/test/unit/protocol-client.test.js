@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-globalThis.DDMM = globalThis.DDMM || {};
-globalThis.DDMM.browserApi = { runtime: { lastError: null } };
+globalThis.Ordnance = globalThis.Ordnance || {};
+globalThis.Ordnance.browserApi = { runtime: { lastError: null } };
 
 import '../../src/lib/protocol-client.js';
 
-const { ProtocolClient } = globalThis.DDMM;
+const { ProtocolClient } = globalThis.Ordnance;
 
 /** A minimal fake `runtime.Port`. */
 class FakePort {
@@ -121,14 +121,14 @@ describe('ProtocolClient', () => {
     for (const message of [
       'Specified native messaging host not found.',
       'Access to the specified native messaging host is forbidden.',
-      'No such native application io.github.katsyk.ddmm',
+      'No such native application com.cavadus.ordnance',
     ]) {
       port = new FakePort();
       client = new ProtocolClient({ connectFn: () => port, idFn: () => String(++ids) });
       const promise = client.hello({ extensionVersion: '1', browser: 'chrome' });
-      globalThis.DDMM.browserApi.runtime.lastError = { message };
+      globalThis.Ordnance.browserApi.runtime.lastError = { message };
       port.simulateDisconnect();
-      globalThis.DDMM.browserApi.runtime.lastError = null;
+      globalThis.Ordnance.browserApi.runtime.lastError = null;
       await expect(promise).rejects.toMatchObject({ code: 'NATIVE_HOST_MISSING' });
     }
   });
@@ -137,23 +137,23 @@ describe('ProtocolClient', () => {
     // Firefox reports a missing native host only on the port: without this
     // the button never offered "Get Ordnance" on Firefox.
     const promise = client.hello({ extensionVersion: '1', browser: 'firefox' });
-    port.error = { message: 'No such native application io.github.katsyk.ddmm' };
+    port.error = { message: 'No such native application com.cavadus.ordnance' };
     port.simulateDisconnect();
     await expect(promise).rejects.toMatchObject({ code: 'NATIVE_HOST_MISSING' });
   });
 
   it('keeps DISCONNECTED for a host that crashed or exited', async () => {
     const promise = client.status();
-    globalThis.DDMM.browserApi.runtime.lastError = { message: 'Native host has exited.' };
+    globalThis.Ordnance.browserApi.runtime.lastError = { message: 'Native host has exited.' };
     port.simulateDisconnect();
-    globalThis.DDMM.browserApi.runtime.lastError = null;
+    globalThis.Ordnance.browserApi.runtime.lastError = null;
     await expect(promise).rejects.toMatchObject({ code: 'DISCONNECTED' });
   });
 
-  it('open waits up to 60 s (it may be starting DDMM), longer than hello', async () => {
+  it('open waits up to 60 s (it may be starting Ordnance), longer than hello', async () => {
     vi.useFakeTimers();
     try {
-      const { OPEN_TIMEOUT_MS, DEFAULT_TIMEOUT_MS } = globalThis.DDMM.protocolConstants;
+      const { OPEN_TIMEOUT_MS, DEFAULT_TIMEOUT_MS } = globalThis.Ordnance.protocolConstants;
       expect(OPEN_TIMEOUT_MS).toBeGreaterThanOrEqual(60_000);
       expect(DEFAULT_TIMEOUT_MS).toBeLessThan(OPEN_TIMEOUT_MS);
 

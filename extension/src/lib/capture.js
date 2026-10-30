@@ -6,15 +6,15 @@
  * A download matches a site when:
  *   1. its referrer host, or its url/finalUrl host, is that site's own
  *      domain or one of its known CDN domains, and
- *   2. its filename extension or MIME type is an archive DDMM can install
+ *   2. its filename extension or MIME type is an archive Ordnance can install
  *      (zip/7z/rar).
  */
 (function initCapture(root) {
   'use strict';
 
-  const DDMM = (root.DDMM = root.DDMM || {});
+  const Ordnance = (root.Ordnance = root.Ordnance || {});
 
-  /** Archive file extensions DDMM will install (matches the app's own check). */
+  /** Archive file extensions Ordnance will install (matches the app's own check). */
   const ARCHIVE_EXTENSIONS = ['zip', '7z', 'rar'];
 
   /** MIME types browsers commonly report for those archives. */
@@ -172,7 +172,7 @@
    * @returns {boolean}
    */
   function downloadBelongsToPage(item, pageUrl) {
-    const sources = root.DDMM && root.DDMM.sources;
+    const sources = root.Ordnance && root.Ordnance.sources;
     if (!sources || !pageUrl) return false;
     const pageSource = sources.sourceFromPageUrl(pageUrl);
     if (!pageSource) return false;
@@ -240,7 +240,7 @@
 
     /**
      * Remember a finished download nothing claimed, so a click on "Install
-     * with DDMM" shortly afterwards can still pick it up. Only archives from
+     * with Ordnance" shortly afterwards can still pick it up. Only archives from
      * a known site are kept.
      * @param {DownloadLike} item
      */
@@ -338,7 +338,7 @@
     }
   }
 
-  DDMM.capture = {
+  Ordnance.capture = {
     SITE_HOSTS,
     ARCHIVE_EXTENSIONS,
     ARCHIVE_MIME_TYPES,

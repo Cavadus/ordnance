@@ -1,7 +1,7 @@
 //! Mod update checks and one-click updates.
 //!
 //! **Update checks never run unless the user asks**: either by clicking
-//! "Check for Updates", or by turning on "Check for mod updates when DDMM
+//! "Check for Updates", or by turning on "Check for mod updates when Ordnance
 //! starts" (and optionally "then every N hours while open") in Settings --
 //! both off by default. See [`spawn_auto_check`].
 //!
@@ -15,7 +15,7 @@
 //! assets, GameBanana, ModWorkshop) can be updated in place with one click
 //! ([`update_mod_direct`]). Everything else (AyakaMods, Nexus, anything
 //! login-gated) goes through the user's browser -- the extension's "Update
-//! with DDMM" button, or the Downloads-folder handoff.
+//! with Ordnance" button, or the Downloads-folder handoff.
 
 use std::{path::Path, time::Duration};
 
@@ -46,7 +46,7 @@ const SAME_HOST_DELAY: Duration = Duration::from_secs(1);
 /// Providers this manager knows how to check. Anything else is skipped
 /// entirely (no entry produced).
 const CHECKABLE_PROVIDERS: [&str; 5] = ["ayakamods", "github", "gamebanana", "modworkshop", "nexus"];
-/// Providers whose new files DDMM may download itself (public, keyless).
+/// Providers whose new files Ordnance may download itself (public, keyless).
 const DIRECT_PROVIDERS: [&str; 3] = ["github", "gamebanana", "modworkshop"];
 
 pub const CHECKED_EVENT: &str = "updates://checked";
@@ -113,7 +113,7 @@ pub enum UpdateState {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UpdateMethod {
-    /// DDMM downloads the new file itself and updates in place.
+    /// Ordnance downloads the new file itself and updates in place.
     Direct,
     /// Needs the user's browser (login-gated site, or no direct file).
     Browser,
@@ -187,7 +187,7 @@ struct Target {
     installed_file: Option<InstalledFile>,
     /// "Skip this version" for this provider, if the user chose it.
     skipped: Option<sources::SkippedVersion>,
-    /// When DDMM itself installed this mod from this site (Unix seconds;
+    /// When Ordnance itself installed this mod from this site (Unix seconds;
     /// from the origin sidecar, only when it records this provider).
     installed_at: Option<i64>,
     /// The mod's folder (where its origin sidecar lives).
@@ -195,7 +195,7 @@ struct Target {
 }
 
 /// Every checkable (provider, id) source of every installed mod, once each.
-/// The installed version prefers what DDMM itself recorded at install time
+/// The installed version prefers what Ordnance itself recorded at install time
 /// (it knows what it actually installed) over a manifest-declared one.
 async fn collect_targets(mods: &[Mod]) -> Vec<Target> {
     let mut targets = Vec::new();
@@ -263,7 +263,7 @@ fn status_for(installed: Option<&str>, latest: Option<&str>) -> UpdateState {
     }
 }
 
-/// How long after DDMM installed an AyakaMods mod its page may still show
+/// How long after Ordnance installed an AyakaMods mod its page may still show
 /// a later "last updated" time without that counting as an update -- only
 /// used when the page's own time wasn't recorded at install. The site's
 /// last-update time can trail the file's upload by a minute or two (the
@@ -292,7 +292,7 @@ struct AyakaDecision {
 /// the page's last-update time (`dateModified`) tells them apart. An
 /// update is available when the page was updated after what's installed
 /// (compared with the page time recorded at install, or else with when
-/// DDMM installed it), or when the version differs. Unknown only when
+/// Ordnance installed it), or when the version differs. Unknown only when
 /// neither can be compared.
 ///
 /// `clock_offset` is how far the site's clock is ahead of this PC's (from
@@ -779,7 +779,7 @@ async fn run_check_with(
     let mut pacer = Pacer::default();
     let mut by_index: Vec<Option<UpdateStatusEntry>> = vec![None; targets.len()];
 
-    // Once AyakaMods turns DDMM away (a Cloudflare challenge, rate
+    // Once AyakaMods turns Ordnance away (a Cloudflare challenge, rate
     // limiting, or two refusals in a row), the rest of its mods aren't
     // asked again in this check.
     let mut ayakamods_refusing: Option<String> = None;
@@ -920,7 +920,7 @@ async fn run_check_with(
         if let UpdateState::Error { message } = &e.status {
             failed += 1;
             log::warn!(
-                "Update check failed for {} mod {} (DDMM mod {{{}}}): {message}",
+                "Update check failed for {} mod {} (Ordnance mod {{{}}}): {message}",
                 e.provider,
                 e.source_id.as_deref().unwrap_or("?"),
                 e.guid
@@ -1057,8 +1057,8 @@ pub async fn known_latest_version(state: &AppState, guid: Uuid, provider: &str) 
 }
 
 /// Whether the last check found an update for `(guid, provider)` -- lets
-/// the extension show "Update with DDMM" on sites whose pages don't expose
-/// a version (Nexus), based on DDMM's own check rather than a guess.
+/// the extension show "Update with Ordnance" on sites whose pages don't expose
+/// a version (Nexus), based on Ordnance's own check rather than a guess.
 pub async fn known_update_available(state: &AppState, guid: Uuid, provider: &str) -> bool {
     let guard = state.last_update_report.lock().await;
     guard.as_ref().is_some_and(|r| {
@@ -1140,7 +1140,7 @@ pub async fn enrich_install_source(
             }
             Ok(None) => log::warn!("AyakaMods mod {id}: no version on its page to record."),
             // Not fatal: the install goes ahead, and update checks then
-            // compare against when DDMM installed it.
+            // compare against when Ordnance installed it.
             Err(e) => log::warn!("Couldn't record the AyakaMods page of mod {id}: {e}"),
         }
         return (source, files);
@@ -1279,8 +1279,8 @@ async fn install_direct_update(
     Ok((r#mod, warning))
 }
 
-/// Whether the browser extension has talked to this DDMM session recently
-/// -- if so, a browser-based update can finish with its "Update with DDMM"
+/// Whether the browser extension has talked to this Ordnance session recently
+/// -- if so, a browser-based update can finish with its "Update with Ordnance"
 /// button instead of the Downloads-folder handoff.
 #[tauri::command]
 pub async fn browser_extension_active(state: State<'_, AppState>) -> TAResult<bool> {
@@ -1476,7 +1476,7 @@ mod tests {
         assert_eq!(ayakamods_status(Some("2026-10-01"), Some(page), None, 0, &meta).record_baseline, None);
     }
 
-    /// Writes an AyakaMods mod as DDMM recorded it before page times were
+    /// Writes an AyakaMods mod as Ordnance recorded it before page times were
     /// recorded: version and install time only.
     async fn add_old_ayakamods_mod(base: &Path, id: &str, installed_at: u64) -> (Uuid, std::path::PathBuf) {
         let mod_dir = base.join("mods").join(format!("ayaka-{id}"));

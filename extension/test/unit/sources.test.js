@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import '../../src/lib/sources.js';
 
-const { sourceFromPageUrl, providerFromUrl } = globalThis.DDMM.sources;
+const { sourceFromPageUrl, providerFromUrl } = globalThis.Ordnance.sources;
 
 // Mirrors src-tauri/src/sources.rs's `source_from_page_url` and
 // `provider_from_url` test cases exactly, so the extension and the desktop
@@ -93,7 +93,7 @@ describe('providerFromUrl', () => {
 });
 
 describe('Nexus file-download URLs', () => {
-  const { nexusFileFromUrl, modFromDownloadUrl, attributeDownload } = globalThis.DDMM.sources;
+  const { nexusFileFromUrl, modFromDownloadUrl, attributeDownload } = globalThis.Ordnance.sources;
 
   it.each([
     ['https://cf-files.nexusmods.com/cdn/6119/123/Cool Mod-123-1-0-1700000000.zip?md5=a&expires=1&user_id=2', '6119', '123'],

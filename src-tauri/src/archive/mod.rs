@@ -22,7 +22,7 @@ pub const MAX_UNPACKED_SIZE: u64 = 16 * 1024 * 1024 * 1024;
 /// handful to a few hundred.
 pub const MAX_ENTRIES: usize = 100_000;
 
-/// The archive formats DDMM can open.
+/// The archive formats Ordnance can open.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Format {
     Zip,
@@ -94,19 +94,19 @@ pub fn sniff(header: &[u8]) -> Sniffed {
         return Sniffed::NotArchive("a Windows program (.exe), not an archive");
     }
     if header.starts_with(&[0x1F, 0x8B]) {
-        return Sniffed::NotArchive("a gzip (.gz / .tar.gz) file, a format DDMM can't open");
+        return Sniffed::NotArchive("a gzip (.gz / .tar.gz) file, a format Ordnance can't open");
     }
     if header.starts_with(b"BZh") {
-        return Sniffed::NotArchive("a bzip2 (.bz2) file, a format DDMM can't open");
+        return Sniffed::NotArchive("a bzip2 (.bz2) file, a format Ordnance can't open");
     }
     if header.starts_with(&[0xFD, b'7', b'z', b'X', b'Z', 0x00]) {
-        return Sniffed::NotArchive("an xz (.xz) file, a format DDMM can't open");
+        return Sniffed::NotArchive("an xz (.xz) file, a format Ordnance can't open");
     }
     if header.starts_with(&[0x28, 0xB5, 0x2F, 0xFD]) {
-        return Sniffed::NotArchive("a zstd (.zst) file, a format DDMM can't open");
+        return Sniffed::NotArchive("a zstd (.zst) file, a format Ordnance can't open");
     }
     if header.len() >= 262 && &header[257..262] == b"ustar" {
-        return Sniffed::NotArchive("a tar (.tar) file, a format DDMM can't open");
+        return Sniffed::NotArchive("a tar (.tar) file, a format Ordnance can't open");
     }
     let text = header.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(header);
     let text = &text[text.iter().position(|b| !b.is_ascii_whitespace()).unwrap_or(text.len())..];
@@ -248,7 +248,7 @@ fn classify(path: &Path) -> anyhow::Result<(Format, bool)> {
     Ok(classified)
 }
 
-/// Whether `path` is an archive DDMM can install, decided exactly the way
+/// Whether `path` is an archive Ordnance can install, decided exactly the way
 /// [`Archive::open`] decides it (content first, then the name for a zip
 /// with something in front of it) -- so every install route, the browser
 /// extension's included, accepts and refuses the same files. A zip
@@ -480,7 +480,7 @@ impl Archive {
     }
 
     /// Unpack the whole archive into `path`, which must be an empty folder
-    /// DDMM has just created for this (nothing else in it, and in
+    /// Ordnance has just created for this (nothing else in it, and in
     /// particular no links: entries are written by plain path joins, and
     /// the checks assume the folder starts out empty). If a check on what
     /// was written fails, the folder is removed.
@@ -591,7 +591,7 @@ fn extract_zip(archive: &mut ZipArchive<File>, dest: &Path) -> anyhow::Result<()
 
 /// Unpack a 7z into `dest` (a freshly created, empty folder). sevenz_rust2
 /// confines each entry's path itself (and `validate_entries` already
-/// refused unsafe names); DDMM writes the data, so every entry draws on
+/// refused unsafe names); Ordnance writes the data, so every entry draws on
 /// one [`MAX_UNPACKED_SIZE`] budget, and no file times or attributes from
 /// the archive are applied.
 fn extract_7z(archive: &Path, dest: &Path) -> anyhow::Result<()> {
@@ -1434,7 +1434,7 @@ mod tests {
         let text = |e: anyhow::Error| (format!("{e:#}"), hint_of(&e));
 
         let (msg, hint) = text(sevenz_error(sevenz_rust2::Error::UnsupportedCompressionMethod("DEFLATE64".into())));
-        assert_eq!(msg, "the 7z archive uses a compression method DDMM can't unpack (DEFLATE64)");
+        assert_eq!(msg, "the 7z archive uses a compression method Ordnance can't unpack (DEFLATE64)");
         assert_eq!(hint, Some(errors::HINT_REPACK));
 
         let (msg, _) = text(sevenz_error(sevenz_rust2::Error::BadSignature([80, 75, 3, 4, 20, 0])));
@@ -1572,7 +1572,7 @@ mod tests {
 
         Archive::open(&zip_path).unwrap().extract_to(&dest).unwrap();
 
-        // A file DDMM itself creates gets the default mode (0666 minus the
+        // A file Ordnance itself creates gets the default mode (0666 minus the
         // umask), less group/other write, which the walk always drops.
         let default = {
             let probe = tmp.path().join("probe");
@@ -1815,7 +1815,7 @@ mod tests {
 
     #[test]
     fn sevenz_extraction_still_writes_every_file() {
-        // 7z now goes through DDMM's own writer (for the byte budget).
+        // 7z now goes through Ordnance's own writer (for the byte budget).
         let tmp = tempfile::tempdir().unwrap();
         let path = make_7z(tmp.path(), "ok.7z", &[("dir/a.txt", b"aaa"), ("b.txt", b""), ("c.txt", b"ccc")]);
         let dest = fresh_dest(tmp.path(), "out");

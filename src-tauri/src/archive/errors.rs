@@ -40,7 +40,7 @@ impl std::error::Error for ArchiveError {}
 
 pub const HINT_REDOWNLOAD: &str = "Download the mod again and add the new file. If that doesn't help, the file on the \
      mod page itself is probably broken: let the mod's author know.";
-pub const HINT_ENCRYPTED: &str = "DDMM can't install password-protected archives. Extract it yourself with the \
+pub const HINT_ENCRYPTED: &str = "Ordnance can't install password-protected archives. Extract it yourself with the \
      password (for example with 7-Zip), then add the extracted folder with Add Folder.";
 pub const HINT_REPACK: &str =
     "Extract it with 7-Zip (or another archive tool), then add the extracted folder with Add Folder.";
@@ -50,28 +50,28 @@ pub const HINT_MISSING_VOLUME: &str =
     "Download every part of the archive into the same folder, then add the first part (.part1.rar) again.";
 pub const HINT_WEB_PAGE: &str = "The site sent a web page (often a login or \"please wait\" page) instead of the \
      mod. Download the mod from its page in your browser, then add the downloaded file.";
-pub const HINT_EXE: &str = "DDMM never runs programs. If it's a self-extracting archive, open it with 7-Zip (right \
+pub const HINT_EXE: &str = "Ordnance never runs programs. If it's a self-extracting archive, open it with 7-Zip (right \
      click > 7-Zip > Open archive), extract it, and add the extracted folder with Add Folder.";
 pub const HINT_UNSAFE: &str = "Mod archives never need this. Download the mod again from its official page, and \
      don't install this file.";
 pub const HINT_DISK_FULL: &str =
-    "Free up space on the drive DDMM's data folder is on (see Settings), then try again.";
-pub const HINT_ACCESS: &str = "Another program (often an antivirus) may be holding the file, or DDMM isn't allowed \
+    "Free up space on the drive Ordnance's data folder is on (see Settings), then try again.";
+pub const HINT_ACCESS: &str = "Another program (often an antivirus) may be holding the file, or Ordnance isn't allowed \
      to write to its data folder. Try again in a moment, or check the data folder in Settings.";
-pub const HINT_PATH_TOO_LONG: &str = "The mod's files end up too deep for Windows. Move DDMM's data folder to a \
+pub const HINT_PATH_TOO_LONG: &str = "The mod's files end up too deep for Windows. Move Ordnance's data folder to a \
      shorter path (Settings > Data folder), or rename the archive to something shorter.";
 
 /// The phrase every "refused before extracting" error ends with; the
 /// bridge maps any message containing it (or "unsafe path") to its
 /// `UNSAFE_ARCHIVE` error code.
-pub const REFUSED: &str = "so DDMM refused to extract it";
+pub const REFUSED: &str = "so Ordnance refused to extract it";
 
 /// "the archive contains an unsafe path ..." (the bridge maps any message
 /// containing "unsafe path" to its `UNSAFE_ARCHIVE` error code).
 pub fn unsafe_path(detail: String) -> anyhow::Error {
     ArchiveError::with_hint(
         format!(
-            "the archive contains an unsafe path ({detail}) that would write outside the mod's folder, so DDMM \
+            "the archive contains an unsafe path ({detail}) that would write outside the mod's folder, so Ordnance \
              refused to extract it"
         ),
         HINT_UNSAFE,
@@ -106,7 +106,7 @@ pub fn unsupported_name(name: &str, component: &str, problem: NameProblem) -> an
     };
     ArchiveError::with_hint(
         format!(
-            "the archive contains a file or folder name Windows can't use (\"{name}\": {reason}). DDMM refuses \
+            "the archive contains a file or folder name Windows can't use (\"{name}\": {reason}). Ordnance refuses \
              such names on every platform, {REFUSED}"
         ),
         HINT_RENAME,
@@ -122,7 +122,7 @@ pub const HINT_TOO_LARGE: &str = "No real mod is anywhere near this big. If you 
 pub fn too_large(limit: u64) -> anyhow::Error {
     ArchiveError::with_hint(
         format!(
-            "the archive would unpack to more than {} GiB, far more than any mod, so DDMM refused to extract it",
+            "the archive would unpack to more than {} GiB, far more than any mod, so Ordnance refused to extract it",
             limit / (1024 * 1024 * 1024)
         ),
         HINT_TOO_LARGE,
@@ -134,7 +134,7 @@ pub fn too_large(limit: u64) -> anyhow::Error {
 pub fn too_many_entries(limit: usize) -> anyhow::Error {
     ArchiveError::with_hint(
         format!(
-            "the archive has more than {limit} files and folders, far more than any mod, so DDMM refused to \
+            "the archive has more than {limit} files and folders, far more than any mod, so Ordnance refused to \
              extract it"
         ),
         HINT_TOO_LARGE,
@@ -175,7 +175,7 @@ fn damaged(what: &str, detail: impl fmt::Display) -> anyhow::Error {
 
 fn unsupported_method(detail: impl fmt::Display) -> anyhow::Error {
     ArchiveError::with_hint(
-        format!("the archive uses a compression method DDMM can't unpack ({detail})"),
+        format!("the archive uses a compression method Ordnance can't unpack ({detail})"),
         HINT_REPACK,
     )
     .into()
@@ -198,7 +198,7 @@ pub fn zip_error(e: zip::result::ZipError) -> anyhow::Error {
         ZipError::InvalidPassword => encrypted(&e),
         ZipError::CompressionMethodNotSupported(_) => unsupported_method(&e),
         ZipError::UnsupportedArchive(_) => ArchiveError::with_hint(
-            format!("the zip archive uses a feature DDMM can't read ({e})"),
+            format!("the zip archive uses a feature Ordnance can't read ({e})"),
             HINT_REPACK,
         )
         .into(),
@@ -215,17 +215,17 @@ pub fn sevenz_error(e: sevenz_rust2::Error) -> anyhow::Error {
     match e {
         Error::PasswordRequired | Error::MaybeBadPassword(_) => encrypted(&e),
         Error::UnsupportedCompressionMethod(ref method) => ArchiveError::with_hint(
-            format!("the 7z archive uses a compression method DDMM can't unpack ({method})"),
+            format!("the 7z archive uses a compression method Ordnance can't unpack ({method})"),
             HINT_REPACK,
         )
         .into(),
         Error::ExternalUnsupported | Error::Unsupported(_) | Error::UnsupportedVersion { .. } => ArchiveError::with_hint(
-            format!("the 7z archive uses a feature DDMM can't read ({e})"),
+            format!("the 7z archive uses a feature Ordnance can't read ({e})"),
             HINT_REPACK,
         )
         .into(),
         Error::MaxMemLimited { .. } => ArchiveError::with_hint(
-            format!("the 7z archive needs more memory to unpack than DDMM allows ({e})"),
+            format!("the 7z archive needs more memory to unpack than Ordnance allows ({e})"),
             HINT_REPACK,
         )
         .into(),
@@ -246,7 +246,7 @@ pub fn rar_error(e: unrar::error::UnrarError) -> anyhow::Error {
         .into(),
         (Code::BadArchive, _) => damaged("the file is not a valid RAR archive", &e),
         (Code::UnknownFormat, _) => ArchiveError::with_hint(
-            format!("the RAR archive uses a format version DDMM can't read ({e})"),
+            format!("the RAR archive uses a format version Ordnance can't read ({e})"),
             HINT_REPACK,
         )
         .into(),
@@ -255,7 +255,7 @@ pub fn rar_error(e: unrar::error::UnrarError) -> anyhow::Error {
         }
         (Code::ECreate, _) | (Code::EWrite, _) | (Code::EClose, _) => ArchiveError::with_hint(
             format!(
-                "unpacking the RAR archive into DDMM's data folder failed: a file couldn't be written, usually \
+                "unpacking the RAR archive into Ordnance's data folder failed: a file couldn't be written, usually \
                  because the drive is full, the path is too long, or another program is blocking it ({e})"
             ),
             HINT_ACCESS,

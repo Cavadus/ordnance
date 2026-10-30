@@ -78,10 +78,10 @@ beforeEach(() => {
   installs.length = 0;
   tabMessages.length = 0;
   downloads.clear();
-  for (const site of Object.keys(globalThis.DDMM.capture.SITE_HOSTS)) {
-    globalThis.DDMM.background.captureRegistry.disarm(site);
+  for (const site of Object.keys(globalThis.Ordnance.capture.SITE_HOSTS)) {
+    globalThis.Ordnance.background.captureRegistry.disarm(site);
   }
-  globalThis.DDMM.background.captureRegistry.clearRecent?.();
+  globalThis.Ordnance.background.captureRegistry.clearRecent?.();
 });
 
 const flush = () => new Promise((r) => setTimeout(r, 20));
@@ -97,7 +97,7 @@ async function completeDownload(item) {
 /** Simulate the content script's "Install with Ordnance" click on a tab. */
 async function arm(pageUrl, tabId = 11, pageVersion = null) {
   const reply = await new Promise((resolve) => {
-    listeners.onMessage[0]({ type: 'ddmm:armCapture', site: 'nexus', pageUrl, pageVersion }, { tab: { id: tabId } }, resolve);
+    listeners.onMessage[0]({ type: 'ordnance:armCapture', site: 'nexus', pageUrl, pageVersion }, { tab: { id: tabId } }, resolve);
   });
   await flush();
   return reply;
@@ -116,7 +116,7 @@ describe('Nexus downloads started by the user\'s own tools', () => {
     expect(installs[0].file).toBe('/dl/Cool Mod-123-1-0-1700000000.zip');
     expect(installs[0].pageUrl).toBe(FILE_PAGE);
     expect(installs[0].pageVersion).toBe('1.0');
-    expect(tabMessages.some((m) => m.tabId === 11 && m.msg.type === 'ddmm:installResult')).toBe(true);
+    expect(tabMessages.some((m) => m.tabId === 11 && m.msg.type === 'ordnance:installResult')).toBe(true);
   });
 
   it('captures a download that started in a different tab opened by the Nexus tab', async () => {
@@ -159,17 +159,17 @@ describe('Nexus downloads started by the user\'s own tools', () => {
     await arm(MOD_PAGE, 12);
     await completeDownload({ url: CDN_URL, finalUrl: CDN_URL, filename: '/dl/a.zip' });
     const types = tabMessages.filter((m) => m.tabId === 12).map((m) => m.msg.type);
-    expect(types).toEqual(['ddmm:captureStarted', 'ddmm:installResult']);
+    expect(types).toEqual(['ordnance:captureStarted', 'ordnance:installResult']);
   });
 
   it('does not install a download that finished long before arming', async () => {
-    const reg = globalThis.DDMM.background.captureRegistry;
+    const reg = globalThis.Ordnance.background.captureRegistry;
     const realNow = reg._now;
     let now = 1_000_000;
     reg._now = () => now;
     try {
       await completeDownload({ url: CDN_URL, finalUrl: CDN_URL, filename: '/dl/stale.zip' });
-      now += globalThis.DDMM.capture.RECENT_WINDOW_MS + 1;
+      now += globalThis.Ordnance.capture.RECENT_WINDOW_MS + 1;
       await arm(FILE_PAGE, 11);
       expect(installs).toHaveLength(0);
     } finally {

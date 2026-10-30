@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import '../../src/lib/downloads-adapter.js';
 
-const { normalizeDownloadItem, normalizeChangedDelta } = globalThis.DDMM.downloadsAdapter;
+const { normalizeDownloadItem, normalizeChangedDelta } = globalThis.Ordnance.downloadsAdapter;
 
 describe('normalizeDownloadItem', () => {
   it('uses finalUrl when present (Chromium)', () => {

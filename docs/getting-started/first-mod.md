@@ -4,7 +4,7 @@ title: Your first mod
 
 # Your first mod
 
-Once your [Game Path](setup.md) is set, DDMM opens on the **Mods** page: a dropdown of profiles at the top, your
+Once your [Game Path](setup.md) is set, Ordnance opens on the **Mods** page: a dropdown of profiles at the top, your
 current profile's mod order in the middle, and three buttons — **Add**, **Add Folder**, **Add URL** — along the
 bottom.
 
@@ -13,7 +13,7 @@ bottom.
 Pick whichever matches what you have:
 
 - **A downloaded archive** (`.zip`, `.7z`, `.rar`): click **Add** and pick one or more archive files, or just drag
-  the archive file(s) onto the DDMM window.
+  the archive file(s) onto the Ordnance window.
 - **An already-extracted folder**: click **Add Folder** and pick the folder, or drag the folder onto the window.
 - **A direct download link**: click **Add URL** and paste an `https://` link that serves the archive directly.
 
@@ -21,7 +21,7 @@ See [Adding mods](../using/adding-mods.md) for the full picture, including Ayaka
 that don't serve a direct link.
 
 A newly added mod shows up in your **Library** — the collapsible panel on the right edge of the mod list (click the
-arrow to open it). It isn't installed into the game yet; it's just known to DDMM.
+arrow to open it). It isn't installed into the game yet; it's just known to Ordnance.
 
 ## Put it in your profile
 
@@ -35,8 +35,8 @@ before. See [Deploy & purge](../using/deploy-purge.md) for exactly what this doe
 
 Click **Launch** to start the game through Steam, or launch it yourself as usual.
 
-To remove every DDMM-deployed mod from the game again, use **Purge**.
+To remove every Ordnance-deployed mod from the game again, use **Purge**.
 
 ## Next step
 
-Read [Using DDMM](../using/index.md) for profiles, mod options, and everything else the Mods page can do.
+Read [Using Ordnance](../using/index.md) for profiles, mod options, and everything else the Mods page can do.

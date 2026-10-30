@@ -1,4 +1,4 @@
-//! Host mode: `ddmm` started as the native-messaging host by a browser,
+//! Host mode: `ordnance` started as the native-messaging host by a browser,
 //! instead of as the normal desktop app. Detected from argv before Tauri
 //! (or any window) is ever touched -- see `lib.rs::run`. This module never
 //! opens a GUI; it only relays.
@@ -80,7 +80,7 @@ fn spawn_detached(exe: &Path) -> io::Result<()> {
 /// file, connection refused, wrong token, ...) -- every failure mode here
 /// is treated identically: "not reachable right now".
 ///
-/// A `bridge.json` whose `pid` is no longer running is stale (DDMM
+/// A `bridge.json` whose `pid` is no longer running is stale (Ordnance
 /// crashed), and the whole connect + handshake must finish within
 /// [`CONNECT_TIMEOUT`]: a port some other program now holds, which accepts
 /// but never answers, must not hang a request forever.
@@ -98,7 +98,7 @@ async fn try_connect_to(resolve_base: fn() -> Option<PathBuf>) -> Option<TcpStre
     try_connect(&resolve_base()?).await
 }
 
-/// How long connecting to DDMM and its token handshake may take.
+/// How long connecting to Ordnance and its token handshake may take.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
 async fn connect_and_handshake(port: u16, token: &str) -> Option<TcpStream> {
@@ -124,21 +124,21 @@ async fn connect_and_handshake(port: u16, token: &str) -> Option<TcpStream> {
     }
 }
 
-/// How long to wait for a freshly launched DDMM to write `bridge.json`.
+/// How long to wait for a freshly launched Ordnance to write `bridge.json`.
 /// Generous on purpose: a cold start on a busy machine (first launch after
 /// boot, antivirus scanning the exe, WebView2 warming up) can take tens of
 /// seconds, and giving up early turns the user's one click into two.
 pub const DEFAULT_POLL_TIMEOUT: Duration = Duration::from_secs(45);
 
-/// Only these request types may start DDMM when it isn't running: both are
-/// explicit user actions (an install the user clicked for, or "Start DDMM"
+/// Only these request types may start Ordnance when it isn't running: both are
+/// explicit user actions (an install the user clicked for, or "Start Ordnance"
 /// in the extension popup). `hello`/`query`/`status` are sent just by
-/// browsing a mod page, and browsing must never pop DDMM open.
+/// browsing a mod page, and browsing must never pop Ordnance open.
 pub fn may_launch_app(request_type: &str) -> bool {
     matches!(request_type, "install" | "open")
 }
 
-/// Don't launch DDMM again within this long of the last launch: a slow
+/// Don't launch Ordnance again within this long of the last launch: a slow
 /// start (it can take longer than the poll timeout on a busy machine) must
 /// not turn every retry into yet another launch.
 const RELAUNCH_COOLDOWN: Duration = Duration::from_secs(60);
@@ -161,7 +161,7 @@ impl Launcher {
         if !recently_launched {
             let exe = super::exe_path();
             if let Err(e) = spawn_detached(&exe) {
-                log::error!("Failed to launch DDMM ({exe:?}): {e}");
+                log::error!("Failed to launch Ordnance ({exe:?}): {e}");
                 return None;
             }
             self.last_launch = Some(tokio::time::Instant::now());
@@ -226,12 +226,12 @@ fn extract_id(data: &[u8]) -> String {
         .unwrap_or_default()
 }
 
-/// How long to poll for `bridge.json` after launching DDMM, if it wasn't
-/// already running. Overridable via `DDMM_BRIDGE_POLL_TIMEOUT_MS` so the
+/// How long to poll for `bridge.json` after launching Ordnance, if it wasn't
+/// already running. Overridable via `ORDNANCE_BRIDGE_POLL_TIMEOUT_MS` so the
 /// integration test doesn't have to wait 45 real seconds to see
 /// `APP_NOT_RUNNING`.
 pub fn poll_timeout() -> Duration {
-    std::env::var("DDMM_BRIDGE_POLL_TIMEOUT_MS")
+    std::env::var("ORDNANCE_BRIDGE_POLL_TIMEOUT_MS")
         .ok()
         .and_then(|v| v.parse::<u64>().ok())
         .map(Duration::from_millis)
@@ -293,7 +293,7 @@ impl AppLink {
                 }
                 // Can't be passed on to the browser (1 MB limit); its request
                 // gets no reply and times out in the extension.
-                Ok(Some(BoundedLine::TooLong)) => log::warn!("Bridge host: dropping an oversized reply from DDMM"),
+                Ok(Some(BoundedLine::TooLong)) => log::warn!("Bridge host: dropping an oversized reply from Ordnance"),
                 Ok(None) | Err(_) => break,
             }
         }
@@ -333,14 +333,14 @@ impl AppLink {
     }
 }
 
-/// How long the host waits for DDMM's reply to one request before giving
+/// How long the host waits for Ordnance's reply to one request before giving
 /// up on it (and freeing its place): a little longer than the extension
 /// itself waits (see bridge-protocol.md, "Client-side timeouts"), so the
 /// extension normally times out first.
-/// `DDMM_BRIDGE_REQUEST_TIMEOUT_MS` overrides it for every request type, so
+/// `ORDNANCE_BRIDGE_REQUEST_TIMEOUT_MS` overrides it for every request type, so
 /// the integration test doesn't wait half a minute.
 fn request_timeout(request_type: &str) -> Duration {
-    if let Some(ms) = std::env::var("DDMM_BRIDGE_REQUEST_TIMEOUT_MS").ok().and_then(|v| v.parse::<u64>().ok()) {
+    if let Some(ms) = std::env::var("ORDNANCE_BRIDGE_REQUEST_TIMEOUT_MS").ok().and_then(|v| v.parse::<u64>().ok()) {
         return Duration::from_millis(ms);
     }
     match request_type {
@@ -354,7 +354,7 @@ fn request_timeout(request_type: &str) -> Duration {
 struct Relay {
     resolve_base: fn() -> Option<PathBuf>,
     link: tokio::sync::Mutex<Option<Arc<AppLink>>>,
-    /// Held while starting DDMM, so two installs don't both launch it.
+    /// Held while starting Ordnance, so two installs don't both launch it.
     launcher: tokio::sync::Mutex<Launcher>,
     /// Frames for stdout, written in order by one task.
     out: tokio::sync::mpsc::UnboundedSender<Vec<u8>>,
@@ -369,8 +369,8 @@ impl Relay {
         self.reply(ErrorReply::new(id, code, message).to_line());
     }
 
-    /// The open connection to DDMM, connecting (and, for `may_launch`,
-    /// starting DDMM) if there isn't one. Only called *before* a request
+    /// The open connection to Ordnance, connecting (and, for `may_launch`,
+    /// starting Ordnance) if there isn't one. Only called *before* a request
     /// is sent: a request is never resent after the app may have received it.
     async fn link(&self, may_launch: bool) -> Option<Arc<AppLink>> {
         if let Some(link) = self.link.lock().await.as_ref().filter(|l| l.is_open()) {
@@ -403,7 +403,7 @@ impl Relay {
         // returned it; nothing was sent then, so connecting again is safe.
         for _ in 0..2 {
             let Some(link) = self.link(may_launch).await else {
-                let message = if may_launch { "Host couldn't start or reach DDMM" } else { "DDMM isn't running" };
+                let message = if may_launch { "Host couldn't start or reach Ordnance" } else { "Ordnance isn't running" };
                 return self.error(&id, ErrorCode::AppNotRunning, message);
             };
             let rx = match link.register(&id) {
@@ -423,19 +423,19 @@ impl Relay {
             if written.is_err() {
                 link.unregister(&id);
                 link.close();
-                return self.error(&id, ErrorCode::AppNotRunning, "lost connection to DDMM");
+                return self.error(&id, ErrorCode::AppNotRunning, "lost connection to Ordnance");
             }
             match tokio::time::timeout(request_timeout(&request_type), rx).await {
                 Ok(Ok(reply)) => self.reply(reply),
-                Ok(Err(_)) => self.error(&id, ErrorCode::AppNotRunning, "lost connection to DDMM"),
+                Ok(Err(_)) => self.error(&id, ErrorCode::AppNotRunning, "lost connection to Ordnance"),
                 Err(_) => {
                     link.unregister(&id);
-                    self.error(&id, ErrorCode::Internal, "DDMM didn't answer in time");
+                    self.error(&id, ErrorCode::Internal, "Ordnance didn't answer in time");
                 }
             }
             return;
         }
-        self.error(&id, ErrorCode::AppNotRunning, "lost connection to DDMM");
+        self.error(&id, ErrorCode::AppNotRunning, "lost connection to Ordnance");
     }
 }
 
@@ -444,21 +444,21 @@ impl Relay {
 ///
 /// Full duplex: every request from the browser is relayed as soon as it
 /// arrives and handled concurrently, and each reply is passed back as soon
-/// as DDMM sends it, matched to its request by `id` (so replies can come
+/// as Ordnance sends it, matched to its request by `id` (so replies can come
 /// back in a different order than their requests). A request waiting on
 /// the user -- an install at its consent prompt -- never delays the
 /// `hello`/`query`/`status` the extension sends meanwhile.
 ///
 /// The browser keeps this process (and its port) alive for as long as the
-/// extension holds the connection, which can far outlive one DDMM session.
+/// extension holds the connection, which can far outlive one Ordnance session.
 /// So losing the app is not fatal here: the next request reconnects to a
 /// fresh `bridge.json` instead of failing with `APP_NOT_RUNNING` because
-/// the user closed DDMM at some point since the browser launched the host.
-/// If DDMM isn't running at all, only `install`/`open` start it (see
+/// the user closed Ordnance at some point since the browser launched the host.
+/// If Ordnance isn't running at all, only `install`/`open` start it (see
 /// `may_launch_app`); everything else gets `APP_NOT_RUNNING` right away.
 ///
 /// `resolve_base` finds the data folder (and so `bridge.json`) again for
-/// every (re)connect rather than once: if the user moves DDMM's data folder
+/// every (re)connect rather than once: if the user moves Ordnance's data folder
 /// while the browser keeps this host alive, the restarted app writes its
 /// `bridge.json` to the new folder and this finds it there.
 pub async fn run(origin: HostOrigin, resolve_base: fn() -> Option<PathBuf>) {
@@ -474,7 +474,7 @@ pub async fn run(origin: HostOrigin, resolve_base: fn() -> Option<PathBuf>) {
         }
     });
 
-    // Connect to an already-running DDMM only; launching waits for a
+    // Connect to an already-running Ordnance only; launching waits for a
     // request that's allowed to (see `may_launch_app`).
     let initial = try_connect_to(resolve_base).await.map(AppLink::start);
     let relay = Arc::new(Relay {
@@ -485,7 +485,7 @@ pub async fn run(origin: HostOrigin, resolve_base: fn() -> Option<PathBuf>) {
     });
 
     // Bounds every request task, including ones still connecting or
-    // starting DDMM (which haven't registered with a connection yet).
+    // starting Ordnance (which haven't registered with a connection yet).
     let in_flight = Arc::new(tokio::sync::Semaphore::new(MAX_IN_FLIGHT));
 
     loop {
@@ -538,14 +538,14 @@ mod tests {
         assert!(may_launch_app("install"));
         assert!(may_launch_app("open"));
         for passive in ["hello", "query", "status", "bogus", ""] {
-            assert!(!may_launch_app(passive), "{passive} must not launch DDMM");
+            assert!(!may_launch_app(passive), "{passive} must not launch Ordnance");
         }
     }
 
     #[test]
     fn detects_chromium_shape() {
         let origin = detect_host_mode(&args(&[
-            "/path/to/ddmm",
+            "/path/to/ordnance",
             "chrome-extension://inomhciahaeeefhgdkiaabdponcfdane/",
         ]))
         .unwrap();
@@ -555,7 +555,7 @@ mod tests {
     #[test]
     fn detects_chromium_shape_with_windows_parent_window_arg() {
         let origin = detect_host_mode(&args(&[
-            "C:\\ddmm.exe",
+            "C:\\ordnance.exe",
             "chrome-extension://inomhciahaeeefhgdkiaabdponcfdane/",
             "--parent-window=1234",
         ]))
@@ -566,29 +566,29 @@ mod tests {
     #[test]
     fn detects_firefox_shape() {
         let origin = detect_host_mode(&args(&[
-            "/path/to/ddmm",
-            "/home/user/.mozilla/native-messaging-hosts/io.github.katsyk.ddmm.json",
-            "ddmm@katsyk.github.io",
+            "/path/to/ordnance",
+            "/home/user/.mozilla/native-messaging-hosts/com.cavadus.ordnance.json",
+            "ordnance@cavadus.github.io",
         ]))
         .unwrap();
-        assert_eq!(origin.0, "ddmm@katsyk.github.io");
+        assert_eq!(origin.0, "ordnance@cavadus.github.io");
     }
 
     #[test]
     fn normal_launch_is_not_host_mode() {
-        assert!(detect_host_mode(&args(&["/path/to/ddmm"])).is_none());
+        assert!(detect_host_mode(&args(&["/path/to/ordnance"])).is_none());
         assert!(detect_host_mode(&args(&[])).is_none());
     }
 
     #[test]
     fn unrelated_single_argument_is_not_host_mode() {
-        assert!(detect_host_mode(&args(&["/path/to/ddmm", "--some-flag"])).is_none());
+        assert!(detect_host_mode(&args(&["/path/to/ordnance", "--some-flag"])).is_none());
     }
 
     #[test]
     fn firefox_shape_with_wrong_extension_id_is_not_host_mode() {
         assert!(detect_host_mode(&args(&[
-            "/path/to/ddmm",
+            "/path/to/ordnance",
             "/path/to/manifest.json",
             "not-our-extension@example.com",
         ]))
@@ -662,15 +662,15 @@ mod tests {
         // SAFETY: serialized against the other env-mutating test above by
         // POLL_TIMEOUT_ENV_LOCK; no other test in this crate touches this
         // var.
-        unsafe { std::env::remove_var("DDMM_BRIDGE_POLL_TIMEOUT_MS") };
+        unsafe { std::env::remove_var("ORDNANCE_BRIDGE_POLL_TIMEOUT_MS") };
         assert_eq!(poll_timeout(), Duration::from_secs(45));
     }
 
     #[test]
     fn poll_timeout_honors_env_override() {
         let _guard = POLL_TIMEOUT_ENV_LOCK.lock().unwrap();
-        unsafe { std::env::set_var("DDMM_BRIDGE_POLL_TIMEOUT_MS", "250") };
+        unsafe { std::env::set_var("ORDNANCE_BRIDGE_POLL_TIMEOUT_MS", "250") };
         assert_eq!(poll_timeout(), Duration::from_millis(250));
-        unsafe { std::env::remove_var("DDMM_BRIDGE_POLL_TIMEOUT_MS") };
+        unsafe { std::env::remove_var("ORDNANCE_BRIDGE_POLL_TIMEOUT_MS") };
     }
 }

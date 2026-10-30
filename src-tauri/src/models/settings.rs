@@ -55,18 +55,18 @@ pub enum Settings {
         /// install from them. Revocable in Settings.
         #[serde(default)]
         bridge_allowed_sites: Vec<String>,
-        /// Opt-in: watch `downloads_path` while DDMM is running and offer
+        /// Opt-in: watch `downloads_path` while Ordnance is running and offer
         /// to install any new archive that looks like a Helldivers 2 mod.
         /// Off by default -- never installs without a click either way.
         #[serde(default)]
         auto_import_enabled: bool,
-        /// Opt-in: check installed mods for updates when DDMM starts. Off
+        /// Opt-in: check installed mods for updates when Ordnance starts. Off
         /// by default -- update checks never run unless the user asks
         /// (this, or clicking "Check for Updates").
         #[serde(default)]
         auto_check_updates: bool,
         /// With `auto_check_updates` on: also re-check every this many
-        /// hours while DDMM stays open. `0` (the default) means only at
+        /// hours while Ordnance stays open. `0` (the default) means only at
         /// startup.
         #[serde(default)]
         auto_check_interval_hours: u32,

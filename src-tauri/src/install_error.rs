@@ -36,7 +36,7 @@ impl InstallStep {
         match self {
             InstallStep::Download => "downloading it",
             InstallStep::OpenArchive => "opening the archive",
-            InstallStep::PrepareFolder => "preparing its folder in DDMM's mod storage",
+            InstallStep::PrepareFolder => "preparing its folder in Ordnance's mod storage",
             InstallStep::ReadManifest => "reading its manifest.json",
             InstallStep::Register => "adding it to the mod list",
             InstallStep::Extract => "extracting the archive",
@@ -122,7 +122,7 @@ impl<T, E: Into<anyhow::Error>> InstallContext<T> for Result<T, E> {
 /// The step of removing a mod that failed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RemoveStep {
-    /// Making sure its folder is one mod's folder in DDMM's mod storage.
+    /// Making sure its folder is one mod's folder in Ordnance's mod storage.
     CheckFolder,
     /// Taking its folder out of the mod storage (one rename).
     TakeOut,
@@ -131,8 +131,8 @@ pub enum RemoveStep {
 impl RemoveStep {
     pub fn label(self) -> &'static str {
         match self {
-            RemoveStep::CheckFolder => "checking its folder in DDMM's mod storage",
-            RemoveStep::TakeOut => "taking its folder out of DDMM's mod storage",
+            RemoveStep::CheckFolder => "checking its folder in Ordnance's mod storage",
+            RemoveStep::TakeOut => "taking its folder out of Ordnance's mod storage",
         }
     }
 }
@@ -141,7 +141,7 @@ impl RemoveStep {
 ///
 /// ```text
 /// Couldn't remove "LAS-98 Laser Cannon".
-/// Step: taking its folder out of DDMM's mod storage
+/// Step: taking its folder out of Ordnance's mod storage
 /// Cause: ... (os error 32)
 /// Hint: A file in the mod's folder is in use. ...
 /// ```
@@ -177,8 +177,8 @@ fn remove_hint(step: RemoveStep, cause: &anyhow::Error) -> &'static str {
     });
     match step {
         RemoveStep::CheckFolder => {
-            "Nothing was deleted and the mod is still installed. Restart DDMM and remove it again; if it's still \
-             refused, close DDMM and delete the mod's folder by hand."
+            "Nothing was deleted and the mod is still installed. Restart Ordnance and remove it again; if it's still \
+             refused, close Ordnance and delete the mod's folder by hand."
         }
         RemoveStep::TakeOut if in_use => {
             "Nothing was deleted and the mod is still installed. A file in its folder is in use: close Helldivers 2 \

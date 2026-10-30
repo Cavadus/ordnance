@@ -1,18 +1,18 @@
-site_name: Democracy Defender Mod Manager
-site_description: Documentation for DDMM, a source-neutral mod manager for Helldivers 2.
-site_url: https://katsyk.github.io/DemocracyDefenderModManager/
-repo_name: katsyk/DemocracyDefenderModManager
-repo_url: https://github.com/katsyk/DemocracyDefenderModManager
+site_name: Ordnance
+site_description: Documentation for Ordnance, a source-neutral mod manager for Helldivers 2.
+site_url: https://github.com/Cavadus/ordnance
+repo_name: Cavadus/ordnance
+repo_url: https://github.com/Cavadus/ordnance
 edit_uri: edit/main/docs/
 docs_dir: docs
 
 copyright: >
-  DDMM is derived from Helldivers 2 Mod Manager by teutinsa, licensed under Apache-2.0.
+  Ordnance is derived from Helldivers 2 Mod Manager by teutinsa, licensed under Apache-2.0.
 
 theme:
   name: material
-  logo: assets/images/ddmm-icon.svg
-  favicon: assets/images/ddmm-icon-64.png
+  logo: assets/images/ordnance-icon.svg
+  favicon: assets/images/ordnance-icon-64.png
   palette:
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
@@ -84,9 +84,9 @@ nav:
       - Installing on Linux: getting-started/linux.md
       - First-time setup: getting-started/setup.md
       - Your first mod: getting-started/first-mod.md
-      - Updating DDMM: getting-started/updating.md
+      - Updating Ordnance: getting-started/updating.md
       - Uninstalling: getting-started/uninstalling.md
-  - Using DDMM:
+  - Using Ordnance:
       - using/index.md
       - Adding mods: using/adding-mods.md
       - Importing mods: using/importing-mods.md
@@ -122,4 +122,4 @@ nav:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/katsyk/DemocracyDefenderModManager
+      link: https://github.com/Cavadus/ordnance

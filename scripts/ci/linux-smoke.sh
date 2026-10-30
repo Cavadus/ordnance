@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke-test DDMM's Linux release artifacts inside a distro container.
+# Smoke-test Ordnance's Linux release artifacts inside a distro container.
 #
 # Run by .github/workflows/linux-distros.yml as:
 #   docker run --privileged ... <image> bash scripts/ci/linux-smoke.sh <family> <mode> <dist-dir> <out-dir>
@@ -131,7 +131,7 @@ start_xvfb() {
 }
 
 # A fresh HOME with a fake Steam library containing a fake Helldivers 2
-# install that passes DDMM's detection (steam.rs: appmanifest installdir +
+# install that passes Ordnance's detection (steam.rs: appmanifest installdir +
 # tools/, data/, bin/helldivers2.exe).
 make_fake_home() {
     local home=$1
@@ -151,7 +151,7 @@ EOF
 
 # launch <check> <required|info> <env...> -- <command...>
 # Starts the command in its own session with a fake HOME, waits for
-# "Initialization complete." in DDMM's log, then kills the whole session.
+# "Initialization complete." in Ordnance's log, then kills the whole session.
 launch() {
     local check=$1 level=$2; shift 2
     local envs=()
@@ -168,7 +168,7 @@ launch() {
     (cd "$home" && exec setsid env HOME="$home" XDG_RUNTIME_DIR="$rt" DISPLAY=:99 \
         NO_AT_BRIDGE=1 "${envs[@]}" dbus-run-session -- "$@") >"$dir/stdout.txt" 2>&1 &
     local pid=$! started=0 waited=0
-    local logs="$home/.local/share/io.github.katsyk.ddmm/logs"
+    local logs="$home/.local/share/com.cavadus.ordnance/logs"
 
     while [ $waited -lt "$LAUNCH_TIMEOUT" ]; do
         if grep -qs "Initialization complete." "$logs"/*.log; then started=1; break; fi
@@ -180,7 +180,7 @@ launch() {
     kill -0 $pid 2>/dev/null && alive=1
     kill -TERM -- -$pid 2>/dev/null; sleep 2; kill -KILL -- -$pid 2>/dev/null
     wait $pid 2>/dev/null
-    cp -r "$logs" "$dir/ddmm-logs" 2>/dev/null
+    cp -r "$logs" "$dir/ordnance-logs" 2>/dev/null
 
     local detail
     if [ $started = 1 ]; then
@@ -252,19 +252,19 @@ rpm=$(find "$dist" -name 'Ordnance-*-linux-x86_64.rpm' | head -n1)
 case $mode in
 portable)
     # --- AppImage ---------------------------------------------------------------
-    cp "$appimage" /tmp/ddmm.AppImage && chmod +x /tmp/ddmm.AppImage
+    cp "$appimage" /tmp/ordnance.AppImage && chmod +x /tmp/ordnance.AppImage
 
     # Bare system, no FUSE at all: shows the mount error a user would get.
-    launch appimage-no-fuse info -- /tmp/ddmm.AppImage || true
+    launch appimage-no-fuse info -- /tmp/ordnance.AppImage || true
 
     # Which libraries the AppImage expects the host to provide.
     log "extract AppImage"
-    (cd /tmp && timeout 180 /tmp/ddmm.AppImage --appimage-extract >/dev/null 2>&1)
-    if [ -x /tmp/squashfs-root/usr/bin/ddmm ]; then
+    (cd /tmp && timeout 180 /tmp/ordnance.AppImage --appimage-extract >/dev/null 2>&1)
+    if [ -x /tmp/squashfs-root/usr/bin/ordnance ]; then
         libpath=$(find /tmp/squashfs-root -name '*.so*' -printf '%h\n' | sort -u | tr '\n' ':')
         {
-            find /tmp/squashfs-root/usr/bin/ddmm /tmp/squashfs-root -name '*.so*' -type f
-            echo /tmp/squashfs-root/usr/bin/ddmm
+            find /tmp/squashfs-root/usr/bin/ordnance /tmp/squashfs-root -name '*.so*' -type f
+            echo /tmp/squashfs-root/usr/bin/ordnance
         } | sort -u | while read -r f; do LD_LIBRARY_PATH="$libpath" timeout 10 ldd "$f" </dev/null 2>/dev/null; done \
             | grep 'not found' | awk '{print $1}' | sort -u >"$out/appimage-host-libs-bare.txt"
         record appimage-host-libs-bare INFO "not bundled and missing on a bare system: $(tr '\n' ' ' <"$out/appimage-host-libs-bare.txt")"
@@ -285,27 +285,27 @@ portable)
     # shellcheck disable=SC2046
     pm_install $(fuse_deps) >"$out/install-fuse.txt" 2>&1 \
         || record install-fuse FAIL "$(tail -n 3 "$out/install-fuse.txt")"
-    launch appimage-fuse-bare info -- /tmp/ddmm.AppImage || true
+    launch appimage-fuse-bare info -- /tmp/ordnance.AppImage || true
 
     log "install desktop baseline: $(desktop_baseline)"
     # shellcheck disable=SC2046
     if pm_install $(desktop_baseline) >"$out/install-desktop.txt" 2>&1; then
-        launch_with_fallback appimage-fuse required /tmp/ddmm.AppImage
-        launch_with_fallback appimage-extract-and-run required /tmp/ddmm.AppImage --appimage-extract-and-run
+        launch_with_fallback appimage-fuse required /tmp/ordnance.AppImage
+        launch_with_fallback appimage-extract-and-run required /tmp/ordnance.AppImage --appimage-extract-and-run
     else
         record appimage-fuse FAIL "installing $(desktop_baseline) failed: $(tail -n 3 "$out/install-desktop.txt")"
     fi
 
     # --- tar.gz binary --------------------------------------------------------
     mkdir -p /tmp/tar && tar -C /tmp/tar -xzf "$tarball"
-    ldd_check tar-ldd-before-deps info /tmp/tar/ddmm
-    launch tar-launch-before-deps info -- /tmp/tar/ddmm || true
+    ldd_check tar-ldd-before-deps info /tmp/tar/ordnance
+    launch tar-launch-before-deps info -- /tmp/tar/ordnance || true
 
     log "install documented runtime deps: $(runtime_deps)"
     # shellcheck disable=SC2046
     if pm_install $(runtime_deps) >"$out/install-runtime-deps.txt" 2>&1; then
-        ldd_check tar-ldd required /tmp/tar/ddmm
-        launch_with_fallback tar-launch required /tmp/tar/ddmm
+        ldd_check tar-ldd required /tmp/tar/ordnance
+        launch_with_fallback tar-launch required /tmp/tar/ordnance
     else
         record tar-launch FAIL "installing $(runtime_deps) failed: $(tail -n 3 "$out/install-runtime-deps.txt")"
     fi
@@ -319,11 +319,11 @@ package)
     log "install $(basename "$pkg") with the package manager (fresh container)"
     if pm_install_local "$pkg" >"$out/install-package.txt" 2>&1; then
         record package-install PASS "$(basename "$pkg")"
-        bin=$(command -v ddmm || echo /usr/bin/ddmm)
+        bin=$(command -v ordnance || echo /usr/bin/ordnance)
         ldd_check package-ldd required "$bin"
-        desktop=$(grep -l '^Exec=ddmm' /usr/share/applications/*.desktop 2>/dev/null | head -n1)
+        desktop=$(grep -l '^Exec=ordnance' /usr/share/applications/*.desktop 2>/dev/null | head -n1)
         if [ -n "$desktop" ]; then record package-desktop-entry PASS "$desktop"
-        else record package-desktop-entry FAIL "no /usr/share/applications/*.desktop with Exec=ddmm"; fi
+        else record package-desktop-entry FAIL "no /usr/share/applications/*.desktop with Exec=ordnance"; fi
         launch_with_fallback package-launch required "$bin"
     else
         record package-install FAIL "$(tail -n 8 "$out/install-package.txt")"

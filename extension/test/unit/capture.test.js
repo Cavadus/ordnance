@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import '../../src/lib/sources.js';
 import '../../src/lib/capture.js';
 
-const { CaptureRegistry, hostMatchesSite, isArchiveDownload, isFromSite, hasArchiveExtension } = globalThis.DDMM.capture;
+const { CaptureRegistry, hostMatchesSite, isArchiveDownload, isFromSite, hasArchiveExtension } = globalThis.Ordnance.capture;
 
 describe('hostMatchesSite', () => {
   it('matches the site\'s own domain', () => {
@@ -157,7 +157,7 @@ describe('CaptureRegistry recent downloads (finished before the click)', () => {
     let now = 0;
     const reg = new CaptureRegistry({ now: () => now });
     reg.remember({ id: 5, url: CDN, finalUrl: CDN, filename: '/d/e.zip' });
-    now = globalThis.DDMM.capture.RECENT_WINDOW_MS + 1;
+    now = globalThis.Ordnance.capture.RECENT_WINDOW_MS + 1;
     expect(reg.claimRecent('nexus', PAGE)).toBeNull();
   });
 

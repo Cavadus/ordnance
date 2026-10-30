@@ -49,10 +49,10 @@
     </div>
     <div class="flex flex-row gap-2 justify-between">
         {#if plan.ExistingData}
-            <button class="hd2mm-button" onclick={() => popup.close("adopt")}>{t("popup.data_folder_move.adopt_button")}</button>
+            <button class="ordnance-button" onclick={() => popup.close("adopt")}>{t("popup.data_folder_move.adopt_button")}</button>
         {:else}
-            <button class="hd2mm-button" onclick={() => popup.close("move")}>{t("popup.data_folder_move.move_button")}</button>
+            <button class="ordnance-button" onclick={() => popup.close("move")}>{t("popup.data_folder_move.move_button")}</button>
         {/if}
-        <button class="hd2mm-button" onclick={() => popup.close(null)}>{t("popup.data_folder_move.cancel_button")}</button>
+        <button class="ordnance-button" onclick={() => popup.close(null)}>{t("popup.data_folder_move.cancel_button")}</button>
     </div>
 </PopupBase>

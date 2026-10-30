@@ -11,7 +11,7 @@
     <span class="text-xl text-yellow-300 font-blockletter self-center">{popup.title}</span>
     <p class="text-sm">{popup.question}</p>
     <div class="flex flex-row gap-2 justify-between">
-        <button class="hd2mm-button" onclick={() => popup.close(true)}>{t("popup.confirm.yes_button.text")}</button>
-        <button class="hd2mm-button" onclick={() => popup.close(false)}>{t("popup.confirm.no_button.text")}</button>
+        <button class="ordnance-button" onclick={() => popup.close(true)}>{t("popup.confirm.yes_button.text")}</button>
+        <button class="ordnance-button" onclick={() => popup.close(false)}>{t("popup.confirm.no_button.text")}</button>
     </div>
 </PopupBase>

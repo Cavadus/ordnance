@@ -6,7 +6,7 @@
  * A local HTTPS server plays both www.nexusmods.com (a fake mod file page
  * whose countdown never finishes during the test) and a Nexus CDN host
  * (supporter-files.nexus-cdn.com), mapped with --host-resolver-rules. A fake
- * native messaging host stands in for DDMM and records every `install`. A
+ * native messaging host stands in for Ordnance and records every `install`. A
  * small injected script plays the part of a user's userscript: it starts a
  * CDN download directly, without the countdown.
  *
@@ -38,7 +38,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 const EXTENSION_DIR = path.resolve(process.env.EXTENSION_DIR || path.join(ROOT, 'dist', 'chrome'));
 const EXTENSION_ID = 'inomhciahaeeefhgdkiaabdponcfdane';
-const HOST_NAME = 'io.github.katsyk.ddmm';
+const HOST_NAME = 'com.cavadus.ordnance';
 
 const MOD_ID = '123';
 const FILE_PAGE_PATH = `/helldivers2/mods/${MOD_ID}?tab=files&file_id=456`;
@@ -90,7 +90,7 @@ async function startServer(dir) {
   return server;
 }
 
-/** A fake DDMM: a native messaging host that logs each request as a JSON line. */
+/** A fake Ordnance: a native messaging host that logs each request as a JSON line. */
 async function installFakeHost(dir, userDataDir) {
   const log = path.join(dir, 'host-requests.jsonl');
   const script = path.join(dir, 'fake-host.mjs');
@@ -123,7 +123,7 @@ process.stdin.on('end', () => process.exit(0));
   await mkdir(manifestDir, { recursive: true });
   await writeFile(path.join(manifestDir, `${HOST_NAME}.json`), JSON.stringify({
     name: HOST_NAME,
-    description: 'DDMM e2e fake host',
+    description: 'Ordnance e2e fake host',
     path: script,
     type: 'stdio',
     allowed_origins: [`chrome-extension://${EXTENSION_ID}/`],
@@ -176,7 +176,7 @@ function freePort() {
 }
 
 async function main() {
-  const dir = await mkdtemp(path.join(os.tmpdir(), 'ddmm-nexus-e2e-'));
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'ordnance-nexus-e2e-'));
   const userDataDir = path.join(dir, 'profile');
   const downloadDir = path.join(dir, 'downloads');
   await mkdir(path.join(userDataDir, 'Default'), { recursive: true });
@@ -227,7 +227,7 @@ async function main() {
     }, `https://supporter-files.nexus-cdn.com${cdnPath('A')}`);
     await pageA.goto(`https://www.nexusmods.com${FILE_PAGE_PATH}`);
     await waitFor(async () => (await readdir(downloadDir)).some((f) => f.includes('Cool Mod A') && !f.endsWith('.crdownload')), 'download A on disk');
-    const buttonA = pageA.locator('.ddmm-btn');
+    const buttonA = pageA.locator('.ordnance-btn');
     await waitFor(async () => (await buttonA.getAttribute('data-state')) === 'install', 'button A ready');
     await expectEmblemVisible(buttonA, 'install');
     if (shots) await pageA.screenshot({ path: path.join(shots, 'e2e-a1-before-click.png') });
@@ -249,7 +249,7 @@ async function main() {
     // ---- Scenario B: armed first, then a no-referrer download in a new tab.
     const pageB = await context.newPage();
     await pageB.goto(`https://www.nexusmods.com${FILE_PAGE_PATH}`);
-    const buttonB = pageB.locator('.ddmm-btn');
+    const buttonB = pageB.locator('.ordnance-btn');
     await waitFor(async () => (await buttonB.getAttribute('data-state')) === 'install', 'button B ready');
     await buttonB.click();
     await waitFor(async () => (await buttonB.getAttribute('data-state')) === 'waiting', 'button B "Click Download on this page…"', 3_000);

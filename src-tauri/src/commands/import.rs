@@ -79,7 +79,7 @@ pub async fn detect_import_sources(state: State<'_, AppState>) -> TAResult<Vec<D
 pub struct ScanSummary {
     #[serde(flatten)]
     pub scan: ScanResult,
-    /// Free space on the drive with DDMM's data folder, if known.
+    /// Free space on the drive with Ordnance's data folder, if known.
     pub free_bytes: Option<u64>,
     pub cancelled: bool,
     /// Which scan this is. [`run_import`] takes it back, so a wizard can

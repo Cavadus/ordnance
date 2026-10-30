@@ -1,12 +1,12 @@
 /**
- * @file `storage.local` schema and small helpers. Everything DDMM's
+ * @file `storage.local` schema and small helpers. Everything Ordnance's
  * extension remembers lives under these keys; nothing here ever leaves the
  * browser (see extension/PRIVACY.md).
  */
 (function initStorage(root) {
   'use strict';
 
-  const DDMM = (root.DDMM = root.DDMM || {});
+  const Ordnance = (root.Ordnance = root.Ordnance || {});
 
   const KEYS = {
     AUTO_CAPTURE: 'autoCapture', // { [site: string]: boolean } -- off by default for every site
@@ -30,7 +30,7 @@
    * @returns {Promise<boolean>}
    */
   async function isAutoCaptureEnabled(site) {
-    const data = await DDMM.browserApi.storage.local.get(KEYS.AUTO_CAPTURE);
+    const data = await Ordnance.browserApi.storage.local.get(KEYS.AUTO_CAPTURE);
     const map = data[KEYS.AUTO_CAPTURE] || {};
     return Boolean(map[site]);
   }
@@ -41,32 +41,32 @@
    * @returns {Promise<void>}
    */
   async function setAutoCaptureEnabled(site, enabled) {
-    const data = await DDMM.browserApi.storage.local.get(KEYS.AUTO_CAPTURE);
+    const data = await Ordnance.browserApi.storage.local.get(KEYS.AUTO_CAPTURE);
     const map = data[KEYS.AUTO_CAPTURE] || {};
     map[site] = enabled;
-    await DDMM.browserApi.storage.local.set({ [KEYS.AUTO_CAPTURE]: map });
+    await Ordnance.browserApi.storage.local.set({ [KEYS.AUTO_CAPTURE]: map });
   }
 
   /** @returns {Promise<Record<string, boolean>>} */
   async function getAllAutoCapture() {
-    const data = await DDMM.browserApi.storage.local.get(KEYS.AUTO_CAPTURE);
+    const data = await Ordnance.browserApi.storage.local.get(KEYS.AUTO_CAPTURE);
     return data[KEYS.AUTO_CAPTURE] || {};
   }
 
   /** @returns {Promise<string|null>} */
   async function getAfterInstallOverride() {
-    const data = await DDMM.browserApi.storage.local.get(KEYS.AFTER_INSTALL);
+    const data = await Ordnance.browserApi.storage.local.get(KEYS.AFTER_INSTALL);
     return data[KEYS.AFTER_INSTALL] ?? null;
   }
 
   /** @param {string|null} value */
   async function setAfterInstallOverride(value) {
-    await DDMM.browserApi.storage.local.set({ [KEYS.AFTER_INSTALL]: value });
+    await Ordnance.browserApi.storage.local.set({ [KEYS.AFTER_INSTALL]: value });
   }
 
   /** @returns {Promise<RecentInstall[]>} */
   async function getRecentInstalls() {
-    const data = await DDMM.browserApi.storage.local.get(KEYS.RECENT_INSTALLS);
+    const data = await Ordnance.browserApi.storage.local.get(KEYS.RECENT_INSTALLS);
     return data[KEYS.RECENT_INSTALLS] || [];
   }
 
@@ -74,10 +74,10 @@
   async function pushRecentInstall(entry) {
     const existing = await getRecentInstalls();
     const next = [entry, ...existing].slice(0, MAX_RECENT_INSTALLS);
-    await DDMM.browserApi.storage.local.set({ [KEYS.RECENT_INSTALLS]: next });
+    await Ordnance.browserApi.storage.local.set({ [KEYS.RECENT_INSTALLS]: next });
   }
 
-  DDMM.storage = {
+  Ordnance.storage = {
     KEYS,
     MAX_RECENT_INSTALLS,
     isAutoCaptureEnabled,

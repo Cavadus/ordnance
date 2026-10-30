@@ -12,7 +12,7 @@
 //!    every archive, and every folder that is a mod (has a `manifest.json`
 //!    or Helldivers 2 patch files). It reads each one -- without extracting
 //!    anything -- for its name, size, manifest and Nexus Mods id, then
-//!    marks what's already in DDMM, what's a duplicate, what's an older
+//!    marks what's already in Ordnance, what's a duplicate, what's an older
 //!    copy of the same file, what isn't a Helldivers 2 mod and what can't
 //!    be read.
 //! 3. [`run_import`] installs the chosen items one after another through
@@ -23,7 +23,7 @@
 //!
 //! The source is only ever read: nothing in another manager's folder or in
 //! the user's downloads is written, moved or deleted, and a source that is,
-//! contains, or is inside DDMM's data folder is refused outright.
+//! contains, or is inside Ordnance's data folder is refused outright.
 //!
 //! Nothing here downloads anything, from Nexus Mods or anywhere else.
 
@@ -84,7 +84,7 @@ pub enum SourceKind {
     ManagerMods,
     /// Another mod manager's folder of downloaded archives.
     ManagerDownloads,
-    /// The user's Downloads folder (from DDMM's settings, or the OS one).
+    /// The user's Downloads folder (from Ordnance's settings, or the OS one).
     Downloads,
 }
 
@@ -108,7 +108,7 @@ pub struct KnownDirs {
     pub local_data: Option<PathBuf>,
     /// The OS Downloads folder.
     pub downloads: Option<PathBuf>,
-    /// DDMM's configured downloads folder (Settings), if different.
+    /// Ordnance's configured downloads folder (Settings), if different.
     pub settings_downloads: Option<PathBuf>,
 }
 
@@ -166,7 +166,7 @@ pub fn candidate_sources(dirs: &KnownDirs) -> Vec<(SourceKind, PathBuf)> {
 }
 
 /// The candidate folders that exist, hold at least one importable item and
-/// don't overlap DDMM's data folder (`base_path`), each listed once.
+/// don't overlap Ordnance's data folder (`base_path`), each listed once.
 pub fn detect_sources(dirs: &KnownDirs, base_path: &Path) -> Vec<DetectedSource> {
     let mut out: Vec<DetectedSource> = Vec::new();
     for (kind, path) in candidate_sources(dirs) {
@@ -258,15 +258,15 @@ pub struct NexusRef {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "Kind", rename_all_fields = "PascalCase")]
 pub enum ItemStatus {
-    /// Not in DDMM yet: selected by default.
+    /// Not in Ordnance yet: selected by default.
     New,
-    /// Already in DDMM as `name`.
+    /// Already in Ordnance as `name`.
     Installed { name: String },
-    /// Already in DDMM as `name`, which has no Nexus Mods link yet while
+    /// Already in Ordnance as `name`, which has no Nexus Mods link yet while
     /// this item knows its Nexus page: importing it only adds that link
     /// (see [`ScanItem::link_to`]).
     InstalledAddSource { name: String },
-    /// Already in DDMM as `name`, but a different version of it.
+    /// Already in Ordnance as `name`, but a different version of it.
     InstalledOtherVersion { name: String },
     /// The same archive/mod as another item in this list (`of` is its name).
     Duplicate { of: String },
@@ -293,7 +293,7 @@ impl ItemStatus {
 }
 
 /// Whether and where a mod sat in the source manager's active profile, and
-/// with which options, so it lands in DDMM the same way.
+/// with which options, so it lands in Ordnance the same way.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct ProfileHint {
@@ -329,7 +329,7 @@ pub struct ScanItem {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub profile: Option<ProfileHint>,
     /// Sources recorded by the source manager next to the mod (another
-    /// DDMM/HD2MM `.hd2mm-origin.json`), carried over on import.
+    /// Ordnance/HD2MM `.hd2mm-origin.json`), carried over on import.
     #[serde(skip)]
     pub carried_sidecar: Option<OriginSidecar>,
     /// Filled lazily (only when two archives have the same size, or an
@@ -392,19 +392,19 @@ fn is_archive_name(name: &str) -> bool {
         .is_some_and(|e| ARCHIVE_EXTENSIONS.contains(&e))
 }
 
-/// Refuse a source that is, contains, or is inside DDMM's data folder:
-/// importing from there would copy DDMM's own mods into themselves.
+/// Refuse a source that is, contains, or is inside Ordnance's data folder:
+/// importing from there would copy Ordnance's own mods into themselves.
 pub fn ensure_source_allowed(source: &Path, base_path: &Path) -> anyhow::Result<()> {
     match path_overlap(source, base_path)? {
         None => Ok(()),
         Some(PathOverlap::Same) | Some(PathOverlap::FirstInsideSecond) => anyhow::bail!(
-            "{} is inside DDMM's own data folder ({}). Those mods are already DDMM's; pick the folder \
+            "{} is inside Ordnance's own data folder ({}). Those mods are already Ordnance's; pick the folder \
              where the other mod manager or your downloads keep them.",
             source.display(),
             base_path.display()
         ),
         Some(PathOverlap::SecondInsideFirst) => anyhow::bail!(
-            "DDMM's own data folder ({}) is inside {}, so importing from there would copy DDMM's mods \
+            "Ordnance's own data folder ({}) is inside {}, so importing from there would copy Ordnance's mods \
              into themselves. Pick the folder that holds just the mods you want to import.",
             base_path.display(),
             source.display()
@@ -732,13 +732,13 @@ struct InstalledNexus {
     name: String,
 }
 
-/// What DDMM already has, for "already installed" checks.
+/// What Ordnance already has, for "already installed" checks.
 #[derive(Debug, Default)]
 pub struct InstalledIndex {
     guids: HashMap<Uuid, String>,
     nexus: Vec<InstalledNexus>,
     fingerprints: Vec<(ArchiveFingerprint, String, Uuid)>,
-    /// Lower-cased archive file names DDMM installed from, and mod folder
+    /// Lower-cased archive file names Ordnance installed from, and mod folder
     /// names (a plain Add File names the folder after the archive).
     file_names: HashMap<String, (String, Uuid)>,
     /// Installed mods that already have a Nexus Mods source.
@@ -853,7 +853,7 @@ pub fn resolve_statuses(items: &mut [ScanItem], installed: &InstalledIndex) {
         }
     }
     // One link per installed mod: the first item wins, the rest are just
-    // "already in DDMM".
+    // "already in Ordnance".
     let mut linking: HashSet<Uuid> = HashSet::new();
     for item in items.iter_mut() {
         if let (ItemStatus::InstalledAddSource { name }, Some(target)) = (&item.status, item.link_to) {
@@ -985,7 +985,7 @@ fn newer_first(a: &ScanItem, b: &ScanItem) -> std::cmp::Ordering {
 
 /// SHA-256 over a folder's files (relative paths and contents, in name
 /// order, not following symlinks), to tell an identical copy of a mod
-/// folder from a different version of it. DDMM's own origin record is left
+/// folder from a different version of it. Ordnance's own origin record is left
 /// out: it says where a copy came from, not what it is.
 fn tree_hash(dir: &Path) -> std::io::Result<String> {
     let mut files = Vec::new();
@@ -1015,7 +1015,7 @@ fn tree_hash(dir: &Path) -> std::io::Result<String> {
     Ok(hasher.finalize().iter().map(|b| format!("{b:02x}")).collect())
 }
 
-/// The status of an item that is already in DDMM as `name` (`guid`): plain
+/// The status of an item that is already in Ordnance as `name` (`guid`): plain
 /// "installed", or -- when that mod has no Nexus link and this item knows
 /// its Nexus page -- "will add Nexus info", with the mod to link.
 fn already_installed(item: &ScanItem, installed: &InstalledIndex, name: &str, guid: Uuid) -> (ItemStatus, Option<Uuid>) {
@@ -1267,7 +1267,7 @@ pub struct ImportedMod {
     pub guid: Uuid,
     /// From the source manager's profile, when it had one: whether the mod
     /// was on, where in the load order it was, and its profile entry
-    /// (options included) ready to add to a DDMM profile.
+    /// (options included) ready to add to a Ordnance profile.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enabled: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1290,7 +1290,7 @@ pub struct ImportProblem {
 #[serde(rename_all = "PascalCase")]
 pub struct ImportReport {
     pub imported: Vec<ImportedMod>,
-    /// Mods that were already in DDMM and only got Nexus info added (files,
+    /// Mods that were already in Ordnance and only got Nexus info added (files,
     /// options, order and on/off state untouched).
     pub linked: Vec<ImportProblem>,
     pub failed: Vec<ImportProblem>,
@@ -1310,7 +1310,7 @@ pub fn check_free_space(needed: u64, free: Option<u64>) -> anyhow::Result<()> {
         if free < needed.saturating_add(FREE_SPACE_MARGIN) {
             anyhow::bail!(
                 "Not enough free space: the selected mods need about {} (plus {} to spare) and only {} is free \
-                 on the drive with DDMM's data folder. Free up some space or select fewer mods.",
+                 on the drive with Ordnance's data folder. Free up some space or select fewer mods.",
                 crate::data_move::human_bytes(needed),
                 crate::data_move::human_bytes(FREE_SPACE_MARGIN),
                 crate::data_move::human_bytes(free)
@@ -1320,7 +1320,7 @@ pub fn check_free_space(needed: u64, free: Option<u64>) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// A folder name that's valid on every OS DDMM runs on, derived from `name`
+/// A folder name that's valid on every OS Ordnance runs on, derived from `name`
 /// (see [`crate::mod_folder::safe_folder_name`]).
 pub fn safe_dir_name(name: &str) -> String {
     crate::mod_folder::safe_folder_name(name)
@@ -1391,7 +1391,7 @@ pub(crate) fn add_nexus_to_sidecar(sidecar: &mut OriginSidecar, nexus: &NexusRef
     }
 }
 
-/// Import `items` (already chosen by the user) into DDMM, one at a time.
+/// Import `items` (already chosen by the user) into Ordnance, one at a time.
 ///
 /// The caller holds the data-folder lock ([`AppState::data_op`]) for the
 /// whole run. `cancel` is checked before each item and after it: an item
@@ -1472,7 +1472,7 @@ pub async fn run_import(
     report
 }
 
-/// For a mod that shipped no manifest.json (so DDMM generated a `LOCAL`
+/// For a mod that shipped no manifest.json (so Ordnance generated a `LOCAL`
 /// one), use what the source manager knew instead: its options as a v1
 /// manifest, or at least its ID for the generated one -- so the mod keeps
 /// its identity (a second import recognizes it) and the source's profile
@@ -1518,7 +1518,7 @@ async fn apply_manifest_override(state: &AppState, item: &ScanItem, installed: &
 }
 
 /// A profile entry for `installed` from the source's state, shaped for its
-/// manifest (option lists that don't fit it fall back to DDMM's defaults:
+/// manifest (option lists that don't fit it fall back to Ordnance's defaults:
 /// every option on, first choice).
 pub fn build_config(installed: &Mod, hint: &ProfileHint) -> Config {
     let guid = installed.guid();
@@ -1573,7 +1573,7 @@ async fn link_existing(state: &AppState, item: &ScanItem, target: Uuid) -> anyho
     let installed = mods
         .iter_mut()
         .find(|m| m.guid() == target)
-        .ok_or_else(|| anyhow::anyhow!("the installed copy isn't in DDMM any more"))?;
+        .ok_or_else(|| anyhow::anyhow!("the installed copy isn't in Ordnance any more"))?;
     let name = installed.name().to_string();
     if installed.sources.iter().any(|s| s.provider.eq_ignore_ascii_case("nexus")) {
         // Linked in the meantime (e.g. a browser update): leave it alone.
@@ -1605,7 +1605,7 @@ async fn link_existing(state: &AppState, item: &ScanItem, target: Uuid) -> anyho
     }
     sources::save_origin_sidecar(&installed.directory, &sidecar).await?;
     installed.resolve_sources().await;
-    log::info!("Import: added Nexus Mods #{} to \"{name}\" (already in DDMM).", nexus.mod_id);
+    log::info!("Import: added Nexus Mods #{} to \"{name}\" (already in Ordnance).", nexus.mod_id);
     Ok(name)
 }
 

@@ -1,4 +1,4 @@
-//! Spawns the actual built `ddmm` binary in native-messaging host mode and
+//! Spawns the actual built `ordnance` binary in native-messaging host mode and
 //! exercises it as a real browser would: framed stdin/stdout, the
 //! `bridge.json` + token handshake against a fake "app" TCP server, origin
 //! injection, oversized-frame rejection, and the `APP_NOT_RUNNING` timeout
@@ -14,7 +14,7 @@ use std::{
 
 const CHROME_EXTENSION_ARG: &str = "chrome-extension://inomhciahaeeefhgdkiaabdponcfdane/";
 
-/// Copy the compiled `ddmm` binary into a fresh portable-mode temp
+/// Copy the compiled `ordnance` binary into a fresh portable-mode temp
 /// directory (a `portable.txt` marker makes `data_dir::decide_base_dir`
 /// resolve the base path to this same directory, deterministically, with
 /// no dependence on the host machine's real app-data location).
@@ -22,7 +22,7 @@ fn portable_copy_of_binary() -> (tempfile::TempDir, PathBuf) {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("portable.txt"), "").unwrap();
 
-    let src = PathBuf::from(env!("CARGO_BIN_EXE_ddmm"));
+    let src = PathBuf::from(env!("CARGO_BIN_EXE_ordnance"));
     let dest = dir.path().join(src.file_name().unwrap());
     std::fs::copy(&src, &dest).unwrap();
     // Belt and braces against the ETXTBSY flake `spawn_host` also retries
@@ -50,13 +50,13 @@ fn portable_copy_of_binary() -> (tempfile::TempDir, PathBuf) {
 }
 
 /// A no-op executable script, written into `dir`, that exits immediately.
-/// Used as a stand-in for "launch DDMM" so the timeout test never actually
+/// Used as a stand-in for "launch Ordnance" so the timeout test never actually
 /// starts a full desktop app (which would need a display).
 #[cfg(unix)]
 fn dummy_launch_target(dir: &Path) -> PathBuf {
     let path = dir.join("dummy-launch.sh");
     // Leaves a marker next to itself so tests can tell whether the host
-    // tried to launch DDMM at all.
+    // tried to launch Ordnance at all.
     std::fs::write(&path, "#!/bin/sh\ntouch \"$(dirname \"$0\")/launched\"\nexit 0\n").unwrap();
     use std::os::unix::fs::PermissionsExt;
     let mut perms = std::fs::metadata(&path).unwrap().permissions();
@@ -108,10 +108,10 @@ fn spawn_host(exe: &Path, extra_env: &[(&str, &str)]) -> Child {
         match cmd.spawn() {
             Ok(child) => return child,
             Err(e) if e.raw_os_error() == Some(26) /* ETXTBSY */ => last_err = Some(e),
-            Err(e) => panic!("failed to spawn ddmm in host mode: {e}"),
+            Err(e) => panic!("failed to spawn ordnance in host mode: {e}"),
         }
     }
-    panic!("failed to spawn ddmm in host mode after retries: {:?}", last_err.unwrap())
+    panic!("failed to spawn ordnance in host mode after retries: {:?}", last_err.unwrap())
 }
 
 /// A minimal stand-in for `bridge::server`: accepts one connection,
@@ -238,7 +238,7 @@ fn install_launches_the_app_and_replies_app_not_running_after_the_configured_tim
         &exe,
         &[
             ("APPIMAGE", dummy.to_str().unwrap()),
-            ("DDMM_BRIDGE_POLL_TIMEOUT_MS", "300"),
+            ("ORDNANCE_BRIDGE_POLL_TIMEOUT_MS", "300"),
         ],
     );
     let mut stdin = child.stdin.take().unwrap();
@@ -252,7 +252,7 @@ fn install_launches_the_app_and_replies_app_not_running_after_the_configured_tim
     assert_eq!(reply["ok"], false);
     assert_eq!(reply["error"]["code"], "APP_NOT_RUNNING");
     assert!(elapsed < Duration::from_secs(5), "took {elapsed:?}, expected the short configured timeout to apply");
-    assert!(dir.path().join("launched").exists(), "install must launch DDMM");
+    assert!(dir.path().join("launched").exists(), "install must launch Ordnance");
 
     drop(stdin);
     let _ = child.wait_timeout_or_kill();
@@ -271,7 +271,7 @@ fn passive_requests_never_launch_the_app() {
             ("APPIMAGE", dummy.to_str().unwrap()),
             // Long enough that a launch-and-poll would blow the time
             // assertion below.
-            ("DDMM_BRIDGE_POLL_TIMEOUT_MS", "20000"),
+            ("ORDNANCE_BRIDGE_POLL_TIMEOUT_MS", "20000"),
         ],
     );
     let mut stdin = child.stdin.take().unwrap();
@@ -285,7 +285,7 @@ fn passive_requests_never_launch_the_app() {
         assert_eq!(reply["error"]["code"], "APP_NOT_RUNNING", "{kind}: {reply}");
     }
     assert!(started.elapsed() < Duration::from_secs(5), "passive requests must not wait for a launch");
-    assert!(!dir.path().join("launched").exists(), "browsing a mod page must never launch DDMM");
+    assert!(!dir.path().join("launched").exists(), "browsing a mod page must never launch Ordnance");
 
     drop(stdin);
     let _ = child.wait_timeout_or_kill();
@@ -315,7 +315,7 @@ fn zombie_children_of(pid: u32) -> Vec<u32> {
 #[cfg(target_os = "linux")]
 fn launched_app_is_reaped_when_it_exits() {
     let (dir, exe) = portable_copy_of_binary();
-    // The dummy "DDMM" exits immediately, like a real one the user closed
+    // The dummy "Ordnance" exits immediately, like a real one the user closed
     // while the browser keeps the host running.
     let dummy = dummy_launch_target(dir.path());
 
@@ -323,7 +323,7 @@ fn launched_app_is_reaped_when_it_exits() {
         &exe,
         &[
             ("APPIMAGE", dummy.to_str().unwrap()),
-            ("DDMM_BRIDGE_POLL_TIMEOUT_MS", "300"),
+            ("ORDNANCE_BRIDGE_POLL_TIMEOUT_MS", "300"),
         ],
     );
     let mut stdin = child.stdin.take().unwrap();
@@ -345,7 +345,7 @@ fn launched_app_is_reaped_when_it_exits() {
 
 /// A fake "app" that completes the handshake, answers exactly one request
 /// (echoing its id with `served_by`), then closes the connection -- i.e.
-/// DDMM exiting while the browser keeps the host alive.
+/// Ordnance exiting while the browser keeps the host alive.
 fn spawn_one_shot_app_server(token: &str, served_by: &'static str) -> (u16, std::thread::JoinHandle<()>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
@@ -384,7 +384,7 @@ fn reconnects_after_the_app_restarts_instead_of_failing() {
         &exe,
         &[
             ("APPIMAGE", dummy.to_str().unwrap()),
-            ("DDMM_BRIDGE_POLL_TIMEOUT_MS", "3000"),
+            ("ORDNANCE_BRIDGE_POLL_TIMEOUT_MS", "3000"),
         ],
     );
     let mut stdin = child.stdin.take().unwrap();
@@ -396,7 +396,7 @@ fn reconnects_after_the_app_restarts_instead_of_failing() {
     assert_eq!(reply["servedBy"], "first");
     first.join().unwrap();
 
-    // "DDMM" exited and a new instance came up with a new port and token.
+    // "Ordnance" exited and a new instance came up with a new port and token.
     let (port2, second) = spawn_one_shot_app_server("token-two", "second");
     write_bridge_json(dir.path(), port2, "token-two");
     std::thread::sleep(Duration::from_millis(200));
@@ -497,7 +497,7 @@ fn replies_are_routed_by_id_while_an_install_is_still_waiting() {
     let _ = child.wait_timeout_or_kill();
 }
 
-/// A `bridge.json` left behind by a DDMM that crashed (its pid is gone) is
+/// A `bridge.json` left behind by a Ordnance that crashed (its pid is gone) is
 /// ignored, even if something now listens on its port: no connection is
 /// attempted, and a passive request gets APP_NOT_RUNNING right away.
 #[test]
@@ -516,13 +516,13 @@ fn a_stale_bridge_json_with_a_dead_pid_is_ignored() {
     write_frame(&mut stdin, br#"{"id":"1","type":"status"}"#);
     let reply = read_frame_json(&mut stdout);
     assert_eq!(reply["error"]["code"], "APP_NOT_RUNNING", "{reply}");
-    assert!(listener.accept().is_err(), "the host must not connect to a dead DDMM's port");
+    assert!(listener.accept().is_err(), "the host must not connect to a dead Ordnance's port");
 
     drop(stdin);
     let _ = child.wait_timeout_or_kill();
 }
 
-/// Something that accepts on DDMM's port but never answers the handshake
+/// Something that accepts on Ordnance's port but never answers the handshake
 /// can't hang the host: the request fails within the handshake timeout.
 #[test]
 fn a_silent_listener_times_out_the_handshake() {
@@ -573,7 +573,7 @@ fn spawn_unresponsive_app_server(token: &str) -> u16 {
     port
 }
 
-/// A request DDMM never answers gets an error once the host's per-request
+/// A request Ordnance never answers gets an error once the host's per-request
 /// timeout passes, and its place (and id) is free again.
 #[test]
 fn an_unanswered_request_times_out_and_frees_its_place() {
@@ -582,7 +582,7 @@ fn an_unanswered_request_times_out_and_frees_its_place() {
     let port = spawn_unresponsive_app_server(&token);
     write_bridge_json(dir.path(), port, &token);
 
-    let mut child = spawn_host(&exe, &[("DDMM_BRIDGE_REQUEST_TIMEOUT_MS", "300")]);
+    let mut child = spawn_host(&exe, &[("ORDNANCE_BRIDGE_REQUEST_TIMEOUT_MS", "300")]);
     let mut stdin = child.stdin.take().unwrap();
     let mut stdout = child.stdout.take().unwrap();
     for _ in 0..2 {

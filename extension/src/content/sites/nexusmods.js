@@ -13,7 +13,7 @@
  * This is also a deliberate policy, not just a DOM-access limitation: free
  * Nexus downloads require the user to click "Slow download" themselves
  * (Nexus's own rate-limiting/anti-bot mechanism), and the task spec is
- * explicit that DDMM must never automate that click. So even with perfect
+ * explicit that Ordnance must never automate that click. So even with perfect
  * DOM access, `findDirectDownloadUrl` would still deliberately return
  * `null` here -- the only difference real DOM access would make is a nicer
  * inline button placement instead of the floating corner button.
@@ -23,7 +23,7 @@
  * the next Nexus archive the browser downloads (see lib/capture.js),
  * however the user starts that download.
  */
-/* global DDMM */
+/* global Ordnance */
 (function initNexusMods() {
   'use strict';
 
@@ -35,8 +35,8 @@
     // manual, human click on Nexus's own "Slow download" button.
     findDirectDownloadUrl: () => null,
   };
-  DDMM.siteAdapters = DDMM.siteAdapters || {};
-  DDMM.siteAdapters.nexus = adapter;
+  Ordnance.siteAdapters = Ordnance.siteAdapters || {};
+  Ordnance.siteAdapters.nexus = adapter;
 
-  if (DDMM.content) DDMM.content.runSiteAdapter(adapter);
+  if (Ordnance.content) Ordnance.content.runSiteAdapter(adapter);
 })();

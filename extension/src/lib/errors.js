@@ -7,7 +7,7 @@
 (function initErrors(root) {
   'use strict';
 
-  const DDMM = (root.DDMM = root.DDMM || {});
+  const Ordnance = (root.Ordnance = root.Ordnance || {});
 
   /** @type {Record<string, string>} */
   const ERROR_MESSAGES = {
@@ -42,5 +42,5 @@
     return fallbackMessage || ERROR_MESSAGES.INTERNAL;
   }
 
-  DDMM.errors = { ERROR_MESSAGES, describeError };
+  Ordnance.errors = { ERROR_MESSAGES, describeError };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

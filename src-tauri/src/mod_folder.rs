@@ -1,4 +1,4 @@
-//! Folder names and deletes inside DDMM's mod storage (`<data>/mods`).
+//! Folder names and deletes inside Ordnance's mod storage (`<data>/mods`).
 //!
 //! Every install path (Add, drops, Add URL, the browser handoff and
 //! extension, auto-import, Import, updates) turns a name it got from
@@ -7,7 +7,7 @@
 //! `mods/`. [`safe_folder_name`] is the one place that decides what such a
 //! folder may be called, and [`ensure_mod_folder`] is the check every
 //! delete inside `mods/` goes through first, so a bad name can never make
-//! DDMM delete or write anything outside a single mod's own folder.
+//! Ordnance delete or write anything outside a single mod's own folder.
 
 use std::path::{Component, Path, PathBuf};
 
@@ -16,11 +16,11 @@ use anyhow::Context;
 /// What a name with nothing usable left in it becomes.
 pub const FALLBACK_NAME: &str = "mod";
 
-/// Longest folder name DDMM creates (keeps paths comfortably short on
+/// Longest folder name Ordnance creates (keeps paths comfortably short on
 /// Windows).
 pub const MAX_NAME_CHARS: usize = 80;
 
-/// A single folder name, valid on every OS DDMM runs on, derived from
+/// A single folder name, valid on every OS Ordnance runs on, derived from
 /// `name`:
 ///
 /// - path separators, characters Windows forbids (`<>:"|?*`) and control
@@ -120,7 +120,7 @@ pub fn numbered(base: &str, n: usize) -> String {
 pub fn ensure_mod_folder(mods_root: &Path, target: &Path) -> anyhow::Result<()> {
     let refuse = || {
         anyhow::anyhow!(
-            "refusing to touch {:?}: it isn't a single mod folder inside DDMM's mod storage ({:?})",
+            "refusing to touch {:?}: it isn't a single mod folder inside Ordnance's mod storage ({:?})",
             target,
             mods_root
         )
@@ -295,7 +295,7 @@ fn make_writable(_path: &Path, _meta: &std::fs::Metadata) {}
 pub const PENDING_DELETE_PREFIX: &str = ".delete-";
 /// Suffix of the small file written next to a pending delete before the
 /// rename. Only a `.delete-<id>` folder that has one is ever deleted at
-/// startup, so a folder DDMM didn't set aside itself is never removed.
+/// startup, so a folder Ordnance didn't set aside itself is never removed.
 pub const PENDING_DELETE_RECORD_SUFFIX: &str = ".pending";
 
 /// The record file for the pending-delete folder `dir`.
@@ -432,7 +432,7 @@ mod tests {
         for name in ["Foo", "Foo.bar", ".Foo"] {
             assert!(!has_windows_alias_ending(name), "{name:?}");
         }
-        // Nothing DDMM names itself ends that way.
+        // Nothing Ordnance names itself ends that way.
         for name in ["Foo.", "Foo ", "a. . ."] {
             assert!(!has_windows_alias_ending(&safe_folder_name(name)), "{name:?}");
         }
@@ -586,7 +586,7 @@ mod tests {
         assert_eq!(std::fs::read(&precious).unwrap(), b"keep");
     }
 
-    /// Windows: `canonicalize` gives `\\?\C:\...`, the storage path DDMM
+    /// Windows: `canonicalize` gives `\\?\C:\...`, the storage path Ordnance
     /// builds doesn't have the prefix; letter case can differ too. Both
     /// spellings are one folder and delete; the guard still refuses
     /// anything but a single folder in either spelling.

@@ -7,8 +7,8 @@ fixtures. Its on-disk folder names appear only as string literals the importer h
 
 This covers `mod_import.rs`, `mod_import/layouts.rs` and `commands/import.rs`. Researched in September 2026.
 
-**Only file-format knowledge is used.** DDMM reads the data files these tools leave on disk. No code from any
-of them was copied into DDMM.
+**Only file-format knowledge is used.** Ordnance reads the data files these tools leave on disk. No code from any
+of them was copied into Ordnance.
 
 None of these formats is a published contract, so every parser is tolerant: an unknown or missing field is
 skipped, never an error, and the generic folder scan always works as the fallback.
@@ -17,8 +17,8 @@ skipped, never an error, and the generic folder scan always works as the fallbac
 
 - **Files on disk only.** Nothing is downloaded, from Nexus Mods or anywhere else. The Nexus API is never used
   for downloads, and Nexus's "Slow download" page and its timer are never automated or skipped.
-- **The source is read-only.** DDMM never writes, moves or deletes anything there. `ensure_source_allowed`
-  refuses a source that is, contains or is inside DDMM's data folder, and the check runs again for every item.
+- **The source is read-only.** Ordnance never writes, moves or deletes anything there. `ensure_source_allowed`
+  refuses a source that is, contains or is inside Ordnance's data folder, and the check runs again for every item.
 - **Nexus metadata** comes from what the source recorded, or from the download's file name. No API call is made
   during import. Later update checks, with the user's optional key or sign-in, work from what was recorded.
 
@@ -69,12 +69,12 @@ builds were not checked.
   - Array order is the deploy order, reversed when `setTopPriority` is true.
   - Separators (`type: "separator"`) are skipped.
   - `optionsConfig` is matched to the library entry's options **by name**.
-- **Older format.** Before format 1, each profile's `mods[]` held full mod objects that include `path`. DDMM
+- **Older format.** Before format 1, each profile's `mods[]` held full mod objects that include `path`. Ordnance
   falls back to reading those.
 - **Skipped:** icon paths (they point into Arsenal's own cache), `mod_headers.db` (SQLite, used only for
   conflict detection) and `temp/` (downloads in progress).
 
-**What DDMM does with it:**
+**What Ordnance does with it:**
 
 - When a picked folder, or its parent, has `hd2a_data.json`, the mod list comes from `modsLibrary` and the
   folder isn't walked.
@@ -103,7 +103,7 @@ letter.
   `options`.
 - The format marker is checked; a file without it is treated as "not Echelon" and never misread.
 
-**What DDMM does with it:**
+**What Ordnance does with it:**
 
 - A `library.json` in the picked folder, or its parent, is the whole mod list; the folder isn't walked.
 - Each entry's `folder` becomes one candidate mod folder. Echelon's `id` is not a GUID, so it is not
@@ -113,7 +113,7 @@ letter.
 ## The older HD2 mod manager (1.x / 2024 original / 2.0 rewrite)
 
 This section is documented from its publicly available source and the files it writes. It uses the same
-manifest format DDMM reads.
+manifest format Ordnance reads.
 
 **1.x (end of life).**
 
@@ -135,10 +135,10 @@ manifest format DDMM reads.
 
 - Everything is next to its exe, which can't be auto-detected, so the user picks the folder.
 - Mods are in `mods/<archive name>/manifest.json`.
-- `profiles.json` has the same format DDMM uses, with `Configs` in load order.
+- `profiles.json` has the same format Ordnance uses, with `Configs` in load order.
 - Manifests can carry `NexusData.ModId`, and v1 manifests also `Version`.
 
-**What DDMM does with them:**
+**What Ordnance does with them:**
 
 - It auto-detects the 1.x and 2024 storage folders.
 - Any folder of mod folders works anyway, since each has a `manifest.json`.
@@ -163,15 +163,15 @@ files they write.
 - **Patch order.** The extension writes `<profileId>_patch_order.json` next to the staging folder. It is an array
   of `{id, modId (staging folder name), name, enabled, locked, data}`.
 - **Nexus ids.** The mod id, file id and version are otherwise only in the LevelDB state database
-  (`%APPDATA%\Vortex\state.v2`). DDMM doesn't read it: the encoding is unverified, and the folder and file names
+  (`%APPDATA%\Vortex\state.v2`). Ordnance doesn't read it: the encoding is unverified, and the folder and file names
   already carry the id and version.
 
-**What DDMM does with it:**
+**What Ordnance does with it:**
 
 - It auto-detects both folders.
 - In the staging folder, each mod folder is one item. The Nexus id and version come from the folder name, and
   order and on/off state from the newest `*_patch_order.json`.
-- Mods already imported from staging show as "already in DDMM" when the downloads folder is scanned.
+- Mods already imported from staging show as "already in Ordnance" when the downloads folder is scanned.
 - Under Wine/Proton the folders are inside a prefix, so the user picks them.
 
 ## Nexus Mods download file names
@@ -204,14 +204,14 @@ Confidence: high. See `sources::parse_nexus_archive_name`.
   subfolder with its own `manifest.json`. The latter case is a folder *of* mods.
 - An archive is a mod when it contains patch files or a `manifest.json`.
 
-**Already in DDMM.** Any of these counts as a match:
+**Already in Ordnance.** Any of these counts as a match:
 
 - the same manifest GUID (a manager-generated `LOCAL…` GUID only counts for folders);
 - the same archive (size plus SHA-256, recorded as `ImportedArchive`);
-- the same archive file name, or mod folder name, as something DDMM installed;
+- the same archive file name, or mod folder name, as something Ordnance installed;
 - the same Nexus mod with the same file id, file name or version.
 
-When the installed copy has **no Nexus link** and the item does, the item shows "Already in DDMM: will add
+When the installed copy has **no Nexus link** and the item does, the item shows "Already in Ordnance: will add
 Nexus info" and is ticked. Importing it then writes only the Nexus source and file into that mod's
 `.hd2mm-origin.json`. Files, manifest, options, order and on/off state are left alone.
 

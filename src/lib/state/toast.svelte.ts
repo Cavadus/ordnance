@@ -2,7 +2,7 @@
  * Lightweight, non-blocking toasts -- unlike `Popup`, these never stop the
  * user from doing anything else. Used for background events the user
  * didn't just click a button to trigger, like a browser-triggered install
- * finishing while DDMM was in the background.
+ * finishing while Ordnance was in the background.
  */
 
 export type ToastKind = "info" | "warning" | "error";

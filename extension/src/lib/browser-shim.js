@@ -4,10 +4,10 @@
  * Chrome/Edge/Brave expose the extension API as `chrome.*` with a mix of
  * callback-based and (recently) promise-based signatures. Firefox exposes
  * `browser.*` with promise-based signatures throughout. This shim gives the
- * rest of the codebase a single, always-promise-based `DDMM.browserApi` to
+ * rest of the codebase a single, always-promise-based `Ordnance.browserApi` to
  * call, so the same source files run unmodified on both browsers.
  *
- * Classic script: attaches to the shared `self.DDMM` namespace instead of
+ * Classic script: attaches to the shared `self.Ordnance` namespace instead of
  * using ES module import/export. Content scripts in MV3 are always loaded
  * as classic scripts by both browsers (there is no manifest-level "module"
  * declaration for `content_scripts`), and Firefox's MV3 background pages
@@ -21,7 +21,7 @@
 (function initBrowserShim(root) {
   'use strict';
 
-  const DDMM = (root.DDMM = root.DDMM || {});
+  const Ordnance = (root.Ordnance = root.Ordnance || {});
 
   /** The native, un-shimmed extension API root (`browser` or `chrome`). */
   const raw = root.browser || root.chrome;
@@ -106,6 +106,6 @@
     action: raw.action || raw.browserAction,
   };
 
-  DDMM.browserApi = browserApi;
-  DDMM.isFirefox = Boolean(root.browser) && !root.chrome;
+  Ordnance.browserApi = browserApi;
+  Ordnance.isFirefox = Boolean(root.browser) && !root.chrome;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

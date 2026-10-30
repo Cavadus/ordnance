@@ -1,4 +1,4 @@
-//! Where DDMM keeps its data: `mods/`, `settings.json`, `profiles.json`, and
+//! Where Ordnance keeps its data: `mods/`, `settings.json`, `profiles.json`, and
 //! logs.
 //!
 //! Earlier previews always used the executable's own directory. That
@@ -19,7 +19,14 @@ pub const PORTABLE_MARKER_FILENAME: &str = "portable.txt";
 /// This app's identifier, matching `tauri.conf.json`. Used to compute the
 /// per-user app data directory independently of a running `AppHandle` --
 /// see [`platform_app_data_dir`] for why.
-pub const APP_IDENTIFIER: &str = "io.github.katsyk.ddmm";
+pub const APP_IDENTIFIER: &str = "com.cavadus.ordnance";
+
+/// The identifier older (DDMM-named) releases stored data under. On the
+/// first launch after the rename, that folder and pointer are moved to
+/// APP_IDENTIFIER (see migrate_legacy_identifier).
+pub const LEGACY_APP_IDENTIFIER: &str = "io.github.katsyk.ddmm";
+const LEGACY_POINTER_DIR_NAME: &str = "io.github.katsyk.ddmm.location";
+const LEGACY_POINTER_FILENAME: &str = "ddmm-data-location.json";
 
 /// Which way [`decide_base_dir`] went, and why -- both logged at startup
 /// and shown (read-only) in Settings.
@@ -36,7 +43,7 @@ pub struct BaseDirDecision {
     pub reason: &'static str,
 }
 
-/// Decide where DDMM should keep its data.
+/// Decide where Ordnance should keep its data.
 ///
 /// Portable mode wins when the executable's directory looks like a
 /// portable install -- a `portable.txt` marker, or (for existing
@@ -85,7 +92,7 @@ fn portable_reason(exe_dir: &Path) -> Option<&'static str> {
 /// throwaway file. There's no portable, race-free "can I write here" check
 /// in std, so this is it.
 pub(crate) fn is_dir_writable(dir: &Path) -> bool {
-    let probe = dir.join(format!(".ddmm-write-test-{}", std::process::id()));
+    let probe = dir.join(format!(".ordnance-write-test-{}", std::process::id()));
     match std::fs::File::create(&probe) {
         Ok(_) => {
             let _ = std::fs::remove_file(&probe);
@@ -100,7 +107,7 @@ pub(crate) fn is_dir_writable(dir: &Path) -> bool {
 /// so it survives the move and is read before any data is: next to the
 /// executable for a portable copy (so the portable folder stays
 /// self-describing), and in [`installed_pointer_dir`] otherwise.
-pub const POINTER_FILENAME: &str = "ddmm-data-location.json";
+pub const POINTER_FILENAME: &str = "ordnance-data-location.json";
 
 /// Contents of [`POINTER_FILENAME`]. A relative `path` is relative to the
 /// folder the pointer file is in: a portable copy whose data folder is
@@ -115,21 +122,21 @@ pub struct PointerFile {
 
 pub const POINTER_VERSION: u32 = 1;
 
-/// The folder an installed DDMM keeps its pointer file in when the OS
+/// The folder an installed Ordnance keeps its pointer file in when the OS
 /// config folder is also where the data lives (see
 /// [`installed_pointer_dir`]). Its own folder, next to (never inside) the
 /// default data folder.
-pub const POINTER_DIR_NAME: &str = "io.github.katsyk.ddmm.location";
+pub const POINTER_DIR_NAME: &str = "com.cavadus.ordnance.location";
 
-/// Where an installed (non-portable) DDMM keeps its pointer file: always
+/// Where an installed (non-portable) Ordnance keeps its pointer file: always
 /// outside the default data folder, so deleting that folder after moving
 /// the data elsewhere can't lose the record of where the data went.
 ///
 /// - Linux: `$XDG_CONFIG_HOME/<identifier>` (or `~/.config/...`), as it
 ///   always was; the data is in `~/.local/share`.
-/// - Windows: `%APPDATA%\io.github.katsyk.ddmm.location`, next to the
+/// - Windows: `%APPDATA%\com.cavadus.ordnance.location`, next to the
 ///   (Roaming) default data folder, so it roams with it.
-/// - macOS: `~/Library/Application Support/io.github.katsyk.ddmm.location`,
+/// - macOS: `~/Library/Application Support/com.cavadus.ordnance.location`,
 ///   next to the data folder.
 ///
 /// Earlier versions used `<config dir>/<identifier>`, which on Windows and
@@ -244,7 +251,7 @@ fn installed_pointer_to_read(new: &Path, old: Option<&Path>, access: PointerAcce
     (chosen.to_path_buf(), Some(note))
 }
 
-/// Why the chosen data folder can't be used this session. DDMM then starts
+/// Why the chosen data folder can't be used this session. Ordnance then starts
 /// in a recovery screen instead of silently creating an empty folder (and
 /// appearing to have lost every mod, e.g. with a USB drive unplugged).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -315,7 +322,7 @@ pub fn read_pointer(pointer_file: &Path) -> Result<Option<PathBuf>, String> {
 /// one), creating its folder if needed. A `target` inside the pointer's own
 /// folder is stored relative to it (see [`PointerFile`]). The file (and, on
 /// Unix, its folder) is synced to disk before this returns: a move deletes
-/// the old data right after, and a crash in between must not leave DDMM
+/// the old data right after, and a crash in between must not leave Ordnance
 /// pointing nowhere.
 pub fn write_pointer(pointer_file: &Path, target: &Path) -> anyhow::Result<()> {
     let dir = pointer_file.parent().unwrap_or(Path::new("."));
@@ -514,7 +521,38 @@ pub fn decide_data_dir_with(
 /// config folders), as the app does it at startup: an earlier version's
 /// pointer is copied to its new place if needed.
 pub fn decide_data_dir_for_this_machine() -> DataDirDecision {
+    migrate_legacy_identifier();
     decide_for_this_machine(PointerAccess::Migrate)
+}
+
+/// One-time migration from the DDMM-named data layout. If an older install's
+/// data folder (or its pointer folder) still exists under the legacy name and
+/// the current name isn't taken, move it. Best-effort: a failed move just
+/// means the app starts with a fresh data folder, leaving the old one
+/// untouched.
+fn migrate_legacy_identifier() {
+    if let Some(data) = dirs::data_dir() {
+        let new = data.join(APP_IDENTIFIER);
+        let legacy = data.join(LEGACY_APP_IDENTIFIER);
+        if legacy.is_dir() && !new.exists() {
+            if let Err(e) = std::fs::rename(&legacy, &new) {
+                eprintln!("Ordnance: couldn't migrate legacy data folder {legacy:?} to {new:?}: {e}");
+            }
+        }
+    }
+    if let Some(config) = dirs::config_dir() {
+        let new_ptr = config.join(POINTER_DIR_NAME);
+        let legacy_ptr = config.join(LEGACY_POINTER_DIR_NAME);
+        if legacy_ptr.is_dir() && !new_ptr.exists() {
+            if std::fs::rename(&legacy_ptr, &new_ptr).is_ok() {
+                let old_file = new_ptr.join(LEGACY_POINTER_FILENAME);
+                let new_file = new_ptr.join(POINTER_FILENAME);
+                if old_file.is_file() && !new_file.exists() {
+                    let _ = std::fs::rename(&old_file, &new_file);
+                }
+            }
+        }
+    }
 }
 
 /// The same decision for the browser's native-messaging host, so both
@@ -686,7 +724,7 @@ mod tests {
         // SAFETY: test-only; no other test in this process reads/writes
         // this exact env var concurrently within the same assertion window.
         unsafe {
-            std::env::set_var("APPIMAGE", "/opt/apps/DDMM-x86_64.AppImage");
+            std::env::set_var("APPIMAGE", "/opt/apps/Ordnance-x86_64.AppImage");
         }
         let dir = resolve_exe_dir();
         unsafe {
@@ -725,7 +763,7 @@ mod tests {
     #[test]
     fn log_dir_is_in_the_data_folder_unless_it_is_missing() {
         let d = dirs();
-        let custom = d.custom.join("DDMM [data] v1.2");
+        let custom = d.custom.join("Ordnance [data] v1.2");
         let mut decision = decide_data_dir(&d.exe, &d.app_data, &d.config);
         decision.path = custom.clone();
         assert_eq!(log_dir(&decision), custom.join("logs"));
@@ -743,7 +781,7 @@ mod tests {
         let app = tauri::test::mock_app();
         for base in [
             root.path().join("AppData").join("Roaming").join(APP_IDENTIFIER),
-            root.path().join("My Mods [HD2] {v1.2}").join("DDMM Data"),
+            root.path().join("My Mods [HD2] {v1.2}").join("Ordnance Data"),
         ] {
             let scope = tauri::scope::fs::Scope::new(&app, &Default::default()).unwrap();
             std::fs::create_dir_all(base.join("mods")).unwrap();
@@ -914,7 +952,7 @@ mod tests {
     #[test]
     fn missing_pointed_folder_is_reported_and_never_created() {
         let d = dirs();
-        let usb = d._root.path().join("usb-drive").join("DDMM Data");
+        let usb = d._root.path().join("usb-drive").join("Ordnance Data");
         write_pointer(&d.config.join(POINTER_FILENAME), &usb).unwrap();
         let decision = decide_data_dir(&d.exe, &d.app_data, &d.config);
         assert_eq!(decision.problem, Some(DataDirProblem::Missing));

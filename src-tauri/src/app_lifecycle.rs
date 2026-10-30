@@ -18,10 +18,10 @@ pub struct Relaunch {
 /// The relaunch after a data folder change (move, adopt, locate, reset).
 ///
 /// Never passes on what this process was started with (`original_args`,
-/// taken only to make that explicit): a `ddmm://` link would show its
+/// taken only to make that explicit): a `ordnance://` link would show its
 /// install prompt again, and native-messaging host arguments would start a
 /// windowless relay instead of the app. The only arguments are
-/// `unshown_links`: `ddmm://install` links that arrived but were never
+/// `unshown_links`: `ordnance://install` links that arrived but were never
 /// shown (e.g. while the data-folder recovery screen was up), so they
 /// aren't lost -- see `deep_link::DeepLinkQueue::pending_links`. The
 /// environment is inherited as is, which keeps what portable/AppImage
@@ -73,7 +73,7 @@ fn links_within_budget(links: &[String], budget: usize) -> Vec<OsString> {
 }
 
 /// Start `relaunch`; if that fails while it carries links, try once more
-/// with no arguments, so a problem with the links can never keep DDMM from
+/// with no arguments, so a problem with the links can never keep Ordnance from
 /// coming back. `spawn` is [`spawn_relaunch`] outside of tests. Returns the
 /// command that was started, or the last error.
 pub fn spawn_relaunch_or_plain(
@@ -85,7 +85,7 @@ pub fn spawn_relaunch_or_plain(
         Err(e) if relaunch.args.is_empty() => Err(e),
         Err(e) => {
             log::warn!(
-                "Couldn't relaunch DDMM with {} install link(s) ({e}); relaunching without them.",
+                "Couldn't relaunch Ordnance with {} install link(s) ({e}); relaunching without them.",
                 relaunch.args.len()
             );
             let plain = Relaunch { program: relaunch.program.clone(), args: Vec::new() };
@@ -145,12 +145,12 @@ mod tests {
 
     #[test]
     fn relaunch_drops_every_original_argument() {
-        let exe = Path::new("/opt/ddmm/ddmm");
+        let exe = Path::new("/opt/ordnance/ordnance");
         for original in [
-            args(&["ddmm"]),
-            args(&["ddmm", "ddmm://install?url=https%3A%2F%2Fexample.com%2Fmod.zip"]),
-            args(&["ddmm", "chrome-extension://inomhciahaeeefhgdkiaabdponcfdane/", "--parent-window=0"]),
-            args(&["ddmm", "/home/u/.mozilla/native-messaging-hosts/io.github.katsyk.ddmm.json", "ddmm@katsyk.github.io"]),
+            args(&["ordnance"]),
+            args(&["ordnance", "ordnance://install?url=https%3A%2F%2Fexample.com%2Fmod.zip"]),
+            args(&["ordnance", "chrome-extension://inomhciahaeeefhgdkiaabdponcfdane/", "--parent-window=0"]),
+            args(&["ordnance", "/home/u/.mozilla/native-messaging-hosts/com.cavadus.ordnance.json", "ordnance@cavadus.github.io"]),
         ] {
             let r = relaunch_command(exe, None, &original, &[]);
             assert!(r.args.is_empty(), "{original:?} -> {r:?}");
@@ -162,25 +162,25 @@ mod tests {
     fn relaunch_passes_on_only_links_never_shown() {
         // Started by a link that was already shown: it isn't replayed; a
         // link that arrived on the recovery screen and was never shown is.
-        let unshown = vec!["ddmm://install?url=https%3A%2F%2Fexample.org%2Fb.zip".to_string()];
+        let unshown = vec!["ordnance://install?url=https%3A%2F%2Fexample.org%2Fb.zip".to_string()];
         let r = relaunch_command(
-            Path::new("/opt/ddmm/ddmm"),
+            Path::new("/opt/ordnance/ordnance"),
             None,
-            &args(&["ddmm", "ddmm://install?url=https%3A%2F%2Fexample.com%2Fa.zip"]),
+            &args(&["ordnance", "ordnance://install?url=https%3A%2F%2Fexample.com%2Fa.zip"]),
             &unshown,
         );
-        assert_eq!(r.args, args(&["ddmm://install?url=https%3A%2F%2Fexample.org%2Fb.zip"]));
+        assert_eq!(r.args, args(&["ordnance://install?url=https%3A%2F%2Fexample.org%2Fb.zip"]));
     }
 
-    /// A `ddmm://install` link `len` bytes long.
+    /// A `ordnance://install` link `len` bytes long.
     fn link_of_len(len: usize) -> String {
-        let head = "ddmm://install?url=https%3A%2F%2Fexample.com%2F";
+        let head = "ordnance://install?url=https%3A%2F%2Fexample.com%2F";
         format!("{head}{}", "a".repeat(len - head.len()))
     }
 
     #[test]
     fn relaunch_links_stay_within_the_argument_budget() {
-        let exe = Path::new("/opt/ddmm/ddmm");
+        let exe = Path::new("/opt/ordnance/ordnance");
         // The worst the queue can hold: 16 links whose 2048-character
         // targets roughly triple in length when encoded again.
         let many: Vec<String> = (0..16).map(|_| link_of_len(3 * 2048 + 40)).collect();
@@ -205,7 +205,7 @@ mod tests {
 
     #[test]
     fn a_failed_relaunch_with_links_is_retried_once_without_them() {
-        let with_links = Relaunch { program: PathBuf::from("/opt/ddmm/ddmm"), args: args(&["ddmm://install?url=x"]) };
+        let with_links = Relaunch { program: PathBuf::from("/opt/ordnance/ordnance"), args: args(&["ordnance://install?url=x"]) };
         let mut attempts = Vec::new();
         let started = spawn_relaunch_or_plain(&with_links, |r| {
             attempts.push(r.clone());
@@ -244,16 +244,16 @@ mod tests {
     #[test]
     fn relaunch_uses_the_appimage_file_not_its_mount() {
         let r = relaunch_command(
-            Path::new("/tmp/.mount_DDMMxyz/usr/bin/ddmm"),
-            Some(OsStr::new("/home/u/Apps/DDMM-x86_64.AppImage")),
-            &args(&["ddmm", "ddmm://open"]),
+            Path::new("/tmp/.mount_Ordnancexyz/usr/bin/ordnance"),
+            Some(OsStr::new("/home/u/Apps/Ordnance-x86_64.AppImage")),
+            &args(&["ordnance", "ordnance://open"]),
             &[],
         );
-        assert_eq!(r.program, PathBuf::from("/home/u/Apps/DDMM-x86_64.AppImage"));
+        assert_eq!(r.program, PathBuf::from("/home/u/Apps/Ordnance-x86_64.AppImage"));
         assert!(r.args.is_empty());
         // An empty APPIMAGE is ignored.
-        let r = relaunch_command(Path::new("/opt/ddmm/ddmm"), Some(OsStr::new("")), &[], &[]);
-        assert_eq!(r.program, PathBuf::from("/opt/ddmm/ddmm"));
+        let r = relaunch_command(Path::new("/opt/ordnance/ordnance"), Some(OsStr::new("")), &[], &[]);
+        assert_eq!(r.program, PathBuf::from("/opt/ordnance/ordnance"));
     }
 
     #[test]

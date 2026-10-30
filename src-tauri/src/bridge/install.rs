@@ -45,7 +45,7 @@ impl InstallError {
     /// Map a failure from the shared archive-install path to a protocol
     /// error code. The archive module refuses path traversal, absolute
     /// paths and symlink entries ("unsafe path"), and names Windows can't
-    /// use or archives over its size / entry-count limits ("... so DDMM
+    /// use or archives over its size / entry-count limits ("... so Ordnance
     /// refused to extract it"); the protocol reports all of those as
     /// `UNSAFE_ARCHIVE` (a failed pre-install check) rather than a generic
     /// `INTERNAL`.
@@ -138,7 +138,7 @@ pub fn is_same_file(provider: &str, expected_id: Option<&str>, recorded: &str, i
 ///
 /// - the mod whose recorded file (see `sources::InstalledFile`) is this
 ///   same file ([`is_same_file`]);
-/// - otherwise, when exactly one mod came from this page and DDMM never
+/// - otherwise, when exactly one mod came from this page and Ordnance never
 ///   recorded which file it was (installed before it did), that mod --
 ///   there is nothing to tell them apart by, and this is how updates of
 ///   such mods always worked;
@@ -309,7 +309,7 @@ async fn install_checked_file(
         }
     }
 
-    // An update DDMM's own check found, arriving without a version (the
+    // An update Ordnance's own check found, arriving without a version (the
     // page didn't show one): record the version that check reported.
     if let (Some(guid), Some(src)) = (existing_guid, source.as_mut()) {
         if src.version.is_none() {
@@ -612,7 +612,7 @@ mod tests {
         }
     }
 
-    /// A mod installed before DDMM recorded which file it was: the one mod
+    /// A mod installed before Ordnance recorded which file it was: the one mod
     /// from that page is still updated in place, as it always was.
     #[tokio::test]
     async fn a_mod_with_no_recorded_file_is_still_updated_in_place() {

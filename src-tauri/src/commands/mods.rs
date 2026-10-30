@@ -98,7 +98,7 @@ async fn apply_patch_layout(mod_dir: &Path, manifest: &mut Manifest) -> anyhow::
             } else {
                 Ok(Some(format!(
                     "{NO_PATCH_FILES_WARNING}. It contains other archives ({}): it's probably a pack of several \
-                     versions or parts. Extract the one you want with 7-Zip and add that to DDMM instead.",
+                     versions or parts. Extract the one you want with 7-Zip and add that to Ordnance instead.",
                     nested.join(", ")
                 )))
             }
@@ -199,7 +199,7 @@ pub async fn get_mods(state: State<'_, AppState>) -> TAResult<Vec<Mod>> {
 /// needed (a no-op once loaded) and return it. Shared by `get_mods` and by
 /// the browser bridge, which can receive an install before the frontend
 /// has ever called `get_mods` -- e.g. a first run still on the Settings
-/// page, or DDMM just launched by the native-messaging host.
+/// page, or Ordnance just launched by the native-messaging host.
 pub(crate) async fn ensure_mods_loaded<'a>(
     state_mods: &'a mut Option<Vec<Mod>>,
     base_path: &Path,
@@ -223,7 +223,7 @@ pub(crate) async fn ensure_mods_loaded<'a>(
         while let Some(entry) = mods_dir.next_entry().await.into_ta_result()? {
             let mod_dir = entry.path();
 
-            // Folders starting with a dot are DDMM's own working folders
+            // Folders starting with a dot are Ordnance's own working folders
             // (an update's staging copy or the old version set aside
             // during one), never mods: loading one would list a mod twice.
             if is_hidden_name(&entry.file_name()) && !still_hidden.contains(&mod_dir) {
@@ -349,7 +349,7 @@ impl PendingCleanup {
 ///
 /// 1. The mod's folder must pass [`mod_folder::ensure_mod_folder`].
 /// 2. The whole folder is renamed to a hidden `.delete-<id>` folder (with a
-///    record next to it saying DDMM set it aside). A rename either works or
+///    record next to it saying Ordnance set it aside). A rename either works or
 ///    changes nothing, so a file in use (Windows) can't leave the mod half
 ///    deleted: it stays installed and listed, and the error says so.
 /// 3. Only then does the mod leave the list and the saved profiles, and
@@ -360,7 +360,7 @@ impl PendingCleanup {
 ///    (a file still in use) stays hidden -- never loaded, never in the way
 ///    of adding the mod again -- and the next start finishes it.
 ///
-/// A mod whose folder is already gone (deleted by hand while DDMM was
+/// A mod whose folder is already gone (deleted by hand while Ordnance was
 /// open) is simply removed.
 pub(crate) async fn delete_installed_mod(base_path: &Path, mods: &mut Vec<Mod>, guid: Uuid) -> anyhow::Result<PendingCleanup> {
     use crate::install_error::{RemoveError, RemoveStep};
@@ -391,7 +391,7 @@ pub(crate) async fn delete_installed_mod(base_path: &Path, mods: &mut Vec<Mod>, 
 
 /// Rename the mod folder `dir` to a new `.delete-<id>` folder in
 /// `mods_root`, after writing the record that marks it as set aside by
-/// DDMM. Returns the new folder, or `None` if `dir` is already gone. On
+/// Ordnance. Returns the new folder, or `None` if `dir` is already gone. On
 /// failure nothing is left changed. A rename that fails is tried again a
 /// few times, a moment apart (a virus scanner or the search indexer often
 /// has a new file open briefly).
@@ -444,7 +444,7 @@ pub async fn add_mod(app: AppHandle, state: State<'_, AppState>, archive_file: P
 #[tauri::command]
 pub async fn resolve_replace_request(state: State<'_, AppState>, request_id: String, replace: bool) -> TAResult<()> {
     if !state.replace_pending.lock().await.answer(&request_id, replace) {
-        log::warn!("A replace question was answered after DDMM stopped waiting for it; nothing was changed.");
+        log::warn!("A replace question was answered after Ordnance stopped waiting for it; nothing was changed.");
     }
     Ok(())
 }
@@ -864,7 +864,7 @@ fn check_not_installed(mods: &[Mod], new: &Mod, subject: &str, route: AddRoute) 
     );
     let same_name = existing.name().trim().eq_ignore_ascii_case(new.name().trim());
     let how = match route {
-        AddRoute::Archive => Some("add the file again with DDMM's Mods page open and choose Replace when asked"),
+        AddRoute::Archive => Some("add the file again with Ordnance's Mods page open and choose Replace when asked"),
         AddRoute::Import => {
             Some("add the file on its own with Add (or drop it on the Mods page) and choose Replace when asked")
         }
@@ -880,7 +880,7 @@ fn check_not_installed(mods: &[Mod], new: &Mod, subject: &str, route: AddRoute) 
         format!(
             "Two different mods can't share an ID: the mod's author probably copied another mod's manifest.json, \
              so let them know. To install it anyway, {how} (that removes \"{}\"), or extract this archive, \
-             delete its manifest.json, and add the extracted folder with Add Folder (DDMM then gives it an ID of \
+             delete its manifest.json, and add the extracted folder with Add Folder (Ordnance then gives it an ID of \
              its own).",
             existing.name()
         )
@@ -893,7 +893,7 @@ fn check_not_installed(mods: &[Mod], new: &Mod, subject: &str, route: AddRoute) 
         format!(
             "Two different mods can't share an ID: the mod's author probably copied another mod's manifest.json, \
              so let them know. To install it anyway, remove \"{}\" first, or extract this archive, delete its \
-             manifest.json, and add the extracted folder with Add Folder (DDMM then gives it an ID of its own).",
+             manifest.json, and add the extracted folder with Add Folder (Ordnance then gives it an ID of its own).",
             existing.name()
         )
     };
@@ -953,11 +953,11 @@ async fn prepare_mod_dir(
                 subject,
                 step,
                 anyhow::anyhow!(
-                    "it is inside (or is) the folder DDMM would install it into ({:?})",
+                    "it is inside (or is) the folder Ordnance would install it into ({:?})",
                     mod_dir
                 ),
             )
-            .with_hint("Move it somewhere outside DDMM's mod storage and add it from there."));
+            .with_hint("Move it somewhere outside Ordnance's mod storage and add it from there."));
         }
         // `create_dir`, not `create_dir_all`: it fails if the folder is
         // already there, so nothing that exists is ever taken over.
@@ -972,7 +972,7 @@ async fn prepare_mod_dir(
     Err(InstallError::new(
         subject,
         step,
-        anyhow::anyhow!("no free folder name for \"{}\" in DDMM's mod storage", base),
+        anyhow::anyhow!("no free folder name for \"{}\" in Ordnance's mod storage", base),
     ))
 }
 
@@ -1013,7 +1013,7 @@ fn display_name(wanted: &str, folder_name: &str) -> String {
     if trimmed.is_empty() { folder_name.to_string() } else { wanted.trim().to_string() }
 }
 
-/// Whether a folder in the mod storage is one of DDMM's hidden working
+/// Whether a folder in the mod storage is one of Ordnance's hidden working
 /// folders (its name starts with a dot) rather than a mod.
 fn is_hidden_name(name: &std::ffi::OsStr) -> bool {
     name.to_string_lossy().starts_with('.')
@@ -1045,7 +1045,7 @@ async fn resolve_manifest(mut archive: Archive, name: String, manifest_file: Pat
         match Manifest::parse(&manifest_data, &entry.to_string_lossy()) {
             Ok(manifest) => return Ok((archive, manifest, root)),
             // A broken manifest.json inside a wrapper folder: install the
-            // archive the way DDMM always did (it was never read before),
+            // archive the way Ordnance always did (it was never read before),
             // rather than fail. One at the root is still an error.
             Err(e) if !root.as_os_str().is_empty() => {
                 log::warn!("Ignoring {:?}, which can't be read ({:#}); installing without it.", entry, e);
@@ -1098,7 +1098,7 @@ async fn extract_archive(mut archive: Archive, mod_dir: PathBuf, root: PathBuf) 
     } else {
         log::info!("The archive's manifest.json is in {:?}; installing that folder's contents.", root);
         // Unpacked next to the mod folder (a dot-name, never loaded as a
-        // mod; swept on the next start if DDMM stops halfway), then the
+        // mod; swept on the next start if Ordnance stops halfway), then the
         // wrapped folder takes the reserved, still empty, mod folder's
         // place in one rename.
         let mods_root = mod_dir.parent().ok_or_else(|| anyhow::anyhow!("{:?} has no parent folder", mod_dir))?.to_path_buf();
@@ -1160,9 +1160,9 @@ async fn normalize_manifest_file_name(mod_dir: &Path) -> anyhow::Result<()> {
 /// one is generated), and its contents are copied (not moved, symlinks not
 /// followed) into the managed mod directory.
 ///
-/// `folder` must not overlap DDMM's own mod storage (`<data>/mods`), which
+/// `folder` must not overlap Ordnance's own mod storage (`<data>/mods`), which
 /// is checked before anything on disk is touched:
-/// - the storage folder itself, a folder containing it (such as DDMM's data
+/// - the storage folder itself, a folder containing it (such as Ordnance's data
 ///   folder in a portable install), or a folder deeper inside an installed
 ///   mod is refused with an explanation -- copying any of those would copy
 ///   the folder into itself, over and over, until the disk is full;
@@ -1224,16 +1224,16 @@ async fn install_folder_steps(
         None => {}
         Some(PathOverlap::Same) => {
             return Err(refuse(anyhow::anyhow!(
-                "That folder is DDMM's own mod storage ({}), so there is nothing to copy. \
+                "That folder is Ordnance's own mod storage ({}), so there is nothing to copy. \
                  Mods in it that have a manifest.json are already in your mod list. To add a \
                  mod folder that is in there without one, pick that mod's own folder instead: \
-                 DDMM will set it up where it is, without copying it.",
+                 Ordnance will set it up where it is, without copying it.",
                 mods_root.display()
             )));
         }
         Some(PathOverlap::SecondInsideFirst) => {
             return Err(refuse(anyhow::anyhow!(
-                "DDMM can't add {}: DDMM's own mod storage ({}) is inside it, so adding it would \
+                "Ordnance can't add {}: Ordnance's own mod storage ({}) is inside it, so adding it would \
                  copy the folder into itself. Pick a single mod's folder instead.",
                 folder.display(),
                 mods_root.display()
@@ -1247,7 +1247,7 @@ async fn install_folder_steps(
             if directly_in_storage && name_override.is_none() {
                 if name.starts_with('.') {
                     return Err(refuse(anyhow::anyhow!(
-                        "folders in DDMM's mod storage whose names start with a dot are DDMM's own working \
+                        "folders in Ordnance's mod storage whose names start with a dot are Ordnance's own working \
                          folders (for example a copy left behind by an interrupted update), not mods"
                     ))
                     .with_hint("Rename the folder so its name doesn't start with a dot, then add it again."));
@@ -1256,7 +1256,7 @@ async fn install_folder_steps(
                 return adopt_folder_in_place(mods, &mods_root.join(&name), &display_name, subject).await;
             }
             return Err(refuse(anyhow::anyhow!(
-                "{} is inside a mod folder in DDMM's mod storage ({}). Pick that mod's own \
+                "{} is inside a mod folder in Ordnance's mod storage ({}). Pick that mod's own \
                  folder (the one directly inside the storage folder), or a folder outside it.",
                 folder.display(),
                 mods_root.display()
@@ -1295,7 +1295,7 @@ async fn install_folder_steps(
     result
 }
 
-/// Register a folder that already sits directly in DDMM's mod storage as a
+/// Register a folder that already sits directly in Ordnance's mod storage as a
 /// mod, without copying it: its own `manifest.json` is used if it has one,
 /// otherwise a local one is generated and written into it (and removed
 /// again if registering fails). Nothing else in the folder is touched, and
@@ -1643,7 +1643,7 @@ async fn install_update_steps(
         };
         let taken_by = mods.iter().find(|m| m.guid() == new_guid && new_guid != existing_guid);
         if let (true, Some(other)) = (is_local_generated(&old_mod.manifest), taken_by) {
-            // Installed without its manifest.json (so with an ID of DDMM's
+            // Installed without its manifest.json (so with an ID of Ordnance's
             // own), now updated with its author's -- whose ID another mod
             // in the list already has. The mod keeps the ID it has, so
             // nothing changes for its profile entries.
@@ -1687,7 +1687,7 @@ async fn install_update_steps(
                 existing_guid,
                 new_guid,
                 if is_local_generated(&old_mod.manifest) {
-                    " (the old one was DDMM's own; profile entries are moved over to it)"
+                    " (the old one was Ordnance's own; profile entries are moved over to it)"
                 } else {
                     " (profile entries referencing the old GUID will no longer match)"
                 }
@@ -1710,7 +1710,7 @@ async fn install_update_steps(
                 old_mod.name()
             ),
         )
-        .with_hint(format!("The file changed after DDMM read it, so \"{}\" was left as it was. Add it again.", old_mod.name())));
+        .with_hint(format!("The file changed after Ordnance read it, so \"{}\" was left as it was. Add it again.", old_mod.name())));
     }
 
     // Persist the (possibly GUID-rewritten) manifest into staging before the swap.
@@ -1729,7 +1729,7 @@ async fn install_update_steps(
     log::info!("Swapping in updated content for mod {{{}}}...", final_guid);
     let backup_dir = mods_root.join(format!("{}{}", mod_folder::UPDATE_BACKUP_PREFIX, Uuid::new_v4()));
     // Note where the old version belongs before setting it aside, so that
-    // if DDMM is closed (or crashes) mid-swap, the next start can put it
+    // if Ordnance is closed (or crashes) mid-swap, the next start can put it
     // back instead of guessing.
     let record = mod_folder::backup_record_path(&backup_dir);
     if let Err(e) = write_backup_record(&record, &old_dir, false).await {
@@ -1784,8 +1784,8 @@ async fn install_update_steps(
     mods.retain(|m| m.guid() != existing_guid);
     mods.push(new_mod.clone());
 
-    // An ID DDMM generated, replaced by the author's (the mod was installed
-    // before DDMM found manifest.json inside a zipped folder): its profile
+    // An ID Ordnance generated, replaced by the author's (the mod was installed
+    // before Ordnance found manifest.json inside a zipped folder): its profile
     // entries follow it, keeping on/off and their place.
     if final_guid != existing_guid && is_local_generated(&old_mod.manifest) {
         state.record_guid_rename(existing_guid, final_guid);
@@ -1799,8 +1799,8 @@ async fn install_update_steps(
     Ok((new_mod, warning))
 }
 
-/// Put DDMM's mod storage back in order after an update that didn't finish
-/// (DDMM closed or crashed mid-swap, or a file still in use on Windows kept
+/// Put Ordnance's mod storage back in order after an update that didn't finish
+/// (Ordnance closed or crashed mid-swap, or a file still in use on Windows kept
 /// the old version from being deleted). Runs once, before the mods are
 /// first read.
 ///
@@ -1878,11 +1878,11 @@ pub(crate) async fn recover_leftover_folders(mods_root: &Path) -> Vec<PathBuf> {
         }
     }
 
-    // Deletes that couldn't finish (a file was in use): only folders DDMM
+    // Deletes that couldn't finish (a file was in use): only folders Ordnance
     // set aside itself, i.e. with their record, are deleted.
     for dir in pending_deletes {
         if tokio::fs::symlink_metadata(mod_folder::pending_delete_record_path(&dir)).await.is_err() {
-            log::warn!("Keeping {:?}: it has no record saying DDMM set it aside for deleting.", dir);
+            log::warn!("Keeping {:?}: it has no record saying Ordnance set it aside for deleting.", dir);
             continue;
         }
         match finish_pending_delete(mods_root, &dir).await {
@@ -2474,9 +2474,9 @@ mod tests {
                  Cause: its manifest.json gives it the ID (GUID) {{{KOYUKI_GUID}}}, and \"koyuki launcher\" in your \
                  mod list already has that ID\n\
                  Hint: Two different mods can't share an ID: the mod's author probably copied another mod's \
-                 manifest.json, so let them know. To install it anyway, add the file again with DDMM's Mods page open \
+                 manifest.json, so let them know. To install it anyway, add the file again with Ordnance's Mods page open \
                  and choose Replace when asked (that removes \"koyuki launcher\"), or extract this archive, delete \
-                 its manifest.json, and add the extracted folder with Add Folder (DDMM then gives it an ID of its \
+                 its manifest.json, and add the extracted folder with Add Folder (Ordnance then gives it an ID of its \
                  own)."
             )
         );
@@ -2489,7 +2489,7 @@ mod tests {
         assert!(
             msg.ends_with(
                 "Hint: \"koyuki launcher\" is already installed. To replace it with this file, add the file again \
-                 with DDMM's Mods page open and choose Replace when asked (or use Update on it, or remove it first)."
+                 with Ordnance's Mods page open and choose Replace when asked (or use Update on it, or remove it first)."
             ),
             "{msg}"
         );
@@ -2530,7 +2530,7 @@ mod tests {
             "Couldn't install \"locked.zip\".\n\
              Step: opening the archive\n\
              Cause: the archive is password-protected (unsupported Zip archive: Password required to decrypt file)\n\
-             Hint: DDMM can't install password-protected archives. Extract it yourself with the password (for \
+             Hint: Ordnance can't install password-protected archives. Extract it yourself with the password (for \
              example with 7-Zip), then add the extracted folder with Add Folder."
         );
     }
@@ -2549,7 +2549,7 @@ mod tests {
             Some(
                 "no Helldivers 2 patch files found in this archive. It contains other archives (Blue.7z, Red.zip): \
                  it's probably a pack of several versions or parts. Extract the one you want with 7-Zip and add that \
-                 to DDMM instead."
+                 to Ordnance instead."
             )
         );
     }
@@ -2810,8 +2810,8 @@ mod tests {
         out
     }
 
-    /// DDMM's data folder with mod folders already sitting in `mods/`
-    /// without a manifest.json -- e.g. a portable copy of DDMM dropped next
+    /// Ordnance's data folder with mod folders already sitting in `mods/`
+    /// without a manifest.json -- e.g. a portable copy of Ordnance dropped next
     /// to an existing `mods/` folder full of unpacked mods.
     fn storage_with_loose_mods(base: &Path) -> PathBuf {
         let storage = base.join(MODS_DIRECTORY);
@@ -2845,7 +2845,7 @@ mod tests {
         assert!(mods.is_empty());
     }
 
-    /// Same, when the picked folder is DDMM's data folder (it contains
+    /// Same, when the picked folder is Ordnance's data folder (it contains
     /// `mods/`), e.g. a portable install living in the user's mod folder.
     #[tokio::test]
     async fn adding_a_folder_that_contains_the_mod_storage_is_refused() {
@@ -3123,7 +3123,7 @@ mod tests {
     }
 
     /// A folder already in the storage under the archive's name -- without
-    /// a manifest (put there by hand) or with one DDMM couldn't read -- used
+    /// a manifest (put there by hand) or with one Ordnance couldn't read -- used
     /// to be deleted to make room. It's left alone; the mod gets "Name (2)".
     #[tokio::test]
     async fn an_existing_folder_of_the_same_name_is_never_deleted() {
@@ -3422,9 +3422,9 @@ mod tests {
         assert!(m.directory.join("Red").join(patch_file_name()).is_file());
     }
 
-    /// A mod installed from a zipped folder before DDMM looked inside it:
+    /// A mod installed from a zipped folder before Ordnance looked inside it:
     /// the archive's manifest.json was never read, so it got an ID of
-    /// DDMM's own and its folders as single-choice options.
+    /// Ordnance's own and its folders as single-choice options.
     async fn install_as_before_unwrapping(state: &AppState, src: &Path) -> Mod {
         let patch = patch_file_name();
         let zip = src.join("Cool Mod.zip");
@@ -3615,7 +3615,7 @@ mod tests {
         }
     }
 
-    /// An update's staging copy left behind (DDMM closed mid-update) used
+    /// An update's staging copy left behind (Ordnance closed mid-update) used
     /// to be loaded as a second copy of the mod. It isn't loaded now, and
     /// it's only deleted when it's an identical copy of the installed mod.
     #[tokio::test]
@@ -3954,7 +3954,7 @@ mod tests {
         assert_eq!(reloaded.len(), 2);
     }
 
-    /// The folder was deleted by hand while DDMM was open: removing the
+    /// The folder was deleted by hand while Ordnance was open: removing the
     /// mod still works (it used to fail with "couldn't delete").
     #[tokio::test]
     async fn a_mod_whose_folder_was_deleted_by_hand_is_removed_cleanly() {
@@ -4001,7 +4001,7 @@ mod tests {
 
         let err = format!("{:#}", delete_mod_with(&state, Uuid::parse_str(GUID_A).unwrap()).await.unwrap_err());
         assert!(
-            err.starts_with("Couldn't remove \"Alpha\".\nStep: checking its folder in DDMM's mod storage\nCause: refusing to touch"),
+            err.starts_with("Couldn't remove \"Alpha\".\nStep: checking its folder in Ordnance's mod storage\nCause: refusing to touch"),
             "{err}"
         );
         assert!(err.contains("\nHint: Nothing was deleted and the mod is still installed."), "{err}");
@@ -4106,7 +4106,7 @@ mod tests {
         assert_eq!(storage_entries(&root), vec!["Alpha".to_string()]);
     }
 
-    /// Only folders DDMM set aside itself (with their record) are deleted
+    /// Only folders Ordnance set aside itself (with their record) are deleted
     /// at startup; one without is kept, and still never loaded as a mod or
     /// renamed into view.
     #[tokio::test]
@@ -4151,7 +4151,7 @@ mod tests {
                 let err = format!("{e:#}");
                 println!("in use -> refused: {err}");
                 assert!(
-                    err.starts_with("Couldn't remove \"Beta\".\nStep: taking its folder out of DDMM's mod storage\nCause: "),
+                    err.starts_with("Couldn't remove \"Beta\".\nStep: taking its folder out of Ordnance's mod storage\nCause: "),
                     "{err}"
                 );
                 assert!(err.contains("A file in its folder is in use"), "{err}");

@@ -190,7 +190,7 @@ fn free_space_check() {
 #[test]
 fn sources_overlapping_the_data_folder_are_refused() {
     let root = tempfile::tempdir().unwrap();
-    let base = root.path().join("ddmm");
+    let base = root.path().join("ordnance");
     std::fs::create_dir_all(base.join("mods/SomeMod")).unwrap();
 
     assert!(ensure_source_allowed(&base, &base).is_err());
@@ -206,7 +206,7 @@ fn sources_overlapping_the_data_folder_are_refused() {
 #[test]
 fn a_source_reached_through_a_symlink_into_the_data_folder_is_refused() {
     let root = tempfile::tempdir().unwrap();
-    let base = root.path().join("ddmm");
+    let base = root.path().join("ordnance");
     std::fs::create_dir_all(base.join("mods")).unwrap();
     std::os::unix::fs::symlink(base.join("mods"), root.path().join("link")).unwrap();
     assert!(ensure_source_allowed(&root.path().join("link"), &base).is_err());
@@ -215,9 +215,9 @@ fn a_source_reached_through_a_symlink_into_the_data_folder_is_refused() {
 #[tokio::test]
 async fn an_item_inside_the_data_folder_is_refused_at_import_time() {
     let root = tempfile::tempdir().unwrap();
-    let base = root.path().join("ddmm");
+    let base = root.path().join("ordnance");
     let state = state_with_empty_library(&base).await;
-    // A picked file that lives in DDMM's data folder (scan_paths doesn't
+    // A picked file that lives in Ordnance's data folder (scan_paths doesn't
     // check the root, run_import checks each item).
     let inside = base.join("stray.zip");
     mod_zip(&inside, "stray");
@@ -236,7 +236,7 @@ async fn an_item_inside_the_data_folder_is_refused_at_import_time() {
 #[tokio::test]
 async fn imports_300_archives_from_a_read_only_downloads_folder_with_nexus_metadata() {
     let root = tempfile::tempdir().unwrap();
-    let base = root.path().join("ddmm");
+    let base = root.path().join("ordnance");
     let downloads = root.path().join("Downloads");
     std::fs::create_dir_all(downloads.join("hd2/armor")).unwrap();
     for i in 0..300u32 {
@@ -291,7 +291,7 @@ async fn imports_300_archives_from_a_read_only_downloads_folder_with_nexus_metad
     #[cfg(unix)]
     set_tree_readonly(&downloads, false);
 
-    // Scanning again: everything is recognized as already in DDMM.
+    // Scanning again: everything is recognized as already in Ordnance.
     let rescan = scan_folder(&downloads, &installed_index(&state).await, &no_cancel(), |_| {}).unwrap();
     assert_eq!(rescan.items.iter().filter(|i| matches!(i.status, ItemStatus::Installed { .. })).count(), 300);
     assert!(ids(&rescan).is_empty());
@@ -300,7 +300,7 @@ async fn imports_300_archives_from_a_read_only_downloads_folder_with_nexus_metad
 #[tokio::test]
 async fn duplicates_older_versions_and_broken_archives_are_flagged_and_do_not_stop_the_rest() {
     let root = tempfile::tempdir().unwrap();
-    let base = root.path().join("ddmm");
+    let base = root.path().join("ordnance");
     let src = root.path().join("archives");
     std::fs::create_dir_all(&src).unwrap();
 
@@ -398,7 +398,7 @@ async fn duplicates_older_versions_and_broken_archives_are_flagged_and_do_not_st
 #[tokio::test]
 async fn cancel_keeps_finished_mods_and_removes_the_one_in_flight() {
     let root = tempfile::tempdir().unwrap();
-    let base = root.path().join("ddmm");
+    let base = root.path().join("ordnance");
     let src = root.path().join("archives");
     std::fs::create_dir_all(&src).unwrap();
     for i in 0..20 {
@@ -449,7 +449,7 @@ async fn a_cancelled_scan_stops_early() {
 #[tokio::test]
 async fn archives_added_before_with_add_file_count_as_installed() {
     let root = tempfile::tempdir().unwrap();
-    let base = root.path().join("ddmm");
+    let base = root.path().join("ordnance");
     let src = root.path().join("dl");
     std::fs::create_dir_all(&src).unwrap();
     mod_zip(&src.join("Old Favourite.zip"), "fav");
@@ -486,7 +486,7 @@ async fn archives_added_before_with_add_file_count_as_installed() {
 // Another manager's folders
 // ---------------------------------------------------------------------------
 
-/// The older HD2 mod manager's (and older DDMM's) storage: one folder per mod
+/// The older HD2 mod manager's (and older Ordnance's) storage: one folder per mod
 /// with its manifest.json (a generated `LOCAL` one for mods that had none),
 /// and profiles.json with the load order, on/off state and chosen options.
 fn older_manager_storage(root: &Path) -> PathBuf {
@@ -559,7 +559,7 @@ fn older_manager_storage(root: &Path) -> PathBuf {
 #[tokio::test]
 async fn imports_another_managers_storage_with_profile_order_state_and_options() {
     let root = tempfile::tempdir().unwrap();
-    let base = root.path().join("ddmm");
+    let base = root.path().join("ordnance");
     let storage = older_manager_storage(root.path());
     let before = snapshot(&storage);
 
@@ -620,7 +620,7 @@ async fn imports_another_managers_storage_with_profile_order_state_and_options()
 #[tokio::test]
 async fn imports_a_staging_folder_and_finds_manager_downloads() {
     let root = tempfile::tempdir().unwrap();
-    let base = root.path().join("ddmm");
+    let base = root.path().join("ordnance");
     let appdata = root.path().join("Roaming");
     let staging = appdata.join("Vortex/helldivers2/mods");
     let downloads = appdata.join("Vortex/downloads/helldivers2");
@@ -661,7 +661,7 @@ async fn imports_a_staging_folder_and_finds_manager_downloads() {
 #[test]
 fn detection_skips_missing_empty_and_overlapping_folders() {
     let root = tempfile::tempdir().unwrap();
-    let base = root.path().join("ddmm");
+    let base = root.path().join("ordnance");
     std::fs::create_dir_all(base.join("mods")).unwrap();
     let empty_downloads = root.path().join("Downloads");
     std::fs::create_dir_all(&empty_downloads).unwrap();
@@ -671,7 +671,7 @@ fn detection_skips_missing_empty_and_overlapping_folders() {
         config: Some(root.path().join("nope")),
         local_data: Some(root.path().join("nope2")),
         downloads: Some(empty_downloads.clone()),
-        // A downloads folder set to DDMM's own data folder: never offered.
+        // A downloads folder set to Ordnance's own data folder: never offered.
         settings_downloads: Some(base.clone()),
     };
     mod_zip(&base.join("mods").join("x.zip"), "x");
@@ -772,7 +772,7 @@ fn arsenal_data_folder(local: &Path) -> PathBuf {
 #[tokio::test]
 async fn imports_an_arsenal_library_with_names_nexus_ids_order_and_options() {
     let root = tempfile::tempdir().unwrap();
-    let base = root.path().join("ddmm");
+    let base = root.path().join("ordnance");
     let local = root.path().join("Local");
     let data = arsenal_data_folder(&local);
     let before = snapshot(&data);
@@ -891,7 +891,7 @@ fn imports_echelon_library_with_names_and_enabled_state() {
     });
     std::fs::write(data.join("library.json"), serde_json::to_vec(&lib).unwrap()).unwrap();
 
-    let base = root.path().join("ddmm");
+    let base = root.path().join("ordnance");
     let detected = detect_sources(&KnownDirs { config: Some(config.clone()), ..Default::default() }, &base);
     assert_eq!(detected.len(), 1, "{detected:?}");
     assert_eq!(detected[0].path, data);
@@ -997,7 +997,7 @@ fn json_shapes_match_the_frontend_types() {
 #[tokio::test]
 async fn mods_added_by_hand_get_their_nexus_info_and_nothing_else() {
     let root = tempfile::tempdir().unwrap();
-    let base = root.path().join("ddmm");
+    let base = root.path().join("ordnance");
     let src = root.path().join("dl");
     std::fs::create_dir_all(&src).unwrap();
     let plain = nexus_name("Plain Helmets", 321, "1.4", 1_712_000_321);
@@ -1071,18 +1071,18 @@ async fn mods_added_by_hand_get_their_nexus_info_and_nothing_else() {
     let m = mods.iter().find(|m| m.directory == plain_dir).unwrap();
     assert!(m.sources.iter().any(|s| s.page_url.as_deref() == Some("https://www.nexusmods.com/helldivers2/mods/321")));
 
-    // Scanning again: now it's plainly "already in DDMM".
+    // Scanning again: now it's plainly "already in Ordnance".
     let rescan = scan_folder(&src, &installed_index(&state).await, &no_cancel(), |_| {}).unwrap();
     assert!(rescan.items.iter().all(|i| matches!(i.status, ItemStatus::Installed { .. })), "{:?}", rescan.items);
 }
 
-/// A mod folder from another manager's list whose copy in DDMM (same GUID)
+/// A mod folder from another manager's list whose copy in Ordnance (same GUID)
 /// has no Nexus link: the link is added, and the item's profile state is
 /// not handed back for the profile (order/on-off stay as the user set them).
 #[tokio::test]
 async fn linking_by_guid_keeps_the_profile_out_of_it() {
     let root = tempfile::tempdir().unwrap();
-    let base = root.path().join("ddmm");
+    let base = root.path().join("ordnance");
     let local = root.path().join("Local");
     let data = arsenal_data_folder(&local);
     let state = state_with_empty_library(&base).await;
@@ -1231,12 +1231,12 @@ fn the_2024_enabled_map_keeps_its_load_order() {
     }
 }
 
-/// A folder whose copy in DDMM got another name (too long, a clash) is
+/// A folder whose copy in Ordnance got another name (too long, a clash) is
 /// still recognized on the next import.
 #[tokio::test]
 async fn a_folder_renamed_on_import_is_known_again() {
     let root = tempfile::tempdir().unwrap();
-    let base = root.path().join("ddmm");
+    let base = root.path().join("ordnance");
     let src = root.path().join("mods");
     let long = format!("Extremely Detailed {} Armor Pack", "Super ".repeat(15));
     for name in [long.as_str(), "Plain"] {
@@ -1256,7 +1256,7 @@ async fn a_folder_renamed_on_import_is_known_again() {
     }
 }
 
-/// Re-importing a mod that carries DDMM's own install record keeps its
+/// Re-importing a mod that carries Ordnance's own install record keeps its
 /// original install time (and the AyakaMods page time): resetting it to
 /// "now" would hide an AyakaMods update that was already pending.
 #[test]

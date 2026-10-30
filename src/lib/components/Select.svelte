@@ -36,14 +36,14 @@
 <!--
     The `<option>`s must be direct children of the `<select>`. Webviews
     without customizable-select support (older WebKitGTK/WebView2, which
-    DDMM runs in on many machines) only list an option that is a child of
+    Ordnance runs in on many machines) only list an option that is a child of
     the select (or of an optgroup), so wrapping them in a `<div>` left the
     dropdown empty there (#55). The `<button>` is ignored by those webviews
     and shows the rich selected item where customizable select works.
 -->
 <select
     bind:value={selectedIndex}
-    class="hd2mm-select px-2 py-1 overflow-y-hidden min-w-0 {extraClasses}"
+    class="ordnance-select px-2 py-1 overflow-y-hidden min-w-0 {extraClasses}"
 >
     <button>
         <div>

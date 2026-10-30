@@ -52,11 +52,11 @@
             <p class="text-red-400 text-sm">{openError}</p>
         {/if}
         <div class="flex flex-row gap-1 justify-end">
-            <button class="hd2mm-button flex flex-row gap-1 items-center" onclick={onOpenLogFolder} data-testid="mods-open-log-folder">
+            <button class="ordnance-button flex flex-row gap-1 items-center" onclick={onOpenLogFolder} data-testid="mods-open-log-folder">
                 <FolderSymlink />
                 {t("pages.mods.loading_failed.open_log_folder_button.text")}
             </button>
-            <button class="hd2mm-button flex flex-row gap-1 items-center" onclick={onReload} disabled={reloading} data-testid="mods-reload">
+            <button class="ordnance-button flex flex-row gap-1 items-center" onclick={onReload} disabled={reloading} data-testid="mods-reload">
                 <ArrowRepeat />
                 {t("pages.mods.loading_failed.reload_button.text")}
             </button>

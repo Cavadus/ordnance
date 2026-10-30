@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
-// The emblem used to be hard-coded DDMM yellow, the same color as the
+// The emblem used to be hard-coded Ordnance yellow, the same color as the
 // button behind it, so it was invisible. It must follow the label color.
 beforeAll(async () => {
   globalThis.chrome = { runtime: {}, storage: { local: {} } };
@@ -12,8 +12,8 @@ beforeAll(async () => {
 
 describe('Install with Ordnance button emblem', () => {
   it.each([false, true])('is drawn in currentColor, never the button yellow (floating: %s)', (floating) => {
-    const widget = globalThis.DDMM.content.createButtonWidget({ floating });
-    const svg = widget.host.shadowRoot.querySelector('.ddmm-btn svg');
+    const widget = globalThis.Ordnance.content.createButtonWidget({ floating });
+    const svg = widget.host.shadowRoot.querySelector('.ordnance-btn svg');
     expect(svg).not.toBeNull();
     const strokes = [...svg.querySelectorAll('[stroke]')].map((el) => el.getAttribute('stroke'));
     expect(strokes.length).toBeGreaterThan(0);

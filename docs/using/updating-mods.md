@@ -4,7 +4,7 @@ title: Updating mods
 
 # Updating mods
 
-DDMM can tell you when a mod you installed has a newer version on the site it came from, and update it in place
+Ordnance can tell you when a mod you installed has a newer version on the site it came from, and update it in place
 (same mod, same profile settings) with one click, or all at once with **Update all**.
 
 **Update checks never run unless you ask:** click **Check for Updates**, or turn on automatic checks in Settings.
@@ -15,7 +15,7 @@ DDMM can tell you when a mod you installed has a newer version on the site it ca
   shows the results: each mod and site with its state (update available, up to date, skipped, unknown, "Optional:
   add a Nexus Mods key in Settings to check" for Nexus, or the error if the site couldn't be reached).
 - **Automatic checks are off by default.** In [Settings → Mod updates](settings.md#mod-updates) you can turn on
-  **Check for mod updates when DDMM starts**, and optionally **then every N hours while DDMM is open** (1–168
+  **Check for mod updates when Ordnance starts**, and optionally **then every N hours while Ordnance is open** (1–168
   hours; also off by default). An automatic check only shows a small notice and the update badges; it never
   downloads or installs anything by itself.
 - **Automatic checks skip Nexus Mods.** Nexus only allows your API key (or sign-in) to be used for things you
@@ -28,24 +28,24 @@ becomes clickable, and **Update all (N)** appears next to Check for Updates.
 
 ## Which sites are supported
 
-| Site | How DDMM checks | How the update is installed |
+| Site | How Ordnance checks | How the update is installed |
 | --- | --- | --- |
-| GitHub | The repository's latest release (public API, no key) | **One click**: DDMM downloads the release's `.zip`/`.7z`/`.rar` asset itself |
-| GameBanana | The mod's public API entry (version and files, no key) | **One click**: DDMM downloads the new file itself |
-| ModWorkshop | The mod's public API entry (version and files, no key) | **One click**: DDMM downloads the new file itself (a mod whose download is an external link goes through the browser) |
+| GitHub | The repository's latest release (public API, no key) | **One click**: Ordnance downloads the release's `.zip`/`.7z`/`.rar` asset itself |
+| GameBanana | The mod's public API entry (version and files, no key) | **One click**: Ordnance downloads the new file itself |
+| ModWorkshop | The mod's public API entry (version and files, no key) | **One click**: Ordnance downloads the new file itself (a mod whose download is an external link goes through the browser) |
 | AyakaMods | The version and the "last updated" time published on the mod page | **In your browser** (downloads need your login) |
 | Nexus Mods | The Nexus Mods API, **only if you (optionally) add your own API key** (or, once available, sign in to Nexus Mods), and only when you click Check for Updates | **In your browser**, always |
 | Anything else | Not checked | — |
 
-A mod can have more than one source (for example, declared by its author and recorded by DDMM); each is checked.
+A mod can have more than one source (for example, declared by its author and recorded by Ordnance); each is checked.
 Mods with no recognized source are simply skipped.
 
-DDMM is polite to every site: requests are spaced out per site, time out after 20 seconds, identify DDMM with a
+Ordnance is polite to every site: requests are spaced out per site, time out after 20 seconds, identify Ordnance with a
 clear User-Agent, use HTTPS only, and read at most 5 MB per response.
 
-AyakaMods sits behind Cloudflare, so DDMM is extra careful there: it asks for one mod page at a time, a couple of
+AyakaMods sits behind Cloudflare, so Ordnance is extra careful there: it asks for one mod page at a time, a couple of
 seconds apart, and after a refusal (403, 429 or 503) it waits and tries once more (as long as the site asks it to
-wait, if that's reasonable). If AyakaMods shows a "checking your browser" challenge instead of the page, DDMM never
+wait, if that's reasonable). If AyakaMods shows a "checking your browser" challenge instead of the page, Ordnance never
 tries to get past it: that mod, and the rest of the AyakaMods mods in that check, show "AyakaMods is blocking
 automated checks right now". Try again later, or open the mod's page in your browser. A mod whose page is gone shows
 "This mod's page on AyakaMods can't be found (it may have been removed or moved)". Every source that couldn't be
@@ -55,25 +55,25 @@ checked is also written to the [log](../help/logs.md), with the site, the mod's 
 
 ### One click (GitHub, GameBanana, ModWorkshop)
 
-Click **Update** on the mod (or **Update from &lt;site&gt;** in its menu, or **Update** in the results). DDMM
+Click **Update** on the mod (or **Update from &lt;site&gt;** in its menu, or **Update** in the results). Ordnance
 downloads the new file, shows its progress, checks the archive exactly like any other install (archive type by
 content, path-traversal and symlink checks, size limit), and replaces the mod's files in place.
 
-If the mod page has several files (say, a main file and a "no sounds" variant), DDMM picks the one matching what
+If the mod page has several files (say, a main file and a "no sounds" variant), Ordnance picks the one matching what
 you installed when it can tell. Otherwise it asks which file you want.
 
 ### In your browser (AyakaMods, Nexus Mods, other login-gated sites)
 
 These sites only give files to logged-in people, so the download happens in your browser, with your own login:
 
-- **With the [DDMM browser extension](one-click-install.md) connected** (it has talked to DDMM recently), DDMM
-  opens the mod page and you click **Update with DDMM** there. On Nexus Mods, pick the file and click Nexus's
-  own download button ("Slow download" for free accounts). DDMM never clicks that for you. The update is
-  installed in place as soon as it lands, and DDMM's window notices by itself.
-- **Without the extension** (or if you choose *Use Downloads-folder watch instead*), DDMM opens the page and
+- **With the [Ordnance browser extension](one-click-install.md) connected** (it has talked to Ordnance recently), Ordnance
+  opens the mod page and you click **Update with Ordnance** there. On Nexus Mods, pick the file and click Nexus's
+  own download button ("Slow download" for free accounts). Ordnance never clicks that for you. The update is
+  installed in place as soon as it lands, and Ordnance's window notices by itself.
+- **Without the extension** (or if you choose *Use Downloads-folder watch instead*), Ordnance opens the page and
   watches your Downloads folder, the same [browser handoff](mod-sites.md#how-the-browser-handoff-works) used
   for adding mods. If a file of a *different* Nexus Mods mod lands there first (say, a requirement you downloaded
-  from the same page), DDMM leaves it alone, tells you, and keeps waiting for the update's own file.
+  from the same page), Ordnance leaves it alone, tells you, and keeps waiting for the update's own file.
 
 ### Update all
 
@@ -83,14 +83,14 @@ open the page, skip to the next, or stop.
 
 ### Skip this version
 
-Don't want a particular update? Use **Skip** (in the results) or **Skip version X** (in the mod's menu). DDMM stops
+Don't want a particular update? Use **Skip** (in the results) or **Skip version X** (in the mod's menu). Ordnance stops
 showing that update (also if the site later writes its version with or without a leading `v`); a later version
 shows up normally.
 
-On AyakaMods, versions are often just a date, or never change at all, so DDMM also remembers when the mod's page
+On AyakaMods, versions are often just a date, or never change at all, so Ordnance also remembers when the mod's page
 was last updated at the time you skipped. If the page is updated again later, that is a new update and shows up
 normally, even when its version reads the same as the one you skipped. An update whose page gives no version at all can be
-skipped too; DDMM then goes by that page time alone. (A skip made with an older DDMM version
+skipped too; Ordnance then goes by that page time alone. (A skip made with an older Ordnance version
 learns this time at the next check, so only updates after that one show up again.)
 
 **Stop skipping** in the same places undoes it. The skip is stored with the mod (in its `.hd2mm-origin.json`) and
@@ -99,7 +99,7 @@ is cleared when the mod is updated.
 ### With a file you already have
 
 You don't need an update check to put a newer (or older) version of a mod in place: **Add** the file (or drop it
-on DDMM, or use Add URL). If its `manifest.json` has the installed mod's ID, DDMM asks whether to **replace** the
+on Ordnance, or use Add URL). If its `manifest.json` has the installed mod's ID, Ordnance asks whether to **replace** the
 installed mod with it. Replace works like an update: the mod keeps its ID, its place and on/off in every profile,
 and the option choices that still fit. See
 [A mod with the same ID is already installed](adding-mods.md#replacing-an-installed-mod).
@@ -108,21 +108,21 @@ and the option choices that still fit. See
 
 The game only sees updated files after a deploy. If an updated mod is enabled in your active profile:
 
-- with **After a Browser Install** set to *Add to active profile and deploy* (the default), DDMM redeploys right
+- with **After a Browser Install** set to *Add to active profile and deploy* (the default), Ordnance redeploys right
   away, unless Helldivers 2 is running (then it tells you to deploy after closing the game);
-- with either other setting, DDMM asks whether to redeploy now.
+- with either other setting, Ordnance asks whether to redeploy now.
 
 Updates finished through the browser extension follow the same setting, as every extension install does.
 
 **GUID handling:** if the update's archive ships no `manifest.json`, the mod keeps its **original** GUID, so
 your profile's enabled state, options and position for it stay as they were. If the update ships its own
 manifest with its own `Guid`, that GUID is used instead, and profile entries that point at the old GUID no longer
-match it (DDMM doesn't migrate them): the old entry shows as *Mod not found* in your profile and the updated mod is
+match it (Ordnance doesn't migrate them): the old entry shows as *Mod not found* in your profile and the updated mod is
 in the Library. Add it to the profile again, then remove the old entry.
 
-The exception is a mod that was installed **without** a `manifest.json` of its own and so got an ID from DDMM. This
+The exception is a mod that was installed **without** a `manifest.json` of its own and so got an ID from Ordnance. This
 happens, for example, with an archive that zips the mod's folder (`My Mod/manifest.json`) and was added with
-DDMM 2.0.0-rc.14 or earlier. When an update brings the author's manifest and its `Guid`, the mod's profile entries
+Ordnance 2.0.0-rc.14 or earlier. When an update brings the author's manifest and its `Guid`, the mod's profile entries
 move to the new ID in every profile. They keep their position and whether they're on. Option choices that don't
 fit the author's options are reset to the defaults. If another mod in your list already has that `Guid`, the
 updated mod keeps the ID it had.
@@ -133,8 +133,8 @@ Nexus Mods only answers these questions ("is there a newer file?") for people wh
 in. Both are **optional**, and only used for Nexus update checks:
 
 - **Neither** (the default): Nexus mods show *Optional: add a Nexus Mods key in Settings to check*. Everything
-  else in DDMM works exactly the same.
-- **A personal API key**, entered in Settings: DDMM can check Nexus mods too.
+  else in Ordnance works exactly the same.
+- **A personal API key**, entered in Settings: Ordnance can check Nexus mods too.
 - **Signing in to Nexus Mods** is coming soon. Until it's available, the button in Settings is greyed out with
   *Coming soon*; once it is, it does the same as a key without copying one around, and if you have both, the
   sign-in is used.
@@ -143,78 +143,78 @@ Both live in **Settings → Mod updates → Nexus Mods (optional)**.
 
 ### Signing in (coming soon) { #signing-in-to-nexus-mods }
 
-If the **Sign in to Nexus Mods** button is greyed out with *Coming soon*, this version of DDMM can't sign in to
+If the **Sign in to Nexus Mods** button is greyed out with *Coming soon*, this version of Ordnance can't sign in to
 Nexus Mods yet: use [a personal API key](#using-a-personal-api-key) instead, which works in every version. Once
 signing in is available, this is how it works.
 
-Click **Sign in to Nexus Mods**. DDMM opens Nexus Mods in your usual browser, where you log in (if you aren't
-already) and approve DDMM. The browser then shows *You can close this tab and return to DDMM*, and Settings shows
+Click **Sign in to Nexus Mods**. Ordnance opens Nexus Mods in your usual browser, where you log in (if you aren't
+already) and approve Ordnance. The browser then shows *You can close this tab and return to Ordnance*, and Settings shows
 *Signed in to Nexus Mods as &lt;your account&gt;*.
 
-- You log in **on the Nexus Mods website**, never in DDMM: DDMM never sees your password. What DDMM receives is
-  a sign-in token that Nexus issues for DDMM, which only allows the kind of read-only requests update checks
+- You log in **on the Nexus Mods website**, never in Ordnance: Ordnance never sees your password. What Ordnance receives is
+  a sign-in token that Nexus issues for Ordnance, which only allows the kind of read-only requests update checks
   make.
-- DDMM waits up to 5 minutes for you to approve, and **Cancel** stops waiting. While it waits, DDMM listens on
+- Ordnance waits up to 5 minutes for you to approve, and **Cancel** stops waiting. While it waits, Ordnance listens on
   `127.0.0.1` port `28647` on your own computer (never reachable from the network) for your browser to hand the
-  sign-in back; it stops listening right after. If another program is already using that port, DDMM says so;
+  sign-in back; it stops listening right after. If another program is already using that port, Ordnance says so;
   close that program and try again.
 - The sign-in renews itself in the background of a check you start, shortly before it would expire.
 - **Sign out** removes the sign-in from this computer (always) and asks Nexus to revoke it. You can also
-  revoke DDMM's access on the Nexus Mods website at any time (your account's authorized applications); the next
-  Nexus check then signs DDMM out and tells you so.
+  revoke Ordnance's access on the Nexus Mods website at any time (your account's authorized applications); the next
+  Nexus check then signs Ordnance out and tells you so.
 
 ### Using a personal API key instead { #using-a-personal-api-key }
 
 Under **Or enter a personal API key manually**: on Nexus Mods, open your account's **API Keys** page (**Get a
-key** opens it) and copy the **Personal API Key** at the bottom. Paste it and click **Save & verify**. DDMM checks
+key** opens it) and copy the **Personal API Key** at the bottom. Paste it and click **Save & verify**. Ordnance checks
 it with Nexus before saving and shows the account it belongs to. **Remove key** deletes it; you can also revoke the
-key on that Nexus page at any time, and DDMM will then say Nexus didn't accept it.
+key on that Nexus page at any time, and Ordnance will then say Nexus didn't accept it.
 
-### What DDMM does, and doesn't do, with them { #nexus-privacy }
+### What Ordnance does, and doesn't do, with them { #nexus-privacy }
 
 - **Only update checks, and only when you click.** Nexus is contacted only for things you start: **Check for
   Updates**, **Save & verify**, and (once available) **Sign in to Nexus Mods** and **Sign out**. The automatic
   checks never use your key or sign-in.
 - **As few requests as possible:**
-    - a mod checked in the last 5 minutes isn't checked again. If that's all of them, DDMM says *All your Nexus
+    - a mod checked in the last 5 minutes isn't checked again. If that's all of them, Ordnance says *All your Nexus
       mods were checked recently. Update checks are limited to save your Nexus API requests.*;
     - a mod never checked, or not checked for a month, gets its own request for its file list;
     - every other mod is covered by one "recently updated mods" request, for the last day, week or month
       (the shortest period that reaches back to the oldest check). Only the mods that list shows as changed
       get a file-list request.
 
-  DDMM reads Nexus's rate-limit headers and stops early rather than use up your allowance.
-- **Never for downloading.** Downloading through the API is a Nexus Premium feature, and DDMM doesn't use it,
+  Ordnance reads Nexus's rate-limit headers and stops early rather than use up your allowance.
+- **Never for downloading.** Downloading through the API is a Nexus Premium feature, and Ordnance doesn't use it,
   for anyone. Nexus updates always go through your browser, where you click Nexus's own download button.
 - **Stored in your system's keychain** (Windows Credential Manager, macOS Keychain, or the Secret Service on
   Linux, such as GNOME Keyring or KWallet). On a Linux desktop with no keychain running, they're stored instead as
-  files only your user can read (`nexus-oauth-tokens` for the sign-in, `nexus-api-key` for the key, in DDMM's
+  files only your user can read (`nexus-oauth-tokens` for the sign-in, `nexus-api-key` for the key, in Ordnance's
   data folder), and Settings says so.
-- **Never** written to `settings.json`, never logged, never shown in DDMM's window, never passed to the browser
+- **Never** written to `settings.json`, never logged, never shown in Ordnance's window, never passed to the browser
   extension, and only ever sent to Nexus Mods over HTTPS: the sign-in to `https://users.nexusmods.com` (to sign
   in, renew, sign out, and read your account name) and `https://api.nexusmods.com` (update checks); the key only
   to `https://api.nexusmods.com`.
-- **What Nexus sees:** the requests come from your computer, identified as *Democracy Defender Mod Manager* and
-  its version, as Nexus asks of every application. DDMM keeps only your account name (to show it in Settings).
+- **What Nexus sees:** the requests come from your computer, identified as *Ordnance Mod Manager* and
+  its version, as Nexus asks of every application. Ordnance keeps only your account name (to show it in Settings).
 
-## How DDMM knows a mod's installed version
+## How Ordnance knows a mod's installed version
 
-A check compares the version DDMM knows is installed with the site's current version. If it doesn't know the
+A check compares the version Ordnance knows is installed with the site's current version. If it doesn't know the
 installed version, the result is "unknown", never a guess. The installed version comes from, in order:
 
-1. what DDMM recorded in the mod's `.hd2mm-origin.json` when it installed or updated it (DDMM knows what it
+1. what Ordnance recorded in the mod's `.hd2mm-origin.json` when it installed or updated it (Ordnance knows what it
    actually installed);
 2. otherwise, `Version` on the matching entry in the mod's own manifest `Sources` (see
    [The Sources field](../authors/sources.md)).
 
-DDMM records the version automatically wherever it can:
+Ordnance records the version automatically wherever it can:
 
-- **AyakaMods, GameBanana, ModWorkshop:** when a mod is installed through DDMM (browser extension, browser
-  handoff or "choose file"), DDMM looks up the mod's current version on the site once and records it. For
+- **AyakaMods, GameBanana, ModWorkshop:** when a mod is installed through Ordnance (browser extension, browser
+  handoff or "choose file"), Ordnance looks up the mod's current version on the site once and records it. For
   AyakaMods it also records the page's "last updated" time (also when the browser extension already read the
   version off the page).
 - **GitHub:** the release tag, from the release-asset link or the update itself.
-- **Nexus Mods:** Nexus puts the mod id and version in every download's file name, so DDMM reads the version and
+- **Nexus Mods:** Nexus puts the mod id and version in every download's file name, so Ordnance reads the version and
   the exact file from the archive's own name. No key and no request is needed for that. Both of Nexus's naming
   schemes are understood:
     - since June 2026: `<name> <mod id> <version> <upload date and time> <code>.<ext>`, with spaces, for example
@@ -223,23 +223,23 @@ DDMM records the version automatically wherever it can:
       `Better Stims-1234-1-2-1718000000.zip`.
 
   A browser's ` (1)` for a second download of the same file is ignored. For mods with
-  several files (main file, optional variants), this is how DDMM follows *your* file: a newer version of the
+  several files (main file, optional variants), this is how Ordnance follows *your* file: a newer version of the
   optional file you have counts as your update, not the main file.
 - **One-click updates** record the new version and file they installed.
 
-When a site doesn't publish a version number at all (common on GameBanana and ModWorkshop), DDMM uses the date the
+When a site doesn't publish a version number at all (common on GameBanana and ModWorkshop), Ordnance uses the date the
 newest file was uploaded (for example `2026-04-29 05:49 UTC`) as its version.
 
 On AyakaMods the version is often just the date of the update (`2026-10-01`), so two updates on the same day
-have the same version. DDMM therefore also compares the page's "last updated" time with the one it recorded at
-install (or, for a mod installed before DDMM recorded it, with when DDMM installed the mod, corrected by how far
+have the same version. Ordnance therefore also compares the page's "last updated" time with the one it recorded at
+install (or, for a mod installed before Ordnance recorded it, with when Ordnance installed the mod, corrected by how far
 your PC's clock is from the site's): a newer time **or** a different version means an update. For such older
 installs, the first check that finds the mod up to date records the page's time, so from then on it's always page
 time against page time. In the results, such an update shows the time the page was updated next to
 the version.
 
 **For mod authors:** if you declare a source in your manifest's `Sources` field, set its `Version` to match what
-the site publishes. That makes update checks work even for people who didn't install through DDMM. See
+the site publishes. That makes update checks work even for people who didn't install through Ordnance. See
 [The Sources field](../authors/sources.md).
 
 ## Privacy
@@ -247,6 +247,6 @@ the site publishes. That makes update checks work even for people who didn't ins
 - Nothing is checked unless you ask (the button, or the automatic checks you turned on). Nexus Mods is only
   contacted when you click.
 - Checks only contact the sites your mods came from, with the mod's id on that site. No list of your mods is
-  sent anywhere else, and there's no DDMM server involved.
-- The only credentials DDMM can hold are for Nexus Mods, both optional and described above: your personal API
-  key and, once signing in is available, the sign-in DDMM gets from Nexus when you approve it.
+  sent anywhere else, and there's no Ordnance server involved.
+- The only credentials Ordnance can hold are for Nexus Mods, both optional and described above: your personal API
+  key and, once signing in is available, the sign-in Ordnance gets from Nexus when you approve it.

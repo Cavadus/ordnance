@@ -18,7 +18,7 @@ use tokio::io::AsyncWriteExt;
 /// from `Content-Length` (when present) and by counting streamed bytes.
 pub const MAX_DOWNLOAD_SIZE: u64 = 2 * 1024 * 1024 * 1024; // 2 GiB
 
-/// Directory (under DDMM's data dir) that URL downloads are staged in; see
+/// Directory (under Ordnance's data dir) that URL downloads are staged in; see
 /// [`download_archive`].
 pub const STAGING_DIRECTORY: &str = ".downloads";
 
@@ -47,7 +47,7 @@ pub struct DownloadedArchive {
 /// Download `url` to a fresh directory under `staging_root`, sniff/confirm
 /// it is a zip/7z/rar archive, and return its staged path.
 ///
-/// `staging_root` is normally a directory inside DDMM's own data dir rather
+/// `staging_root` is normally a directory inside Ordnance's own data dir rather
 /// than `std::env::temp_dir()`: on Arch/CachyOS (and most systemd distros)
 /// `/tmp` is a RAM-backed tmpfs that is often much smaller than the disk,
 /// so a large mod could fail there with "No space left on device", and it

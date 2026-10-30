@@ -18,7 +18,7 @@
  *   - No page-visible version string was found in the static HTML or the
  *     `CreativeWork` JSON-LD.
  */
-/* global DDMM */
+/* global Ordnance */
 (function initGameBanana() {
   'use strict';
 
@@ -39,14 +39,14 @@
     const anchors = Array.from(module.querySelectorAll('a[href]'));
     const byPath = anchors.find((a) => a.href.includes('/mods/download/'));
     if (byPath) return byPath.href;
-    const byExtension = anchors.find((a) => DDMM.capture.hasArchiveExtension(a.href));
+    const byExtension = anchors.find((a) => Ordnance.capture.hasArchiveExtension(a.href));
     if (byExtension) return byExtension.href;
     return null;
   }
 
   const adapter = { name: 'gamebanana', findInsertionPoint, findDirectDownloadUrl };
-  DDMM.siteAdapters = DDMM.siteAdapters || {};
-  DDMM.siteAdapters.gamebanana = adapter;
+  Ordnance.siteAdapters = Ordnance.siteAdapters || {};
+  Ordnance.siteAdapters.gamebanana = adapter;
 
-  if (DDMM.content) DDMM.content.runSiteAdapter(adapter);
+  if (Ordnance.content) Ordnance.content.runSiteAdapter(adapter);
 })();

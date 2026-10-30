@@ -16,7 +16,7 @@
         let unlisten: UnlistenFn | undefined;
         if (popup.extensionActive) {
             (async () => {
-                // The extension's "Update with DDMM" lands as a normal bridge
+                // The extension's "Update with Ordnance" lands as a normal bridge
                 // install that updates this mod in place.
                 unlisten = await listen<{ mod: { guid: string }; updated?: boolean }>("bridge://mod-installed", (e) => {
                     if (e.payload.mod.guid === popup.entry.Guid && e.payload.updated !== false) popup.close("Done");
@@ -63,22 +63,22 @@
     {/if}
     <div class="flex flex-row gap-2 justify-between flex-wrap">
         <div class="flex flex-row gap-2">
-            <button class="hd2mm-success-button" disabled={!popup.entry.PageUrl} onclick={onOpenPage}>
+            <button class="ordnance-success-button" disabled={!popup.entry.PageUrl} onclick={onOpenPage}>
                 {popup.extensionActive
                     ? t("popup.browser_update.open_button.text", { site: popup.entry.DisplayName })
                     : t("popup.browser_update.open_and_watch_button.text", { site: popup.entry.DisplayName })}
             </button>
             {#if popup.extensionActive}
-                <button class="hd2mm-button" onclick={() => popup.close("Handoff")}>
+                <button class="ordnance-button" onclick={() => popup.close("Handoff")}>
                     {t("popup.browser_update.use_handoff_button.text")}
                 </button>
             {/if}
         </div>
         <div class="flex flex-row gap-2">
             {#if popup.position && popup.position.index < popup.position.total}
-                <button class="hd2mm-button" onclick={() => popup.close("Skip")}>{t("popup.browser_update.next_button.text")}</button>
+                <button class="ordnance-button" onclick={() => popup.close("Skip")}>{t("popup.browser_update.next_button.text")}</button>
             {/if}
-            <button class="hd2mm-button" onclick={() => popup.close("Stop")}>
+            <button class="ordnance-button" onclick={() => popup.close("Stop")}>
                 {popup.position ? t("popup.browser_update.stop_button.text") : t("popup.browser_update.close_button.text")}
             </button>
         </div>

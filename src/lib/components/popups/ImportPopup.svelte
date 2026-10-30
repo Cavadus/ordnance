@@ -134,17 +134,17 @@
                                     ? t("popup.import.found_one", { path: source.Path })
                                     : t("popup.import.found", { count: source.Count, path: source.Path })}</span>
                             </div>
-                            <button class="hd2mm-button shrink-0" onclick={() => w.scanFolder(source.Path)}>{t("popup.import.scan_button")}</button>
+                            <button class="ordnance-button shrink-0" onclick={() => w.scanFolder(source.Path)}>{t("popup.import.scan_button")}</button>
                         </li>
                     {/each}
                 </ul>
             {/if}
             <p class="text-xs text-zinc-400">{t("popup.import.folder_hint")}</p>
             <div class="flex flex-row gap-2 justify-between">
-                <button class="hd2mm-button flex flex-row gap-1 items-center" onclick={chooseFolder} data-testid="import-choose-folder">
+                <button class="ordnance-button flex flex-row gap-1 items-center" onclick={chooseFolder} data-testid="import-choose-folder">
                     <FolderPlus />{t("popup.import.choose_folder")}
                 </button>
-                <button class="hd2mm-button" onclick={() => popup.close(null)}>{t("popup.import.close_button")}</button>
+                <button class="ordnance-button" onclick={() => popup.close(null)}>{t("popup.import.close_button")}</button>
             </div>
         {:else if w.step === "scanning"}
             <p class="text-sm">
@@ -153,17 +153,17 @@
             <div class="w-full h-2 bg-zinc-700 rounded overflow-hidden">
                 <div class="h-full bg-yellow-300 transition-all" class:animate-pulse={w.scanTotal === 0} style="width: {w.scanTotal === 0 ? 100 : scanPercent}%"></div>
             </div>
-            <button class="hd2mm-button self-end" disabled={w.cancelling} onclick={() => w.cancel()}>{t("popup.import.cancel_button")}</button>
+            <button class="ordnance-button self-end" disabled={w.cancelling} onclick={() => w.cancel()}>{t("popup.import.cancel_button")}</button>
         {:else if w.step === "stopped"}
             {#if !w.error}
                 <p class="text-sm" data-testid="import-scan-stopped">{t("popup.import.scan_stopped")}</p>
             {/if}
             <div class="flex flex-row flex-wrap gap-2 justify-between">
-                <button class="hd2mm-button" onclick={() => popup.close(null)}>{t("popup.import.close_button")}</button>
+                <button class="ordnance-button" onclick={() => popup.close(null)}>{t("popup.import.close_button")}</button>
                 <div class="flex flex-row gap-2">
-                    <button class="hd2mm-button" onclick={() => w.chooseSourceInstead()}>{t("popup.import.choose_source_button")}</button>
+                    <button class="ordnance-button" onclick={() => w.chooseSourceInstead()}>{t("popup.import.choose_source_button")}</button>
                     {#if popup.paths && popup.paths.length > 0}
-                        <button class="hd2mm-success-button" onclick={() => w.scanPaths(popup.paths!)} data-testid="import-retry">{t("popup.import.retry_button")}</button>
+                        <button class="ordnance-success-button" onclick={() => w.scanPaths(popup.paths!)} data-testid="import-retry">{t("popup.import.retry_button")}</button>
                     {/if}
                 </div>
             </div>
@@ -188,9 +188,9 @@
                     <p class="text-xs text-yellow-300">{t("popup.import.truncated")}</p>
                 {/if}
                 <div class="flex flex-row flex-wrap gap-1 items-center">
-                    <button class="hd2mm-button text-xs" onclick={() => w.selectAll()}>{t("popup.import.select_all")}</button>
-                    <button class="hd2mm-button text-xs" onclick={() => w.selectNone()}>{t("popup.import.select_none")}</button>
-                    <button class="hd2mm-button text-xs" onclick={() => w.selectNew()}>{t("popup.import.select_new")}</button>
+                    <button class="ordnance-button text-xs" onclick={() => w.selectAll()}>{t("popup.import.select_all")}</button>
+                    <button class="ordnance-button text-xs" onclick={() => w.selectNone()}>{t("popup.import.select_none")}</button>
+                    <button class="ordnance-button text-xs" onclick={() => w.selectNew()}>{t("popup.import.select_new")}</button>
                     <div class="flex-1"></div>
                     <div class="flex flex-row items-center gap-1 bg-zinc-800 border border-zinc-600 px-1">
                         <Search class="text-zinc-400" width="12" height="12" />
@@ -241,11 +241,11 @@
             {/if}
             <div class="flex flex-row gap-2 justify-between">
                 {#if w.fromPicked}
-                    <button class="hd2mm-button" onclick={() => popup.close(null)}>{t("popup.import.close_button")}</button>
+                    <button class="ordnance-button" onclick={() => popup.close(null)}>{t("popup.import.close_button")}</button>
                 {:else}
-                    <button class="hd2mm-button" onclick={() => w.back()}>{t("popup.import.back_button")}</button>
+                    <button class="ordnance-button" onclick={() => w.back()}>{t("popup.import.back_button")}</button>
                 {/if}
-                <button class="hd2mm-success-button" disabled={selectedCount === 0} onclick={() => w.start()} data-testid="import-start">
+                <button class="ordnance-success-button" disabled={selectedCount === 0} onclick={() => w.start()} data-testid="import-start">
                     {selectedCount === 1 ? t("popup.import.import_button_one") : t("popup.import.import_button", { count: selectedCount })}
                 </button>
             </div>
@@ -270,7 +270,7 @@
                     {formatBytes(w.progress.BytesDone)} / {formatBytes(w.progress.BytesTotal)} ({importPercent}%)
                 </span>
             {/if}
-            <button class="hd2mm-button self-end" disabled={w.cancelling} onclick={() => w.cancel()} data-testid="import-cancel">{t("popup.import.cancel_button")}</button>
+            <button class="ordnance-button self-end" disabled={w.cancelling} onclick={() => w.cancel()} data-testid="import-cancel">{t("popup.import.cancel_button")}</button>
         {:else if w.step === "done" && w.report}
             <p class="text-sm" data-testid="import-done">
                 {w.report.Imported.length === 1
@@ -313,7 +313,7 @@
                     : t("popup.import.done_warnings", { count: warningCount })}</p>
             {/if}
             <button
-                class="hd2mm-success-button self-end"
+                class="ordnance-success-button self-end"
                 onclick={() => popup.close({ report: w.report!, addToProfile: !!popup.profileName && w.addToProfile })}
                 data-testid="import-finish"
             >

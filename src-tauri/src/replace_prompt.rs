@@ -57,7 +57,7 @@ pub struct ReplaceOffer {
     /// The file being added (its name only).
     pub file_name: String,
     pub installed_name: String,
-    /// What DDMM knows of the installed mod's version (from where it was
+    /// What Ordnance knows of the installed mod's version (from where it was
     /// installed from), if anything.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub installed_version: Option<String>,
@@ -257,7 +257,7 @@ mod tests {
     mod ask_path {
         use super::*;
 
-        /// A mock app (no webview) with DDMM's state, the Mods page ready, and
+        /// A mock app (no webview) with Ordnance's state, the Mods page ready, and
         /// the request IDs of the questions it was asked / told were closed.
         fn mock_page() -> (
             tauri::App<tauri::test::MockRuntime>,

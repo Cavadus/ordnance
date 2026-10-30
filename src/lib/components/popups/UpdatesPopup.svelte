@@ -54,11 +54,11 @@
                     </div>
                     {#if entry.Status.Kind === "UpdateAvailable"}
                         <span class="text-yellow-300 text-xs shrink-0">{t("popup.updates.state.update_available")}</span>
-                        <button class="hd2mm-success-button shrink-0" onclick={() => popup.close({ kind: "update", entry })}>
+                        <button class="ordnance-success-button shrink-0" onclick={() => popup.close({ kind: "update", entry })}>
                             {t("popup.updates.update_button.text")}
                         </button>
                         <button
-                            class="hd2mm-button shrink-0"
+                            class="ordnance-button shrink-0"
                             title={t("popup.updates.skip_button.tip", { version: entry.LatestVersion ?? "" })}
                             onclick={() => popup.close({ kind: "skip", entry })}
                         >
@@ -66,7 +66,7 @@
                         </button>
                     {:else if entry.Status.Kind === "Skipped"}
                         <span class="text-zinc-400 text-xs shrink-0">{t("popup.updates.state.skipped", { version: entry.LatestVersion ?? "" })}</span>
-                        <button class="hd2mm-button shrink-0" onclick={() => popup.close({ kind: "unskip", entry })}>
+                        <button class="ordnance-button shrink-0" onclick={() => popup.close({ kind: "unskip", entry })}>
                             {t("popup.updates.unskip_button.text")}
                         </button>
                     {:else if entry.Status.Kind === "NeedsApiKey"}
@@ -95,16 +95,16 @@
     <div class="flex flex-row gap-2 justify-between">
         <div class="flex flex-row gap-2">
             {#if availableCount > 0}
-                <button class="hd2mm-success-button" onclick={() => popup.close({ kind: "updateAll" })}>
+                <button class="ordnance-success-button" onclick={() => popup.close({ kind: "updateAll" })}>
                     {t("popup.updates.update_all_button.text", { count: availableCount })}
                 </button>
             {/if}
             {#if needsKey}
-                <button class="hd2mm-button" onclick={() => popup.close({ kind: "nexusSettings" })}>
+                <button class="ordnance-button" onclick={() => popup.close({ kind: "nexusSettings" })}>
                     {t("popup.updates.nexus_settings_button.text")}
                 </button>
             {/if}
         </div>
-        <button class="hd2mm-button" onclick={() => popup.close(null)}>{t("popup.updates.close_button.text")}</button>
+        <button class="ordnance-button" onclick={() => popup.close(null)}>{t("popup.updates.close_button.text")}</button>
     </div>
 </PopupBase>

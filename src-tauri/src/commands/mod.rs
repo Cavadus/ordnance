@@ -148,8 +148,8 @@ async fn create_empty_patch_file(dest: &Path) -> anyhow::Result<()> {
 
 /// The record of which patch files the last deploy wrote, kept next to
 /// them in the game's `data` folder (so it always describes that folder,
-/// whichever DDMM data folder or game path is in use). Purge removes it.
-const DEPLOY_RECORD: &str = ".ddmm-deployed.json";
+/// whichever Ordnance data folder or game path is in use). Purge removes it.
+const DEPLOY_RECORD: &str = ".ordnance-deployed.json";
 
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -160,7 +160,7 @@ struct DeployRecord {
 /// One file a deploy wrote, with its length and modification time
 /// (nanoseconds since the Unix epoch) right after it was written. If either
 /// has changed since, something else (a Steam "verify files", the user)
-/// replaced it, and it is no longer DDMM's.
+/// replaced it, and it is no longer Ordnance's.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct RecordedFile {
@@ -211,7 +211,7 @@ async fn read_deploy_record(data_dir: &Path) -> Option<HashMap<String, RecordedF
 
 /// Record which of `names` (in `data_dir`) are now there, as written by
 /// this deploy. Never fails the deploy: without a record, purge just keeps
-/// a skip-listed slot-0 file it can't prove is DDMM's.
+/// a skip-listed slot-0 file it can't prove is Ordnance's.
 async fn record_deployed_files(data_dir: &Path, names: &[String]) {
     let mut files = Vec::with_capacity(names.len());
     for name in names {
@@ -232,7 +232,7 @@ async fn record_deployed_files(data_dir: &Path, names: &[String]) {
 /// Whether `file` (a patch file in the game's `data` folder) is slot 0 of a
 /// patch name in the Skip List: the base game's or a DLC's own file, which
 /// deploy numbers around (it starts that name at `.patch_1`) and purge
-/// leaves alone -- unless the deploy record says DDMM wrote it (deployed
+/// leaves alone -- unless the deploy record says Ordnance wrote it (deployed
 /// before the name was added to the Skip List).
 fn is_skip_listed_slot_zero(file: &Path, settings: &Settings) -> bool {
     let Some(name) = file.file_name().and_then(|n| n.to_str()) else { return false };
@@ -285,7 +285,7 @@ async fn do_purge(data_dir: &Path, settings: &Settings) -> anyhow::Result<()> {
     }))
     .await?;
 
-    // Everything DDMM deployed is gone, so the record is too.
+    // Everything Ordnance deployed is gone, so the record is too.
     let record = data_dir.join(DEPLOY_RECORD);
     // A record that can't be removed only ever keeps files: its entries
     // no longer match any file once that file is rewritten.
@@ -667,7 +667,7 @@ async fn do_deploy(data_dir: &Path, settings: &Settings, mods: Vec<(&Mod, &Confi
     log::info!("Copying files...");
     let copied = copy_groups(data_dir, settings, &groups).await;
     // Recorded even when copying stopped partway, so the files that did
-    // land are known to be DDMM's.
+    // land are known to be Ordnance's.
     record_deployed_files(data_dir, &written).await;
     copied?;
 
@@ -751,7 +751,7 @@ pub fn ack_close_requested(state: State<'_, AppState>) {
     state.close_ack.store(true, std::sync::atomic::Ordering::SeqCst);
 }
 
-/// Open the folder with DDMM's log files in the file manager (the Mods
+/// Open the folder with Ordnance's log files in the file manager (the Mods
 /// page offers this when it couldn't load, so the log is one click away for
 /// a bug report). Opened from here rather than with the opener plugin from
 /// the page, so it works wherever the data folder is.
@@ -1194,10 +1194,10 @@ mod tests {
     }
 
     /// A mod deployed into slot 0 of a name that was added to the Skip List
-    /// only afterwards is DDMM's file, not the game's: the next purge must
+    /// only afterwards is Ordnance's file, not the game's: the next purge must
     /// still remove it.
     #[tokio::test]
-    async fn purge_removes_ddmm_slot_zero_files_of_a_name_skip_listed_later() {
+    async fn purge_removes_ordnance_slot_zero_files_of_a_name_skip_listed_later() {
         let data = tempfile::tempdir().unwrap();
         let m = tempfile::tempdir().unwrap();
         write_patch_file(m.path(), 0).await;
@@ -1210,7 +1210,7 @@ mod tests {
         assert!(slot0.exists());
 
         do_purge(data.path(), &skip_list("0123456789abcdef")).await.unwrap();
-        assert!(!slot0.exists(), "DDMM's own slot-0 file must be purged");
+        assert!(!slot0.exists(), "Ordnance's own slot-0 file must be purged");
         assert!(!data.path().join(format!("{}.stream", patch_file_name(0))).exists());
         assert!(!data.path().join(DEPLOY_RECORD).exists(), "purge removes the record");
 
@@ -1223,7 +1223,7 @@ mod tests {
         assert_eq!(tokio::fs::read(data.path().join(patch_file_name(1))).await.unwrap(), b"data");
     }
 
-    /// DDMM deployed into slot 0, the name was skip-listed afterwards, and
+    /// Ordnance deployed into slot 0, the name was skip-listed afterwards, and
     /// then something else (a Steam "verify files") put the game's own
     /// file back. The record no longer matches it, so purge keeps it --
     /// whether its length or only its modification time changed.
@@ -1247,7 +1247,7 @@ mod tests {
 
             do_purge(data.path(), &skip_list("0123456789abcdef")).await.unwrap();
             assert_eq!(tokio::fs::read(&slot0).await.unwrap(), restored, "same length: {same_length}");
-            // The untouched companions DDMM wrote still match: purged.
+            // The untouched companions Ordnance wrote still match: purged.
             assert!(!data.path().join(format!("{}.stream", patch_file_name(0))).exists());
         }
     }
@@ -1276,7 +1276,7 @@ mod tests {
     }
 
     /// No record (a game folder last deployed by an older version) or a
-    /// damaged one: a skip-listed slot-0 file can't be shown to be DDMM's,
+    /// damaged one: a skip-listed slot-0 file can't be shown to be Ordnance's,
     /// so it is kept. Everything else is still purged.
     #[tokio::test]
     async fn without_a_usable_record_skip_listed_slot_zero_is_kept() {

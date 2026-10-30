@@ -19,7 +19,7 @@ ignore = [
     # glib 0.18.5: unsound Iterator impls for glib::VariantStrIter (fixed in
     # glib >= 0.20; no patched 0.18.x release exists). glib 0.18 is pinned by
     # gtk 0.18 / webkit2gtk 2.0 via tauri, wry, tao and muda on Linux. Neither
-    # DDMM nor any crate in our dependency tree calls VariantStrIter /
+    # Ordnance nor any crate in our dependency tree calls VariantStrIter /
     # Variant::array_iter_str (only glib's own definition and unit tests
     # reference it), so the unsound code path is not reachable.
     "RUSTSEC-2024-0429",
@@ -31,7 +31,7 @@ ignore = [
     #   tauri-plugin-single-instance. No published version of either, 3.0
     #   alphas included, uses zbus 6 yet: all of them require zbus ^5.9.
     # - 4.2 / 3.0 via zbus 4.4, via secret-service 4, an optional dependency
-    #   of keyring 3.6.3 behind its `async-secret-service` feature. DDMM uses
+    #   of keyring 3.6.3 behind its `async-secret-service` feature. Ordnance uses
     #   `sync-secret-service` (dbus-secret-service, no zbus), so this copy is
     #   in the lockfile but never compiled (`cargo tree -i zbus@4.4.0 --target
     #   all` prints nothing). keyring 3.6.3 is the last 3.x; 4.x is a rewrite.

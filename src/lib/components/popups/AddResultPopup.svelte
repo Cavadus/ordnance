@@ -40,5 +40,5 @@
             </li>
         {/each}
     </ul>
-    <button class="hd2mm-button self-stretch" onclick={() => popup.close()}>{t("popup.add_result.ok_button.text")}</button>
+    <button class="ordnance-button self-stretch" onclick={() => popup.close()}>{t("popup.add_result.ok_button.text")}</button>
 </PopupBase>

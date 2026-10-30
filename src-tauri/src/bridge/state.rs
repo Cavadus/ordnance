@@ -1,6 +1,6 @@
 //! `bridge.json`: how the native-messaging host (a separate process,
 //! possibly launched fresh) finds and authenticates to the already-running
-//! DDMM app.
+//! Ordnance app.
 
 use std::path::{Path, PathBuf};
 
@@ -118,7 +118,7 @@ pub async fn remove_bridge_file(base_path: &Path) {
 }
 
 /// Best-effort check for whether `pid` still refers to a live process.
-/// Only used to skip a stale `bridge.json` (DDMM crashed without removing
+/// Only used to skip a stale `bridge.json` (Ordnance crashed without removing
 /// it) instead of connecting to whatever now holds its port -- the token
 /// handshake is still what authenticates the app.
 #[cfg(unix)]

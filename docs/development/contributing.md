@@ -4,11 +4,11 @@ title: Contributing
 
 # Contributing
 
-DDMM doesn't have a separate `CONTRIBUTING.md` at the time of writing — this page covers the basics until it does.
+Ordnance doesn't have a separate `CONTRIBUTING.md` at the time of writing — this page covers the basics until it does.
 
 ## Reporting issues and proposing changes
 
-- Bugs and feature ideas go through [GitHub Issues](https://github.com/katsyk/DemocracyDefenderModManager/issues).
+- Bugs and feature ideas go through [GitHub Issues](https://github.com/Cavadus/ordnance/issues).
 - Code changes go through a pull request against the repository's default branch.
 
 ## Before opening a pull request
