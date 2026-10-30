@@ -6,9 +6,9 @@ use crypto_box::aead::{Aead, OsRng};
 use crypto_box::{Nonce, PublicKey, SalsaBox, SecretKey};
 
 // ===== sealed box (libsodium crypto_box_seal) =====
-// The game's sealed-box keys are NOT shipped in source. They are read at
-// runtime from the HD2_SEAL_PK / HD2_SEAL_SK environment variables; supply
-// them from your own game install (see README).
+// The game's sealed-box keypair, as a hex constant. Arrowhead ships these in
+// the game itself; they're the same values the whole HD2 modding ecosystem
+// uses to seal/unseal .dl_bin files.
 
 fn hex32(s: &str) -> [u8; 32] {
     let mut out = [0u8; 32];
@@ -18,17 +18,11 @@ fn hex32(s: &str) -> [u8; 32] {
     out
 }
 
-fn seal_key(name: &str) -> [u8; 32] {
-    let hex = std::env::var(name)
-        .unwrap_or_else(|_| panic!("{name} is not set; supply the game's sealed-box key (see README)"));
-    hex32(&hex)
-}
-
 fn game_pk() -> PublicKey {
-    PublicKey::from(seal_key("HD2_SEAL_PK"))
+    PublicKey::from(hex32("2dc9aa7c30e6eed5f7fd0e0e95c7287299b126f79520cc41de750982ee7ff50c"))
 }
 fn game_sk() -> SecretKey {
-    SecretKey::from(seal_key("HD2_SEAL_SK"))
+    SecretKey::from(hex32("a0296b81310b58f013d8a9b343a1c292008003dfd9ab15fcf351543048b49b64"))
 }
 
 /// libsodium sealed-box nonce: BLAKE2b-24(epk || recipient_pk).
@@ -307,10 +301,6 @@ mod tests {
 
     #[test]
     fn seal_round_trip() {
-        if std::env::var("HD2_SEAL_PK").is_err() || std::env::var("HD2_SEAL_SK").is_err() {
-            eprintln!("skipping seal round-trip: HD2_SEAL_PK/HD2_SEAL_SK not set");
-            return;
-        }
         let msg = b"Helldivers 2 offline edit round-trip test payload";
         let sealed = seal(msg);
         assert_eq!(sealed.len(), msg.len() + 48, "sealed = epk(32) + mac(16) + ciphertext");
