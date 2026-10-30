@@ -1,7 +1,7 @@
 {
   "name": "ordnance",
   "version": "0.3.0",
-  "description": "Ordnance Mod Manager \u2014 compiles Helldivers 2 stat mods into one sealed .dl_bin swap. Fork of Democracy Defender.",
+  "description": "Ordnance Mod Manager — compiles Helldivers 2 stat mods into one sealed .dl_bin swap. Fork of Democracy Defender.",
   "type": "module",
   "scripts": {
     "dev": "vite dev",
@@ -14,7 +14,7 @@
     "test:unit": "node --test tests/unit/*.test.mjs",
     "build:checked": "pnpm run scan:i18n && pnpm run build"
   },
-  "license": "Apache-2.0",
+  "license": "MIT",
   "dependencies": {
     "@humanspeak/svelte-markdown": "^1.4.1",
     "@rodrigodagostino/svelte-sortable-list": "^2.1.15",
