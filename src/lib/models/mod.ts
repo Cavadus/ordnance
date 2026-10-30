@@ -44,6 +44,18 @@ export class Mod {
         return this.Sources.find((s) => s.Version)?.Version ?? null;
     }
 
+    /**
+     * The mod's tracked source page, preferring the install-origin source
+     * and falling back to the first source that records a page URL. `null`
+     * when no source records one.
+     */
+    get sourceLink(): { name: string; url: string } | null {
+        const install = this.Sources.find((s) => s.Origin === "Install" && s.PageUrl);
+        const source = install ?? this.Sources.find((s) => s.PageUrl);
+        if (!source?.PageUrl) return null;
+        return { name: source.DisplayName, url: source.PageUrl };
+    }
+
     async iconPath(): Promise<string | null> {
         if (!this.Manifest.IconPath) return null;
         return modImageSrc(this.Directory, this.Manifest.IconPath);

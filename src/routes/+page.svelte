@@ -55,6 +55,7 @@
     import { onMount } from "svelte";
     import Select from "$lib/components/Select.svelte";
     import ModsLoadError from "$lib/components/ModsLoadError.svelte";
+    import ModVersionTag from "$lib/components/ModVersionTag.svelte";
     import { FALLBACK_MOD_IMAGE, useFallbackImage } from "$lib/utils/modImages";
 
     const { t } = useLocalization();
@@ -1896,9 +1897,7 @@
                             <div class="flex-1 flex flex-col gap-0.5 justify-between min-w-0">
                                 <span class="text-lg truncate flex flex-row items-center gap-1">
                                     {mod.name}
-                                    {#if mod.version}
-                                        <span class="text-sm text-zinc-400 shrink-0">{mod.version}</span>
-                                    {/if}
+                                    <ModVersionTag {mod} />
                                 </span>
                                 <span class="text-xs truncate text-zinc-500">{mod.description}</span>
                             </div>
@@ -2021,9 +2020,7 @@
                                 <div class="flex-1 flex flex-col gap-0.5 justify-between min-w-0">
                                     <span class="text-2xl truncate flex flex-row items-center gap-1">
                                         {mod.name}
-                                        {#if mod.version}
-                                            <span class="text-sm text-zinc-400 shrink-0">{mod.version}</span>
-                                        {/if}
+                                        <ModVersionTag {mod} />
                                         {#if categoryOf(mod.guid)}
                                             <span class="text-xs rounded px-1.5 py-0.5 bg-amber-400/15 text-amber-300 shrink-0">{categoryOf(mod.guid)!.Name}</span>
                                         {/if}
