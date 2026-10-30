@@ -2058,6 +2058,11 @@
                                                 <option value={i}>{option}</option>
                                             {/each}
                                         </select>
+                                    {:else}
+                                        <!-- Keep the toggle column aligned with rows that show an edit button. -->
+                                        <span class="ordnance-button-nop p-2 invisible shrink-0" aria-hidden="true">
+                                            <PencilSquare class="block mx-auto" />
+                                        </span>
                                     {/if}
                                 {:else}
                                     <button
