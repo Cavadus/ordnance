@@ -2,7 +2,7 @@
 
 *One sealed swap. Every enabled mod.*
 
-Ordnance is a Helldivers 2 mod manager for the game after the October 2026 Easy Anti-Cheat update. Version **0.1.0**.
+Ordnance is a Helldivers 2 mod manager for the game after the October 2026 Easy Anti-Cheat update. Version **0.4.0**.
 
 It reads the mods you have enabled, copies their patch files into `data/`, and merges settings-table edits into **one sealed `.dl_bin` per table**. A later mod wins when two edits hit the same field. Purge restores the game files from the stock backup. It does not delete them.
 
