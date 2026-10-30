@@ -27,5 +27,6 @@ compiler/**/__pycache__/
 # Local build/release artifacts (binaries, packaged releases, page assets)
 /releases/
 /releases-0.4.0/
+/releases-0.4.1/
 /release-assets/
 /image-1.png
