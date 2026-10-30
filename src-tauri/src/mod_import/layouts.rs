@@ -250,6 +250,71 @@ pub fn arsenal_manifest(m: &ArsenalMod) -> Option<Manifest> {
 }
 
 // ---------------------------------------------------------------------------
+// Echelon: `library.json` in its data folder (`%APPDATA%\Echelon` on
+// Windows, `~/.config/Echelon` on Linux). Each mod is an unpacked folder,
+// and `folder` is already its full path. Format documented in Echelon's
+// `LIBRARY_JSON.md`; read-only here.
+// ---------------------------------------------------------------------------
+
+pub const ECHELON_LIBRARY_FILE: &str = "library.json";
+
+#[derive(Debug, Clone)]
+pub struct EchelonMod {
+    pub name: String,
+    pub folder: PathBuf,
+    pub enabled: bool,
+    pub order: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct EchelonLibrary {
+    pub mods: Vec<EchelonMod>,
+}
+
+/// `library.json` for the Echelon data folder, or its `mods` folder.
+pub fn find_echelon_library(root: &Path) -> Option<PathBuf> {
+    [Some(root), root.parent()]
+        .into_iter()
+        .flatten()
+        .map(|d| d.join(ECHELON_LIBRARY_FILE))
+        .find(|f| f.is_file())
+}
+
+/// Parse Echelon's `library.json`. Tolerant: a missing `mods` array yields
+/// an empty library, and mods without a `folder` are skipped (never an error).
+pub fn load_echelon(file: &Path) -> anyhow::Result<EchelonLibrary> {
+    let data: Value = serde_json::from_slice(&std::fs::read(file)?)?;
+    // Only accept the format marker, so another tool's JSON is never misread.
+    if str_field(&data, "format").as_deref() != Some("echelon-library") {
+        anyhow::bail!("not an Echelon library.json");
+    }
+    let mut seen = std::collections::HashSet::new();
+    let mods = data
+        .get("mods")
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .enumerate()
+                .filter_map(|(order, m)| {
+                    let id = str_field(m, "id").unwrap_or_default();
+                    if !id.is_empty() && !seen.insert(id.clone()) {
+                        return None;
+                    }
+                    let folder = str_field(m, "folder").map(PathBuf::from)?;
+                    Some(EchelonMod {
+                        name: str_field(m, "name").unwrap_or_default(),
+                        folder,
+                        enabled: m.get("enabled").and_then(Value::as_bool).unwrap_or(false),
+                        order,
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(EchelonLibrary { mods })
+}
+
+// ---------------------------------------------------------------------------
 // The older HD2 mod manager (1.x / 2024 original / 2.0 rewrite).
 // ---------------------------------------------------------------------------
 

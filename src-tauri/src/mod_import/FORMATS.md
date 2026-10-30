@@ -83,6 +83,33 @@ builds were not checked.
 - `nexusData` is recorded in `.hd2mm-origin.json`, and on/off state, order and options become the profile
   entry.
 
+## Echelon
+
+Confidence: **high for 0.36.2+**, from the `LIBRARY_JSON.md` file Echelon publishes at its repo root. The
+format is an open contract ("read it however you like; please don't write to it"), so it is followed to the
+letter.
+
+**Data folder:**
+
+- Windows: `%APPDATA%\Echelon\` (Roaming). Under Proton/Wine, `%APPDATA%` is inside the prefix
+  (`.../pfx/drive_c/users/steamuser/AppData/Roaming/Echelon`).
+- Linux: `~/.config/Echelon` (the Roaming equivalent; Echelon itself is a Windows installer, so this path
+  matters only when a user points the importer there manually).
+
+**Library file:** `library.json`, `{\"format\": \"echelon-library\", \"version\": 1, \"mods\": [...]}`.
+
+- Each `mods[]` entry has `id` (a short hex string, not a GUID), `name`, `folder` (the **absolute**
+  path to that mod's unpacked folder), `enabled` (in the active profile), `deployed`, `sets` and
+  `options`.
+- The format marker is checked; a file without it is treated as "not Echelon" and never misread.
+
+**What DDMM does with it:**
+
+- A `library.json` in the picked folder, or its parent, is the whole mod list; the folder isn't walked.
+- Each entry's `folder` becomes one candidate mod folder. Echelon's `id` is not a GUID, so it is not
+  carried over; only `name` and the `enabled` on/off state become the import (name + profile hint).
+- Entries whose `folder` no longer exists are skipped (mirroring Arsenal's "listed but gone" handling).
+
 ## The older HD2 mod manager (1.x / 2024 original / 2.0 rewrite)
 
 This section is documented from its publicly available source and the files it writes. It uses the same

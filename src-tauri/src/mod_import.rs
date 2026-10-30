@@ -135,6 +135,9 @@ pub fn candidate_sources(dirs: &KnownDirs) -> Vec<(SourceKind, PathBuf)> {
     }
     if let Some(config) = &dirs.config {
         out.push((SourceKind::ManagerMods, config.join("hd2arsenal")));
+        // Echelon: `%APPDATA%\Echelon` on Windows (Roaming), `~/.config/Echelon`
+        // on Linux. Its `library.json` is read on scan.
+        out.push((SourceKind::ManagerMods, config.join("Echelon")));
     }
     if let Some(local) = &dirs.local_data {
         // The older HD2 mod manager (1.x): its default storage folder -- one
@@ -197,6 +200,11 @@ fn count_items(dir: &Path) -> usize {
     if let Some(file) = layouts::find_arsenal_data(dir) {
         if let Ok(data) = layouts::load_arsenal(&file) {
             return data.mods.iter().filter(|m| m.path.is_dir()).count();
+        }
+    }
+    if let Some(file) = layouts::find_echelon_library(dir) {
+        if let Ok(data) = layouts::load_echelon(&file) {
+            return data.mods.iter().filter(|m| m.folder.is_dir()).count();
         }
     }
     quick_count(dir)
@@ -1094,6 +1102,13 @@ pub fn scan_folder(
             None
         }
     });
+    let echelon = layouts::find_echelon_library(root).and_then(|file| match layouts::load_echelon(&file) {
+        Ok(data) => Some((file, data)),
+        Err(e) => {
+            log::warn!("Import: couldn't read {file:?} ({e:#}); scanning the folder instead.");
+            None
+        }
+    });
 
     let mut result = if let Some((file, data)) = arsenal {
         let data_dir = file.parent().map(Path::to_path_buf).unwrap_or_default();
@@ -1112,6 +1127,23 @@ pub fn scan_folder(
             apply_arsenal(item, m);
         }
         ScanResult { root: None, items, profile_name: data.profile_name, truncated: false }
+    } else if let Some((file, data)) = echelon {
+        let data_dir = file.parent().map(Path::to_path_buf).unwrap_or_default();
+        let entries: Vec<(Candidate, layouts::EchelonMod)> = data
+            .mods
+            .into_iter()
+            .map(|m| {
+                let path = if m.folder.is_absolute() { m.folder.clone() } else { data_dir.join(&m.folder) };
+                (Candidate { kind: ItemKind::Folder, path }, m)
+            })
+            .filter(|(c, _)| c.path.is_dir())
+            .collect();
+        let candidates: Vec<Candidate> = entries.iter().map(|(c, _)| c.clone()).collect();
+        let mut items = inspect_all(&candidates, cancel, &mut progress);
+        for (item, (_, m)) in items.iter_mut().zip(&entries) {
+            apply_echelon(item, m);
+        }
+        ScanResult { root: None, items, profile_name: None, truncated: false }
     } else {
         // The folder picked is a mod itself (its own manifest.json): it's
         // one item, not a list of its option subfolders.
@@ -1162,6 +1194,23 @@ fn apply_arsenal(item: &mut ScanItem, m: &layouts::ArsenalMod) {
         }
         item.manifest_override = layouts::arsenal_manifest(m);
         item.description = Some(m.description.clone()).filter(|d| !d.trim().is_empty());
+    }
+}
+
+/// Use what Echelon's library knows about a mod folder: its name and on/off
+/// state. Echelon's id is a short hex string, not a GUID, so only the name
+/// and profile hint are carried over.
+fn apply_echelon(item: &mut ScanItem, m: &layouts::EchelonMod) {
+    item.profile = Some(ProfileHint {
+        enabled: m.enabled,
+        order: m.order,
+        toggled: None,
+        selected: None,
+    });
+    if item.guid.is_none() && !matches!(item.status, ItemStatus::Unreadable { .. }) {
+        if !m.name.trim().is_empty() {
+            item.name = m.name.trim().to_string();
+        }
     }
 }
 

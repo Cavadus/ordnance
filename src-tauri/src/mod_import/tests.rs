@@ -864,6 +864,47 @@ async fn reads_the_1x_enabled_list() {
     assert!(quiet.enabled);
 }
 
+/// Echelon (0.36.2+): `library.json` in `%APPDATA%\Echelon`
+/// (`~/.config/Echelon` on Linux) with `mods[].folder` as the absolute
+/// path to each mod folder, plus `name` and `enabled`.
+#[test]
+fn imports_echelon_library_with_names_and_enabled_state() {
+    let root = tempfile::tempdir().unwrap();
+    let config = root.path().join("config");
+    let data = config.join("Echelon");
+    std::fs::create_dir_all(&data).unwrap();
+
+    let on = root.path().join("Aggro Counter");
+    let off = root.path().join("Quiet Guns");
+    std::fs::create_dir_all(&on).unwrap();
+    std::fs::create_dir_all(&off).unwrap();
+    std::fs::write(on.join(PATCH), b"x").unwrap();
+    std::fs::write(off.join(PATCH), b"y").unwrap();
+
+    let lib = serde_json::json!({
+        "format": "echelon-library",
+        "version": 1,
+        "mods": [
+            { "id": "78eae3c5a284", "name": "Aggro Counter v1.4", "folder": on.to_str().unwrap(), "enabled": true, "deployed": true, "sets": [], "options": [] },
+            { "id": "111111111111", "name": "Quiet Guns", "folder": off.to_str().unwrap(), "enabled": false, "deployed": false, "sets": [], "options": [] }
+        ]
+    });
+    std::fs::write(data.join("library.json"), serde_json::to_vec(&lib).unwrap()).unwrap();
+
+    let base = root.path().join("ddmm");
+    let detected = detect_sources(&KnownDirs { config: Some(config.clone()), ..Default::default() }, &base);
+    assert_eq!(detected.len(), 1, "{detected:?}");
+    assert_eq!(detected[0].path, data);
+    assert_eq!(detected[0].count, 2);
+
+    let scan = scan_folder(&data, &InstalledIndex::default(), &no_cancel(), |_| {}).unwrap();
+    assert_eq!(scan.items.len(), 2, "{:?}", scan.items);
+    let on_item = scan.items.iter().find(|i| i.name.contains("Aggro Counter")).unwrap();
+    let off_item = scan.items.iter().find(|i| i.name.contains("Quiet Guns")).unwrap();
+    assert_eq!(on_item.profile.as_ref().unwrap().enabled, true);
+    assert_eq!(off_item.profile.as_ref().unwrap().enabled, false);
+}
+
 #[test]
 fn reads_the_staging_folders_patch_order() {
     let root = tempfile::tempdir().unwrap();
