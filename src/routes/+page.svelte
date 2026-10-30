@@ -902,6 +902,12 @@
         if (mod && payload.replaced) {
             if (currentProfile) applyCurrentConfigChanges();
             fitProfilesToMods(profilesStore.profiles, [mod]);
+            // An update never changes profile membership: leave the mod in
+            // whichever profiles already list it, and only redeploy when it
+            // is enabled in the active profile (the same rule a direct
+            // update uses). The fresh-install `afterInstall` handling below
+            // must not run for an update.
+            await afterUpdates([mod.guid]);
         }
 
         let addedToProfile: string | undefined;
@@ -909,7 +915,7 @@
         let softError: BridgeSoftError | undefined;
         const warnings: string[] = [];
 
-        if (mod && payload.afterInstall !== "library" && currentProfile) {
+        if (mod && !payload.replaced && payload.afterInstall !== "library" && currentProfile) {
             if (!profileConfigs.some(c => c.Guid === mod.guid)) {
                 profileConfigs.push(makeConfigForMod(mod));
             }
