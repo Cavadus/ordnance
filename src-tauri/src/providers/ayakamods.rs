@@ -1,7 +1,11 @@
-//! AyakaMods: no public API, but every mod page carries a JSON-LD
-//! `SoftwareApplication` block whose `softwareVersion` is the current
-//! version and whose `dateModified` is when the mod was last updated.
-//! Downloads need a login, so updates go through the browser.
+//! AyakaMods runs on XenForo, which ships a keyed REST API (the
+//! `/api/` namespace answers `no_api_key_in_request` without an
+//! `XF-Api-Key` header). But that API exposes forum content, not the
+//! third-party mod manager's file downloads — downloads are a
+//! separate, login-gated browser flow ("Log in or sign up to download").
+//! So version detection uses the JSON-LD `SoftwareApplication` block on
+//! each mod page (`softwareVersion` / `dateModified`), and updates go
+//! through the browser.
 //!
 //! The site sits behind Cloudflare, so Ordnance is careful to be a polite,
 //! honest client (never a disguised browser):
