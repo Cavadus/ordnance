@@ -346,7 +346,7 @@
             }
         }
 
-        const [loadedMods, loadedConfig, loadedCategories]: [Mod[], ProfilesConfig, Categories] = await Promise.all([
+        const [loadedMods, loadedConfig, loadedCategories]: [Mod[], ProfilesConfig, Categories | null] = await Promise.all([
             getMods(),
             loadProfiles(),
             getCategories().catch(() => null)
@@ -1888,7 +1888,7 @@
                         <span>{t("pages.mods.load_order.lowest")}</span>
                     </div>
                 {/if}
-                {#snippet groupedEntry(entry)}
+                {#snippet groupedEntry(entry: [Config, Mod | undefined, number])}
                     {@const [config, mod, ci] = entry}
                     {#if mod}
                         <div class="p-2 text-zinc-300 bg-zinc-800/60 rounded flex flex-row gap-1 items-center">
