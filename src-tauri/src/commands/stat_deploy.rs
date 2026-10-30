@@ -52,6 +52,12 @@ fn fval(v: &Value) -> f32 {
 
 /// Table geometry the plan's author must supply. Ordnance carries no table
 /// layouts, so a missing or wrong value is the mod author's bug.
+/// The mod an edit came from, when `collect_stat_plans` tagged it (`_mod`).
+/// Empty for plans built elsewhere (tests, old files).
+fn mod_of(e: &Value) -> &str {
+    e.get("_mod").and_then(|v| v.as_str()).unwrap_or("")
+}
+
 fn req(e: &Value, key: &str) -> anyhow::Result<usize> {
     match e.get(key) {
         Some(v) if !v.is_null() => Ok(hx(v) as usize),
@@ -191,7 +197,11 @@ fn apply_plan_inner(plan: &[Value], stock_dir: &Path, out_dir: &Path) -> anyhow:
             .unwrap_or("")
             .to_string();
         if key.is_empty() && e.get("table").is_some() {
-            bail!("legacy stat-plan edit (\"table\" without \"file\"): the mod's author must update it to the self-describing format");
+            let who = mod_of(e);
+            if who.is_empty() {
+                bail!("legacy stat-plan edit (\"table\" without \"file\"): the mod's author must update it to the self-describing format");
+            }
+            bail!("legacy stat-plan edit (\"table\" without \"file\") in mod \"{who}\": the mod's author must update it to the self-describing format");
         }
         if key.is_empty()
             || key.contains('/')
@@ -199,7 +209,11 @@ fn apply_plan_inner(plan: &[Value], stock_dir: &Path, out_dir: &Path) -> anyhow:
             || key.contains("..")
             || !key.ends_with(".dl_bin")
         {
-            bail!("stat-plan edit has a missing or invalid \"file\": {key:?} (expected a bare generated_*.dl_bin name)");
+            let who = mod_of(e);
+            if who.is_empty() {
+                bail!("stat-plan edit has a missing or invalid \"file\": {key:?} (expected a bare generated_*.dl_bin name)");
+            }
+            bail!("stat-plan edit in mod \"{who}\" has a missing or invalid \"file\": {key:?} (expected a bare generated_*.dl_bin name)");
         }
         groups.entry(key).or_default().push(e);
     }
@@ -215,7 +229,11 @@ fn apply_plan_inner(plan: &[Value], stock_dir: &Path, out_dir: &Path) -> anyhow:
         let mut floats: Vec<usize> = Vec::new();
         let header_ats: Vec<usize> = headers(&blob).iter().map(|(a, _, _)| *a).collect();
         for e in edits {
-            apply_edit(&mut blob, e, &mut floats).with_context(|| format!("edit in {filename}"))?;
+            let who = mod_of(e);
+            apply_edit(&mut blob, e, &mut floats).map_err(|err| {
+                let label = if who.is_empty() { filename.clone() } else { format!("mod \"{who}\" ({filename})") };
+                anyhow::anyhow!("{label}: {err:#}")
+            })?;
         }
         for at in header_ats {
             if blob[at + 16] != 1 {

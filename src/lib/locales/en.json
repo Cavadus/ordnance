@@ -526,6 +526,13 @@
             },
             "ok_button": {
                 "text": "OK"
+            },
+            "copy_button": {
+                "text": "Copy error",
+                "copied": "Copied"
+            },
+            "report_button": {
+                "text": "Report on GitHub"
             }
         },
         "add_result": {

@@ -567,8 +567,15 @@ async fn collect_stat_plans(mods: &[(&Mod, &Config)]) -> anyhow::Result<Vec<serd
         let text = tokio::fs::read_to_string(&plan_path)
             .await
             .with_context(|| format!("read {:?}", plan_path))?;
-        let edits: Vec<serde_json::Value> =
+        let mut edits: Vec<serde_json::Value> =
             serde_json::from_str(&text).with_context(|| format!("parse {:?}", plan_path))?;
+        // Tag each edit with its mod so apply-time errors can name the mod.
+        let attribution = format!("{} ({})", r#mod.name(), r#mod.guid());
+        for e in &mut edits {
+            if let Some(obj) = e.as_object_mut() {
+                obj.insert("_mod".to_string(), serde_json::Value::String(attribution.clone()));
+            }
+        }
         plan_edits.extend(edits);
     }
     Ok(plan_edits)
