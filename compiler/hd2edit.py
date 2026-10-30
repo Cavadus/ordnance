@@ -1,10 +1,18 @@
 # Reusable HD2 offline-edit primitives (persistent; rebuild artifacts under this dir, NOT /tmp)
-import struct, numpy as np
+import os, struct
+import numpy as np
 from nacl.bindings import crypto_box_seal_open, crypto_box_seal
 
 GAME=None
-PK=bytes.fromhex('REDACTED_SEAL_PK')
-SK=bytes.fromhex('REDACTED_SEAL_SK')
+
+def _seal_key(name):
+    v = os.environ.get(name)
+    if not v:
+        raise SystemExit("%s is not set; supply the game's sealed-box key (see README)" % name)
+    return bytes.fromhex(v)
+
+PK = _seal_key('HD2_SEAL_PK')
+SK = _seal_key('HD2_SEAL_SK')
 MUL=0xC6A4A7935BD1E995
 INV=0x5F7A0EA7E59B19BD
 SEED=16045690983977655786
