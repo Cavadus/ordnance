@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Apply a field-level edit PLAN to stock .dl_bin tables and reseal."""
+"""Apply a field-level edit PLAN to stock .dl_bin tables and reseal.
+
+Plans are self-describing: each edit names its "file", section "type" and
+geometry ("buckets" + "stride" for keyed tables, "stride" for row tables).
+Ordnance carries no knowledge of game tables; a wrong layout is the plan
+author's bug.
+"""
 import argparse, json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from hd2edit import (
@@ -7,18 +13,18 @@ from hd2edit import (
     headers, murmur64, correct, u32, f32, put_u32, put_f32, rd64,
 )
 
-TABLES = {
-    "projectile": ("generated_projectile_settings.dl_bin", 0xBD4042C2, 272),
-    "explosion": ("generated_explosion_settings.dl_bin", 0x2AEA2592, 152),
-    "damage": ("generated_damage_settings.dl_bin", 0xE0A72CF0, 76),
-}
-KEYED = {0x88E4DBB1: (746, 1240), 0xFB8D88A3: (560, 160), 0x4F2CF417: (386, 32)}
 
 def hx(v):
     return v if isinstance(v, int) else int(v, 0)
 
 def open_sealed(path):
     return bytearray(crypto_box_seal_open(open(path, "rb").read(), PK, SK))
+
+def req(e, key):
+    """Table geometry the plan's author must supply (Ordnance knows no layouts)."""
+    if e.get(key) is None:
+        raise SystemExit('stat-plan edit is missing "%s" (plans must carry their own table layout)' % key)
+    return hx(e[key])
 
 def find_record(blob, base, stride, rid):
     for i in range(u32(blob, base + 8)):
@@ -27,10 +33,9 @@ def find_record(blob, base, stride, rid):
             return o
     raise SystemExit("record %d not found" % rid)
 
-def find_keyed(blob, tid, lo, hi):
+def find_keyed(blob, tid, lo, hi, buckets, stride):
     for at, t, s in headers(bytes(blob)):
         if t == tid:
-            buckets, stride = KEYED[tid]
             base = at + 24
             for k in range(buckets):
                 e = base + k * 16
@@ -46,9 +51,15 @@ def do_op(blob, off, op, kind, value, floats):
         else:
             put_u32(blob, off, hx(value) & 0xFFFFFFFF)
     elif op == "mul":
-        put_f32(blob, off, f32(blob, off) * float(value)); floats.append(off)
+        if kind == "u32":
+            put_u32(blob, off, max(0, min(0xFFFFFFFF, round(u32(blob, off) * float(value)))))
+        else:
+            put_f32(blob, off, f32(blob, off) * float(value)); floats.append(off)
     elif op == "add":
-        put_f32(blob, off, f32(blob, off) + float(value)); floats.append(off)
+        if kind == "u32":
+            put_u32(blob, off, max(0, min(0xFFFFFFFF, u32(blob, off) + round(float(value)))))
+        else:
+            put_f32(blob, off, f32(blob, off) + float(value)); floats.append(off)
     else:
         raise SystemExit("bad op " + op)
 
@@ -56,7 +67,11 @@ def apply_plan(stock_dir, plan, out_dir):
     os.makedirs(out_dir, exist_ok=True)
     groups = {}
     for e in plan:
-        key = "generated_entities.dl_bin" if e["table"] == "entities" else TABLES[e["table"]][0]
+        key = e.get("file", "")
+        if not key and "table" in e:
+            raise SystemExit("legacy stat-plan edit (\"table\" without \"file\"): the mod's author must update it to the self-describing format")
+        if not key or "/" in key or "\\" in key or ".." in key or not key.endswith(".dl_bin"):
+            raise SystemExit("stat-plan edit has a missing or invalid \"file\": %r" % (key,))
         groups.setdefault(key, []).append(e)
     for filename, edits in groups.items():
         blob = open_sealed(os.path.join(stock_dir, filename))
@@ -64,12 +79,12 @@ def apply_plan(stock_dir, plan, out_dir):
         floats = []
         header_ats = [at for at, _t, _s in headers(bytes(blob))]
         for e in edits:
-            table = e["table"]
-            if table == "entities":
-                rec = find_keyed(blob, hx(e["type"]), hx(e["lo"]), hx(e["hi"]))
+            table = e.get("file", "")
+            if "lo" in e:
+                rec = find_keyed(blob, hx(e["type"]), hx(e["lo"]), hx(e["hi"]), req(e, "buckets"), req(e, "stride"))
                 do_op(blob, rec + int(e["offset"]), e["op"], e["kind"], e["value"], floats)
             elif e["op"] == "clone":
-                _fn, tid, stride = TABLES[table]
+                tid, stride = req(e, "type"), req(e, "stride")
                 base = next(at + 24 for at, t, s in headers(bytes(blob)) if t == tid)
                 src = find_record(blob, base, stride, hx(e["src"]))
                 dst = find_record(blob, base, stride, hx(e["dst"]))
@@ -82,7 +97,7 @@ def apply_plan(stock_dir, plan, out_dir):
                 blob[dst:dst + stride] = clone
                 blob[base + dst_ptr:base + dst_ptr + 8] = blob[base + src_ptr:base + src_ptr + 8]
             else:
-                _fn, tid, stride = TABLES[table]
+                tid, stride = req(e, "type"), req(e, "stride")
                 base = next(at + 24 for at, t, s in headers(bytes(blob)) if t == tid)
                 rec = find_record(blob, base, stride, hx(e["record"]))
                 do_op(blob, rec + int(e["offset"]), e["op"], e["kind"], e["value"], floats)
