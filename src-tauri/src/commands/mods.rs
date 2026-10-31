@@ -2501,7 +2501,9 @@ mod tests {
         let src = tempfile::tempdir().unwrap();
         let state = fresh_library(base.path()).await;
         let path = src.path().join("broken.zip");
-        std::fs::write(&path, zip_bytes(&[("manifest.json", b"{ \"Guid\": \"not-a-guid\", \"Name\": \"x\" }")])).unwrap();
+        // Missing the required `Name` field is still a hard schema error
+        // (a slug or missing Guid is now tolerated).
+        std::fs::write(&path, zip_bytes(&[("manifest.json", b"{ \"Version\": 1, \"Guid\": \"00000000-0000-0000-0000-000000000001\" }")])).unwrap();
         let msg = message(install(&state, &path).await);
         assert!(msg.starts_with("Couldn't install \"broken.zip\".\nStep: reading its manifest.json\nCause: manifest.json: "), "{msg}");
         assert!(

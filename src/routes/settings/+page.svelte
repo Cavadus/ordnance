@@ -49,6 +49,7 @@
     let autoCheckUpdates = $state<boolean>(false);
     let autoCheckIntervalEnabled = $state<boolean>(false);
     let autoCheckIntervalHours = $state<number>(DEFAULT_AUTO_CHECK_INTERVAL_HOURS);
+    let autoDownloadUpdates = $state<boolean>(false);
     let nexusStatus = $state<NexusKeyStatus>({ Present: false });
     let nexusKeyInput = $state<string>("");
     let nexusBusy = $state<boolean>(false);
@@ -175,7 +176,8 @@
             BridgeAllowedSites: bridgeAllowedSites,
             AutoImportEnabled: autoImportEnabled,
             AutoCheckUpdates: autoCheckUpdates,
-            AutoCheckIntervalHours: autoCheckIntervalEnabled ? clampInterval(autoCheckIntervalHours) : 0
+            AutoCheckIntervalHours: autoCheckIntervalEnabled ? clampInterval(autoCheckIntervalHours) : 0,
+            AutoDownloadUpdates: autoDownloadUpdates
         };
     }
 
@@ -269,6 +271,7 @@
                 bridgeAllowedSites = settings.BridgeAllowedSites;
                 autoImportEnabled = settings.AutoImportEnabled;
                 autoCheckUpdates = settings.AutoCheckUpdates ?? false;
+                autoDownloadUpdates = settings.AutoDownloadUpdates ?? false;
                 autoCheckIntervalEnabled = (settings.AutoCheckIntervalHours ?? 0) > 0;
                 autoCheckIntervalHours = autoCheckIntervalEnabled
                     ? clampInterval(settings.AutoCheckIntervalHours)
@@ -708,6 +711,11 @@
                     <span class="text-zinc-300 text-sm">{t("pages.settings.updates.interval.label_after")}</span>
                 </div>
                 <p class="text-zinc-500 text-xs max-w-lg">{t("pages.settings.updates.auto_check.description")}</p>
+                <div class="flex flex-row gap-2 items-center ml-6" class:opacity-50={!autoCheckUpdates}>
+                    <ToggleSwitch bind:checked={autoDownloadUpdates} disabled={!autoCheckUpdates} />
+                    <span class="text-zinc-300 text-sm">{t("pages.settings.updates.auto_download.label")}</span>
+                </div>
+                <p class="text-zinc-500 text-xs max-w-lg ml-6">{t("pages.settings.updates.auto_download.description")}</p>
 
                 <h3 id="nexus-api-key" class="text-zinc-300 text-base mt-2">{t("pages.settings.updates.nexus.title")}</h3>
                 <p class="text-zinc-400 text-sm max-w-lg">{signIn.Available ? t("pages.settings.updates.nexus.description") : t("pages.settings.updates.nexus.description_key_only")}</p>

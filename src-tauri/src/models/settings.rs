@@ -70,6 +70,12 @@ pub enum Settings {
         /// startup.
         #[serde(default)]
         auto_check_interval_hours: u32,
+        /// Opt-in: when an automatic check finds an update that Ordnance can
+        /// download itself (GitHub, GameBanana, ModWorkshop), download and
+        /// install it right away. Off by default. Nexus Mods updates are
+        /// never auto-downloaded (they need the browser).
+        #[serde(default)]
+        auto_download_updates: bool,
         /// Display name of the Nexus Mods account whose (optional) API key
         /// is stored -- shown in Settings. The key itself is never stored
         /// here (see `crate::secrets`). Owned by the backend: `save_settings`
@@ -197,6 +203,12 @@ impl Settings {
             Settings::V1 { auto_check_interval_hours, .. } => Some(
                 (*auto_check_interval_hours).clamp(MIN_AUTO_CHECK_INTERVAL_HOURS, MAX_AUTO_CHECK_INTERVAL_HOURS),
             ),
+        }
+    }
+
+    pub fn auto_download_updates(&self) -> bool {
+        match self {
+            Settings::V1 { auto_download_updates, .. } => *auto_download_updates,
         }
     }
 

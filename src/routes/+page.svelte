@@ -285,6 +285,10 @@
             "updates://checked",
             (e) => onUpdatesChecked(e.payload),
         );
+        const unlistenAutoDownloaded = listen<{ Updated: string[] }>(
+            "updates://auto-downloaded",
+            (e) => onAutoDownloaded(e.payload.Updated),
+        );
 
         // Only now can a browser install's consent prompt / afterInstall
         // step actually be handled; the backend holds them until then (on a
@@ -315,6 +319,7 @@
             unlistenDeepLinkPending.then(f => f());
             unlistenAutoImport.then(f => f());
             unlistenUpdatesChecked.then(f => f());
+            unlistenAutoDownloaded.then(f => f());
         };
     });
 
@@ -1335,6 +1340,16 @@
         if (report.Trigger !== "Manual" && count > 0) {
             showToast("info", t("toast.updates.available", { count }));
         }
+    }
+
+    /** `updates://auto-downloaded` -- the backend just updated mods on its
+     * own after an automatic check. Refresh the library and statuses, then
+     * run the same redeploy logic a manual update would. */
+    async function onAutoDownloaded(updated: string[]) {
+        mods = await getMods();
+        await refreshUpdateStatuses();
+        await afterUpdates(updated as UUID[]);
+        showToast("info", t("toast.updates.bulk_done", { count: updated.length }));
     }
 
     function replaceMod(oldGuid: UUID, updated: Mod) {

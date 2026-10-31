@@ -51,6 +51,9 @@ const DIRECT_PROVIDERS: [&str; 3] = ["github", "gamebanana", "modworkshop"];
 
 pub const CHECKED_EVENT: &str = "updates://checked";
 pub const PROGRESS_EVENT: &str = "updates://progress";
+/// Emitted after an automatic check auto-downloaded one or more direct
+/// updates (opt-in via `auto_download_updates`). Payload: [`AutoDownloadedEvent`].
+pub const AUTO_DOWNLOADED_EVENT: &str = "updates://auto-downloaded";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -1167,6 +1170,13 @@ struct ProgressEvent {
     total: Option<u64>,
 }
 
+/// The GUIDs of mods an automatic check just updated on its own.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "PascalCase")]
+struct AutoDownloadedEvent {
+    updated: Vec<Uuid>,
+}
+
 /// One-click update for sites with public direct downloads: download the
 /// chosen file (validated host, size cap, archive sniffing), then replace
 /// the mod in place -- same GUID and profile config, same archive
@@ -1332,6 +1342,12 @@ async fn run_and_emit(app: &AppHandle, trigger: CheckTrigger) {
             if let Err(e) = app.emit(CHECKED_EVENT, &report) {
                 log::error!("Failed to emit {CHECKED_EVENT}: {e}");
             }
+            // Opt-in automatic downloading of direct-provider updates.
+            if let Ok(settings) = do_load_settings(&state.base_path).await {
+                if settings.auto_download_updates() {
+                    auto_download_available(app, &state, &report).await;
+                }
+            }
         }
         Err(e) => {
             log::warn!("Automatic update check failed: {e:#}");
@@ -1339,6 +1355,56 @@ async fn run_and_emit(app: &AppHandle, trigger: CheckTrigger) {
             *state.last_update_check.lock().await = Some(tokio::time::Instant::now());
         }
     }
+}
+
+/// Opt-in (Settings `auto_download_updates`): download and install updates
+/// that Ordnance can fetch itself (GitHub, GameBanana, ModWorkshop) right
+/// after an automatic check finds them -- no per-mod click. Nexus Mods
+/// updates are never touched (they need the browser). Ambiguous multi-file
+/// updates and failures are left for the manual "Update all" flow.
+async fn auto_download_available(app: &AppHandle, state: &AppState, report: &UpdateCheckReport) {
+    let mut seen = std::collections::HashSet::new();
+    let mut updated: Vec<Uuid> = Vec::new();
+    for entry in &report.results {
+        if entry.status != UpdateState::UpdateAvailable || entry.method != Some(UpdateMethod::Direct) {
+            continue;
+        }
+        if !seen.insert(entry.guid) {
+            continue;
+        }
+        let Some(file) = pick_auto_file(entry) else { continue };
+        let state_handle = app.state::<AppState>();
+        match update_mod_direct(
+            app.clone(),
+            state_handle,
+            entry.guid,
+            entry.provider.clone(),
+            file.clone(),
+            entry.latest_version.clone(),
+        )
+        .await
+        {
+            Ok(_) => updated.push(entry.guid),
+            Err(e) => log::warn!("Automatic download of mod {{{}}} failed: {e:#}", entry.guid),
+        }
+    }
+    if !updated.is_empty() {
+        let _ = app.emit(AUTO_DOWNLOADED_EVENT, AutoDownloadedEvent { updated });
+    }
+}
+
+/// The file to auto-download for an entry: the preselected match, or the only
+/// file. Several files with no clear match return `None` (don't guess).
+fn pick_auto_file(entry: &UpdateStatusEntry) -> Option<&UpdateFile> {
+    if let Some(id) = entry.preselected_file.as_deref() {
+        if let Some(f) = entry.files.iter().find(|f| f.id == id) {
+            return Some(f);
+        }
+    }
+    if entry.files.len() == 1 {
+        return entry.files.first();
+    }
+    None
 }
 
 #[cfg(test)]
@@ -1869,6 +1935,46 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(preselect(&many, Some(&by_name)).as_deref(), Some("1"));
+    }
+
+    #[test]
+    fn pick_auto_file_prefers_preselected_then_single_then_nothing() {
+        let one = vec![file("1", "mod.zip", None)];
+        let e = entry_with(&one, None);
+        assert_eq!(pick_auto_file(&e).map(|f| f.id.as_str()), Some("1"));
+
+        let two = vec![
+            file("a", "first.zip", Some("first")),
+            file("b", "second.zip", Some("second")),
+        ];
+        let e = entry_with(&two, Some("b"));
+        assert_eq!(pick_auto_file(&e).map(|f| f.id.as_str()), Some("b"));
+
+        // Several files and no preselection: don't guess.
+        let e = entry_with(&two, None);
+        assert_eq!(pick_auto_file(&e), None);
+    }
+
+    fn entry_with(files: &[UpdateFile], preselected: Option<&str>) -> UpdateStatusEntry {
+        let mut e = entry(
+            &Target {
+                guid: Uuid::new_v4(),
+                provider: "gamebanana".into(),
+                display_name: "M".into(),
+                id: "x".into(),
+                installed_version: None,
+                page_url: None,
+                installed_file: None,
+                skipped: None,
+                installed_at: None,
+                directory: std::path::PathBuf::new(),
+            },
+            UpdateState::UpdateAvailable,
+            Some("2.0".into()),
+        );
+        e.files = files.to_vec();
+        e.preselected_file = preselected.map(str::to_string);
+        e
     }
 
     fn mod_with_sources(dir: &Path, sources: Vec<ResolvedSource>) -> Mod {

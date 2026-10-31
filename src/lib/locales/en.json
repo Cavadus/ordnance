@@ -433,6 +433,10 @@
                     "label": "Check for mod updates when Ordnance starts",
                     "description": "Off by default. Checks only contact the sites your mods came from, and never download or install anything by themselves. Nexus Mods mods are only checked when you click Check for Updates."
                 },
+                "auto_download": {
+                    "label": "Automatically download and install updates Ordnance can fetch itself",
+                    "description": "Off by default. With automatic checks on, updates from GitHub, GameBanana, and ModWorkshop are downloaded and installed right away — no per-mod click. Nexus Mods updates are never auto-downloaded (they need the browser)."
+                },
                 "interval": {
                     "label_before": "then every",
                     "label_after": "hours while Ordnance is open"

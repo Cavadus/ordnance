@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// A single, provider-neutral declaration of where a mod can be found.
 ///
@@ -246,6 +247,7 @@ impl Manifest {
         }
         normalize_keys(&mut value);
         normalize_version(&mut value);
+        normalize_guid(&mut value);
 
         serde_json::from_value(value).map_err(|e| anyhow::anyhow!("{}: {}", origin, e))
     }
@@ -427,6 +429,71 @@ fn normalize_version(value: &mut serde_json::Value) {
     }
 }
 
+/// Fill in a top-level `Guid` that real-world authors often ship as a plain
+/// slug (`r40_cs_awp_combo_v2`) or omit entirely. A slug becomes a *stable*
+/// UUID (same slug, same guid) so the mod keeps one identity across installs;
+/// a missing guid becomes a `LOCAL`-prefixed UUID derived from the mod name
+/// (matching `guid_is_local`) so reinstalls don't duplicate it.
+fn normalize_guid(value: &mut serde_json::Value) {
+    let Some(map) = value.as_object_mut() else { return };
+
+    if let Some(existing) = map.get("Guid") {
+        // Only rewrite string guids that aren't already valid UUIDs.
+        if let serde_json::Value::String(s) = existing {
+            if Uuid::parse_str(s).is_err() {
+                map.insert(
+                    "Guid".to_string(),
+                    serde_json::Value::String(stable_guid(s).to_string()),
+                );
+            }
+        }
+    } else {
+        let name = map
+            .get("Name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unnamed");
+        map.insert(
+            "Guid".to_string(),
+            serde_json::Value::String(local_guid(name).to_string()),
+        );
+    }
+}
+
+/// FNV-1a 64-bit; two seeds give 16 deterministic bytes.
+fn fnv1a64(data: &[u8], seed: u64) -> u64 {
+    let mut h = seed;
+    for &b in data {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    h
+}
+
+/// Deterministic UUID for an author-provided slug, so identity stays stable
+/// across reinstalls.
+fn stable_guid(slug: &str) -> Uuid {
+    let a = fnv1a64(slug.as_bytes(), 0xcbf2_9ce4_8422_2325);
+    let b = fnv1a64(slug.as_bytes(), 0x8422_2325_cbf2_9ce4);
+    let mut bytes = [0u8; 16];
+    bytes[..8].copy_from_slice(&a.to_be_bytes());
+    bytes[8..].copy_from_slice(&b.to_be_bytes());
+    bytes[6] = (bytes[6] & 0x0F) | 0x40; // version 4
+    bytes[8] = (bytes[8] & 0x3F) | 0x80; // RFC 4122 variant
+    Uuid::from_bytes(bytes)
+}
+
+/// `LOCAL`-prefixed UUID derived from a mod name; marks it non-authoritative
+/// (`guid_is_local`) while staying deterministic across reinstalls.
+fn local_guid(name: &str) -> Uuid {
+    let a = fnv1a64(name.as_bytes(), 0xcbf2_9ce4_8422_2325);
+    let b = fnv1a64(name.as_bytes(), 0x8422_2325_cbf2_9ce4);
+    let mut bytes = [0u8; 16];
+    bytes[..5].copy_from_slice(b"LOCAL");
+    bytes[5..13].copy_from_slice(&a.to_be_bytes());
+    bytes[13..].copy_from_slice(&b.to_be_bytes()[..3]);
+    Uuid::from_bytes(bytes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -510,6 +577,37 @@ mod tests {
         );
 
         assert_eq!(resolved.len(), 1, "duplicate nexus source was not deduplicated");
+    }
+
+    #[test]
+    fn v1_manifest_with_slug_guid_gets_a_stable_uuid() {
+        let raw = br#"{"Version": 1, "Guid": "r40_cs_awp_combo_v2", "Name": "R-40 CS AWP SFX", "Description": "sound swap"}"#;
+
+        let a = Manifest::parse(raw, "manifest.json").unwrap();
+        let b = Manifest::parse(raw, "manifest.json").unwrap();
+
+        let (ga, gb) = match (&a, &b) {
+            (Manifest::V1(a), Manifest::V1(b)) => (a.guid, b.guid),
+            _ => panic!("expected v1"),
+        };
+        assert_eq!(ga, gb, "same slug must map to the same guid");
+        assert_ne!(&ga.as_bytes()[..5], b"LOCAL", "an author slug is authoritative, not local");
+    }
+
+    #[test]
+    fn v1_manifest_without_guid_gets_a_local_uuid() {
+        let raw = br#"{"Version": 1, "Name": "P-19I Redeemer", "Description": "Improved Redeemer pistol", "IconPath": "icon.png"}"#;
+
+        let a = Manifest::parse(raw, "manifest.json").unwrap();
+        let b = Manifest::parse(raw, "manifest.json").unwrap();
+
+        let (ga, gb, name) = match (&a, &b) {
+            (Manifest::V1(a), Manifest::V1(b)) => (a.guid, b.guid, a.name.clone()),
+            _ => panic!("expected v1"),
+        };
+        assert_eq!(ga, gb, "same name must map to the same local guid");
+        assert_eq!(&ga.as_bytes()[..5], b"LOCAL", "missing guid is marked local");
+        assert_eq!(name, "P-19I Redeemer");
     }
 
     fn fixture(name: &str) -> anyhow::Result<Manifest> {
@@ -609,11 +707,13 @@ mod tests {
 
     #[test]
     fn schema_errors_name_the_file_and_field() {
-        let err = Manifest::parse(br#"{"Version": 1, "Guid": "not-a-guid", "Name": "x"}"#, "m.json")
+        // A missing required *Name* (not Guid -- Guid is now lenient) is still
+        // a schema error and must name the file.
+        let err = Manifest::parse(br#"{"Version": 1, "Guid": "00000000-0000-0000-0000-000000000001"}"#, "m.json")
             .unwrap_err()
             .to_string();
         assert!(err.starts_with("m.json"), "{err}");
-        assert!(err.to_lowercase().contains("invalid"), "{err}");
+        assert!(err.to_lowercase().contains("name"), "{err}");
     }
 
     #[test]

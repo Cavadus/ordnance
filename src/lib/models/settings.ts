@@ -36,6 +36,10 @@ export type SettingsV1 = {
     /** With AutoCheckUpdates: re-check every this many hours while open;
      * 0 = only at startup. */
     AutoCheckIntervalHours: number,
+    /** Opt-in: after an automatic check, download and install updates
+     * Ordnance can fetch itself (GitHub, GameBanana, ModWorkshop). Off by
+     * default. Nexus Mods updates are never auto-downloaded. */
+    AutoDownloadUpdates: boolean,
     /** Nexus account whose optional API key is stored (backend-owned; the
      * key itself is never part of settings). */
     NexusUsername?: string

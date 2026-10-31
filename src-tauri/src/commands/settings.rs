@@ -40,6 +40,7 @@ pub async fn do_load_settings(base_path: &Path) -> anyhow::Result<Settings> {
             auto_import_enabled: false,
             auto_check_updates: false,
             auto_check_interval_hours: 0,
+            auto_download_updates: false,
             nexus_username: None,
         }
     };
