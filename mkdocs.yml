@@ -102,6 +102,7 @@ nav:
       - authors/index.md
       - Packaging your mod: authors/packaging.md
       - Manifest reference: authors/manifest.md
+      - The stat-plan format: authors/stat-plan.md
       - The Sources field: authors/sources.md
       - Install button for your mod page: authors/install-button.md
   - Help:
