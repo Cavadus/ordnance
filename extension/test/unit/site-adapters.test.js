@@ -114,4 +114,35 @@ describe('Nexus adapter', () => {
     const doc = loadFixture('nexusmods-blocked.html');
     expect(globalThis.Ordnance.siteAdapters.nexus.findInsertionPoint(doc)).toBeNull();
   });
+
+  it('mounts one button per file row, right after each Manual download link', () => {
+    const doc = loadFixture('nexusmods-mod.html');
+    const points = globalThis.Ordnance.siteAdapters.nexus.findInsertionPoints(doc);
+    const action = doc.getElementById('action-ordnance');
+    expect(points[0]).toBe(action);
+    const fileMounts = points.filter((p) => p.getAttribute('data-ordnance-file-mount'));
+    expect(fileMounts.length).toBe(2);
+    for (const mount of fileMounts) {
+      const prev = mount.previousElementSibling;
+      expect(prev.tagName).toBe('A');
+      expect(/manual/i.test(prev.textContent)).toBe(true);
+    }
+  });
+
+  it('does not duplicate mounts on a second scan', () => {
+    const doc = loadFixture('nexusmods-mod.html');
+    const first = globalThis.Ordnance.siteAdapters.nexus.findInsertionPoints(doc);
+    const second = globalThis.Ordnance.siteAdapters.nexus.findInsertionPoints(doc);
+    // Every file row already has a mount, so a second scan yields only the
+    // reused action-bar container -- never duplicate file buttons.
+    expect(first.length).toBe(3);
+    expect(second.length).toBe(1);
+    expect(second[0]).toBe(doc.getElementById('action-ordnance'));
+    expect(doc.querySelectorAll('[data-ordnance-file-mount]').length).toBe(2);
+  });
+
+  it('returns no mounts at all on the Cloudflare challenge page', () => {
+    const doc = loadFixture('nexusmods-blocked.html');
+    expect(globalThis.Ordnance.siteAdapters.nexus.findInsertionPoints(doc)).toEqual([]);
+  });
 });

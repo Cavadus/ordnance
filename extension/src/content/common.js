@@ -226,23 +226,25 @@
     driveAdapter(adapter);
   }
 
-  /** @param {SiteAdapter} adapter */
-  function driveAdapter(adapter) {
-    const insertionPoint = adapter.findInsertionPoint ? adapter.findInsertionPoint(document) : null;
-    const widget = createButtonWidget({ floating: !insertionPoint });
-    if (insertionPoint) {
-      insertionPoint.appendChild(widget.host);
-    } else {
-      document.documentElement.appendChild(widget.host);
-    }
+  /** Running drives, keyed by adapter object (one per adapter per page). */
+  const drives = new Map();
 
+  /**
+   * A running drive: one shared state machine for every button an adapter
+   * mounts on a page (the action bar plus one per file row on Nexus), a
+   * single message listener, and one initial Ordnance check. Extra buttons
+   * mounted later (client-side file lists) join the same drive.
+   * @param {SiteAdapter} adapter
+   */
+  function createDrive(adapter) {
     const state = new ORDNANCE_NS.ButtonState();
-    /** Render the state, including its own hint ("Ordnance will start"). */
-    function render() {
-      widget.render(state);
-      widget.setHint(state.hint);
-    }
-    render();
+    /** @type {Array<{widget: object, container: HTMLElement|null}>} */
+    const widgets = [];
+    const mountedContainers = new WeakSet();
+    let armedWidget = null;
+    /** @type {ReturnType<typeof setTimeout>|undefined} */
+    let armExpiryTimer;
+    let refreshed = false;
 
     const pageVersion = adapter.scrapeVersion ? adapter.scrapeVersion(document) : null;
 
@@ -252,13 +254,32 @@
     }
 
     /**
-     * Label the button from Ordnance's current state. Only ever *checks* --
+     * Render the state, including its own hint ("Ordnance will start").
+     * On pages with several buttons the hint belongs under the one the
+     * user clicked; a lone button always shows it, exactly as before.
+     */
+    function render() {
+      for (const entry of widgets) {
+        entry.widget.render(state);
+        const hint = widgets.length === 1 || entry.widget === armedWidget ? state.hint : null;
+        entry.widget.setHint(hint);
+      }
+    }
+
+    /** @param {string|null|undefined} pageUrl @returns {boolean} Whether it names this page's mod. */
+    function isThisPagesMod(pageUrl) {
+      const sources = ORDNANCE_NS.sources;
+      return Boolean(pageUrl) && sources.isSameMod(sources.sourceFromPageUrl(pageUrl), sources.sourceFromPageUrl(location.href));
+    }
+
+    /**
+     * Label the buttons from Ordnance's current state. Only ever *checks* --
      * hello/query never start Ordnance (the host launches it only for
      * install/open), so merely browsing a mod page can't pop Ordnance open.
      */
     async function refresh() {
       const hello = await send({ type: 'ordnance:hello' });
-      // An install the user already clicked owns the button until its
+      // An install the user already clicked owns the buttons until its
       // result arrives; a late check must not overwrite that.
       if (state.busy) return;
       if (!hello || !hello.ok) {
@@ -281,12 +302,29 @@
       render();
     }
 
-    widget.onClick(async () => {
+    /**
+     * The armed install never happened; release the buttons and re-check.
+     * Also driven from here (not only by the background's
+     * `ordnance:captureExpired`), because a restarted service worker has lost
+     * its timers.
+     */
+    function releaseArm() {
+      clearTimeout(armExpiryTimer);
+      if (state.state !== 'waiting') return;
+      armedWidget = null;
+      state.reset();
+      render();
+      refresh();
+    }
+
+    /** @param {object} widget @returns {Promise<void>} The click flow for one button. */
+    async function click(widget) {
       if (state.state === 'unreachable') {
         window.open(DOCS_INSTALL_URL, '_blank', 'noopener');
         return;
       }
       if (!state.clickable) return;
+      armedWidget = widget;
 
       const directUrl = adapter.findDirectDownloadUrl ? adapter.findDirectDownloadUrl(document) : null;
       if (directUrl) {
@@ -317,29 +355,6 @@
         state.startInstalling();
         render();
       }
-    });
-
-    /** @type {ReturnType<typeof setTimeout>|undefined} */
-    let armExpiryTimer;
-
-    /** @param {string|null|undefined} pageUrl @returns {boolean} Whether it names this page's mod. */
-    function isThisPagesMod(pageUrl) {
-      const sources = ORDNANCE_NS.sources;
-      return Boolean(pageUrl) && sources.isSameMod(sources.sourceFromPageUrl(pageUrl), sources.sourceFromPageUrl(location.href));
-    }
-
-    /**
-     * The armed install never happened; release the button and re-check.
-     * Also driven from here (not only by the background's
-     * `ordnance:captureExpired`), because a restarted service worker has lost
-     * its timers.
-     */
-    function releaseArm() {
-      clearTimeout(armExpiryTimer);
-      if (state.state !== 'waiting') return;
-      state.reset();
-      render();
-      refresh();
     }
 
     ORDNANCE_NS.browserApi.runtime.onMessage.addListener((message) => {
@@ -355,9 +370,8 @@
         }
       } else if (message.type === 'ordnance:installResult') {
         if (message.broadcast && !isThisPagesMod(message.pageUrl)) {
-          // Another mod's result, sent to every open tab of the site (an
-          // auto-captured download): it says nothing about this page's
-          // mod, so re-check instead of showing it here.
+          // This result is for a different mod on the same site, not this
+          // page's mod: re-check rather than showing it here.
           if (!state.busy) refresh();
           return;
         }
@@ -374,8 +388,76 @@
       }
     });
 
-    refresh();
+    return {
+      /** @returns {number} How many buttons this drive currently mounts. */
+      count() {
+        return widgets.length;
+      },
+      /**
+       * Mounts one more button into a page container (or floats it when
+       * the container is null). No-ops for a container that is already
+       * mounted.
+       * @param {HTMLElement|null} container
+       */
+      mount(container) {
+        if (container && mountedContainers.has(container)) return;
+        if (container) mountedContainers.add(container);
+        const widget = createButtonWidget({ floating: !container });
+        if (container) container.appendChild(widget.host);
+        else document.documentElement.appendChild(widget.host);
+        widget.onClick(() => { void click(widget); });
+        widgets.push({ widget, container });
+        render();
+      },
+      /** Runs the first Ordnance check once, however buttons mount later. */
+      start() {
+        if (refreshed) return;
+        refreshed = true;
+        refresh();
+      },
+    };
   }
 
-  ORDNANCE_NS.content = { createButtonWidget, runSiteAdapter, runTestAdapter, DOCS_INSTALL_URL };
+  /**
+   * Drives one mod page: mounts the adapter's buttons (inline where the
+   * adapter found page anchors, otherwise one floating button), queries
+   * Ordnance, and wires up clicks. Re-driving the same adapter reuses the
+   * running drive instead of creating duplicate buttons or listeners.
+   * @param {SiteAdapter} adapter
+   */
+  function driveAdapter(adapter) {
+    let drive = drives.get(adapter);
+    if (!drive) {
+      drive = createDrive(adapter);
+      drives.set(adapter, drive);
+    }
+    const points = adapter.findInsertionPoints ? adapter.findInsertionPoints(document) : null;
+    if (points && points.length) {
+      for (const point of points) drive.mount(point);
+    } else if (drive.count() === 0) {
+      const single = adapter.findInsertionPoint ? adapter.findInsertionPoint(document) : null;
+      drive.mount(single);
+    }
+    drive.start();
+  }
+
+  /**
+   * Mounts additional page containers into an adapter's running drive --
+   * for pages whose button anchors render after the first pass (Nexus's
+   * client-side file list). Containers already mounted are skipped, and a
+   * drive that never started (URL gate) is created through the same path
+   * as {@link runSiteAdapter}.
+   * @param {SiteAdapter} adapter
+   * @param {Array<HTMLElement|null>} containers
+   */
+  function addSiteWidgets(adapter, containers) {
+    let drive = drives.get(adapter);
+    if (!drive) {
+      runSiteAdapter(adapter);
+      drive = drives.get(adapter);
+    }
+    if (!drive) return;
+    for (const container of containers) drive.mount(container);
+  }
+  ORDNANCE_NS.content = { createButtonWidget, runSiteAdapter, runTestAdapter, addSiteWidgets, DOCS_INSTALL_URL };
 })(typeof globalThis !== 'undefined' ? globalThis : this);
