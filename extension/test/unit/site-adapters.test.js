@@ -101,7 +101,17 @@ describe('Nexus adapter', () => {
     expect(globalThis.Ordnance.siteAdapters.nexus.findDirectDownloadUrl()).toBeNull();
   });
 
-  it('has no verified insertion point, so it always floats', () => {
-    expect(globalThis.Ordnance.siteAdapters.nexus.findInsertionPoint()).toBeNull();
+  it('places the button inline right after the Manual download action', () => {
+    const doc = loadFixture('nexusmods-mod.html');
+    const point = globalThis.Ordnance.siteAdapters.nexus.findInsertionPoint(doc);
+    expect(point).not.toBeNull();
+    expect(point.id).toBe('action-ordnance');
+    const manual = doc.getElementById('action-manual');
+    expect(manual.nextElementSibling).toBe(point);
+  });
+
+  it('falls back to floating when the action bar is missing (Cloudflare page)', () => {
+    const doc = loadFixture('nexusmods-blocked.html');
+    expect(globalThis.Ordnance.siteAdapters.nexus.findInsertionPoint(doc)).toBeNull();
   });
 });
