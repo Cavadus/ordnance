@@ -21,7 +21,7 @@ describe('ButtonState', () => {
   it('not installed -> "Install with Ordnance"', () => {
     const s = new ButtonState();
     s.setQueryResult({ installed: false, updateAvailable: null });
-    expect(s.label).toBe('Install with Ordnance');
+    expect(s.label).toBe('Ordnance Download');
   });
 
   it('installed, no update -> "Installed ✓"', () => {
@@ -76,7 +76,7 @@ describe('ButtonState', () => {
   it('Ordnance not running -> still "Install with Ordnance", with the "Ordnance will start" hint', () => {
     const s = new ButtonState();
     s.setAppNotRunning();
-    expect(s.label).toBe('Install with Ordnance');
+    expect(s.label).toBe('Ordnance Download');
     expect(s.hint).toBe('Ordnance will start');
     expect(s.clickable).toBe(true);
     expect(s.updateAvailable).toBe(false);

@@ -30,7 +30,7 @@
   const LABELS = {
     checking: 'Checking Ordnance…',
     unreachable: 'Get Ordnance',
-    install: 'Install with Ordnance',
+    install: 'Ordnance Download',
     installed: 'Installed ✓',
     update: 'Update with Ordnance',
     installing: 'Installing…',

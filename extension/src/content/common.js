@@ -154,7 +154,7 @@
     button.appendChild(buildEmblem());
     const label = document.createElement('span');
     label.className = 'ordnance-label';
-    label.textContent = 'Install with Ordnance';
+    label.textContent = 'Ordnance Download';
     button.appendChild(label);
     wrapper.appendChild(button);
 

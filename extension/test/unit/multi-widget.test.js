@@ -80,9 +80,9 @@ const visibleHints = () =>
 describe('multiple buttons on one page', () => {
   it('mounts one button per container, sharing one state', () => {
     expect(labels()).toEqual([
-      'Install with Ordnance',
-      'Install with Ordnance',
-      'Install with Ordnance',
+      'Ordnance Download',
+      'Ordnance Download',
+      'Ordnance Download',
     ]);
   });
 
