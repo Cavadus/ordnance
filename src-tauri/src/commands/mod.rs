@@ -808,6 +808,7 @@ mod tests {
             manifest: v2_fixture_manifest(),
             directory: dir.path().to_path_buf(),
             sources: Vec::new(),
+            display_name: None,
         };
         (dir, r#mod)
     }
@@ -832,6 +833,7 @@ mod tests {
             }),
             directory: dir.path().to_path_buf(),
             sources: Vec::new(),
+            display_name: None,
         };
         let config = Config::Legacy { guid: Uuid::nil(), enabled: true, selected: 0 };
 
@@ -853,6 +855,7 @@ mod tests {
             }),
             directory: dir.path().to_path_buf(),
             sources: Vec::new(),
+            display_name: None,
         };
         let config = Config::Legacy { guid: Uuid::nil(), enabled: true, selected: 0 };
 
@@ -913,7 +916,7 @@ mod tests {
             "sub_options_v1.json",
         )
         .unwrap();
-        let r#mod = Mod { manifest, directory: dir.path().to_path_buf(), sources: Vec::new() };
+        let r#mod = Mod { manifest, directory: dir.path().to_path_buf(), sources: Vec::new() , display_name: None};
         let guid = r#mod.guid();
 
         // A profile saved by the popup: Half sway for core, no sway for primaries.
@@ -972,6 +975,7 @@ mod tests {
             manifest,
             directory: PathBuf::from("/nonexistent"),
             sources: Vec::new(),
+            display_name: None,
         };
         let mods = vec![r#mod];
 
@@ -1020,6 +1024,7 @@ mod tests {
             }),
             directory: PathBuf::from("/nonexistent"),
             sources: Vec::new(),
+            display_name: None,
         };
         let config = Config::V2 {
             guid,
@@ -1192,6 +1197,7 @@ mod tests {
             }),
             directory: dir.to_path_buf(),
             sources: Vec::new(),
+            display_name: None,
         };
         (r#mod, Config::Legacy { guid, enabled: true, selected: 0 })
     }
@@ -1332,6 +1338,7 @@ mod tests {
             }),
             directory: broken.path().to_path_buf(),
             sources: Vec::new(),
+            display_name: None,
         };
         let broken_cfg = Config::Legacy { guid, enabled: true, selected: 0 };
 

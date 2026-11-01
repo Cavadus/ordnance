@@ -18,7 +18,8 @@ export class Mod {
     constructor(
         public readonly Manifest: Manifest,
         public readonly Directory: string,
-        public readonly Sources: ResolvedSource[] = []
+        public readonly Sources: ResolvedSource[] = [],
+        public readonly DisplayName?: string
     ) {}
 
     get guid(): UUID {
@@ -26,7 +27,7 @@ export class Mod {
     }
 
     get name(): string {
-        return this.Manifest.Name;
+        return this.DisplayName ?? this.Manifest.Name;
     }
 
     get description(): string {

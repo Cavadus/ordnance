@@ -409,6 +409,7 @@ mod tests {
             }),
             directory: std::path::PathBuf::from("/nonexistent"),
             sources,
+        display_name: None,
         }
     }
 

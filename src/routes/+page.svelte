@@ -15,7 +15,7 @@
     import type {Config, Profile, ProfilesConfig} from "$lib/models/profile";
     import { defaultConfigFor, deployableEntries, fitConfig, removeDuplicateEntries, removeEntriesOf, renameEntries } from "$lib/utils/profileEntries";
     import {
-        addMod, addMods, addModFolder, addPaths, addModFromUrl, deleteMod, getMods, loadProfiles,
+        addMod, addMods, addModFolder, addPaths, addModFromUrl, deleteMod, renameMod, getMods, loadProfiles,
         loadSettings, deploy, purge, checkSettings, classifyDownloadUrl, checkUpdates, autoDetectAndSaveGamePath,
         getCategories, createCategory, renameCategory, deleteCategory, setModCategory,
         resolveBridgeConsent, resolveBridgeInstallCompletion, isGameRunning, forceExit, ackCloseRequested,
@@ -1248,6 +1248,21 @@
         profileConfigs.splice(i, 1);
     }
 
+    /** Rename a mod's display name (stored as an override; reset by
+     * entering the manifest's own name). */
+    async function onRenameMod(mod: Mod) {
+        const name = await showPopup(
+            new InputPopup(t("pages.mods.popup.input.rename_mod.placeholder"), false, 1, 128, undefined, undefined, mod.name),
+        );
+        if (!name || name === mod.name) return;
+        try {
+            await renameMod(mod.Directory, name);
+            mods = await getMods();
+        } catch (ex) {
+            showPopup(new ErrorPopup(t("pages.mods.popup.error.rename.message"), errorMessage(ex)));
+        }
+    }
+
     /** "Remove" on a "Mod not found" entry: gone at once, and saved right
      * away so it doesn't come back on the next start. */
     async function onRemoveMissing(i: number) {
@@ -2111,6 +2126,12 @@
                                         <Eraser />
                                         <span>{t("pages.mods.entry_menu.remove")}</span>
                                     </button>
+                                    {#if mod}
+                                        <button onclick={() => onRenameMod(mod)}>
+                                            <PencilSquare />
+                                            <span>{t("pages.mods.entry_menu.rename")}</span>
+                                        </button>
+                                    {/if}
                                     <hr>
                                     <button
                                         disabled={ci === 0}

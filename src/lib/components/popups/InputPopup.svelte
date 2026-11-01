@@ -6,7 +6,7 @@
     const { t } = useLocalization();
 
     let { popup }: { popup: InputPopup } = $props();
-    let input = $state<string>("");
+    let input = $state<string>(popup.initial ?? "");
     let errors = $state<string[]>([]);
 
     let isValid = $derived<boolean>(errors.length == 0);

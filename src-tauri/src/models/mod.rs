@@ -63,6 +63,11 @@ pub struct Mod {
     pub directory: PathBuf,
     #[serde(default)]
     pub sources: Vec<ResolvedSource>,
+    /// Display-name override set by rename_mod. None means the manifest's
+    /// own name shows. Stored apart from the mods' own manifests
+    /// (mod_names.json), so renames survive updates and never touch mod files.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
 }
 
 impl Mod {

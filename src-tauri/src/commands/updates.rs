@@ -1988,6 +1988,7 @@ mod tests {
             }),
             directory: dir.to_path_buf(),
             sources,
+        display_name: None,
         }
     }
 

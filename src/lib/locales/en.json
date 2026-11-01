@@ -29,6 +29,9 @@
                         "title": "Purge",
                         "question": "Are you sure you want to uninstall all mods from the game?"
                     },
+                    "rename": {
+                        "message": "Couldn't rename the mod."
+                    },
                     "delete": {
                         "title": "Delete",
                         "question": "Are you sure you want to delete this mod?"
@@ -62,6 +65,9 @@
                 "input": {
                     "add_profile": {
                         "placeholder": "Profile name"
+                    },
+                    "rename_mod": {
+                        "placeholder": "New mod name"
                     },
                     "add_url": {
                         "placeholder": "https://example.com/mod.zip",
@@ -266,6 +272,7 @@
             "needs_nexus_key": "Optional: add a Nexus Mods API key in Settings to check for updates",
             "entry_menu": {
                 "remove": "Remove",
+                "rename": "Rename",
                 "move_up": "Move Up",
                 "move_down": "Move Down",
                 "to_top": "To Top",

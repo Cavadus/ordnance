@@ -337,6 +337,7 @@ mod tests {
             }),
             directory: dir.path().join("A"),
             sources: Vec::new(),
+            display_name: None,
         }]);
         save_profiles_mapped(&state, profiles_with(&[A])).await.unwrap();
         let loaded = do_load_profiles(dir.path()).await.unwrap();

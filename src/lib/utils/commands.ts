@@ -41,7 +41,7 @@ export async function pickDirectory(): Promise<string | null> {
     }
 }
 
-type RawMod = { Manifest: Manifest, Directory: string, Sources?: ResolvedSource[] };
+type RawMod = { Manifest: Manifest, Directory: string, Sources?: ResolvedSource[], DisplayName?: string };
 type RawInstalledMod = RawMod & { Warning?: string, Replaced?: boolean, Kept?: boolean };
 
 /** What an install did. When the file had the ID of an installed mod and
@@ -51,7 +51,7 @@ type RawInstalledMod = RawMod & { Warning?: string, Replaced?: boolean, Kept?: b
 export type InstalledMod = { mod: Mod, warning?: string, replaced?: boolean, kept?: boolean };
 
 export function rawModToMod(raw: RawMod): Mod {
-    return new Mod(raw.Manifest, raw.Directory, raw.Sources ?? []);
+    return new Mod(raw.Manifest, raw.Directory, raw.Sources ?? [], raw.DisplayName);
 }
 
 function toInstalledMod(raw: RawInstalledMod): InstalledMod {
@@ -91,6 +91,13 @@ export async function getMods(): Promise<Mod[]> {
 export async function deleteMod(guid: UUID): Promise<void> {
     log.debug("Invoking `delete_mod`.");
     await invoke<void>("delete_mod", { guid });
+}
+
+/** Rename a mod's display name. The override is stored apart from the
+ * mod's own manifest; pass the manifest's own name to reset it. */
+export async function renameMod(modDirectory: string, name: string): Promise<void> {
+    log.debug("Invoking rename_mod.");
+    await invoke<void>("rename_mod", { modDirectory, newName: name });
 }
 
 export async function addMod(archiveFile: string): Promise<InstalledMod> {

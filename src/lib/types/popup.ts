@@ -74,7 +74,8 @@ export class InputPopup extends Popup<string | null> {
         public readonly minLength?: number,
         public readonly maxLength?: number,
         public readonly format?: RegExp,
-        public readonly description?: string
+        public readonly description?: string,
+        public readonly initial?: string
     ) {
         super();
     }

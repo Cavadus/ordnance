@@ -486,6 +486,7 @@ pub fn run() {
             commands::mods::get_mods,
             commands::mods::resolve_mod_image,
             commands::mods::delete_mod,
+            commands::mods::rename_mod,
             commands::mods::add_mod,
             commands::mods::add_mods,
             commands::mods::add_mod_folder,

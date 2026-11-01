@@ -1286,6 +1286,7 @@ fn import_keeps_a_carried_install_time() {
         }),
         directory: folder,
         sources: Vec::new(),
+        display_name: None,
     };
     let sidecar = sidecar_for(&item, &installed, None);
     assert_eq!(sidecar.installed_at, 1_790_700_000);

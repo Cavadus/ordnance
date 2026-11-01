@@ -16,11 +16,34 @@ use anyhow::Context;
 use anyhow_tauri::{IntoTAResult, TAResult};
 use rand::{rngs::SysRng, TryRng};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, State};
 use uuid::Uuid;
 
 pub(crate) const MODS_DIRECTORY: &'static str = "mods/";
+
+/// File holding display-name overrides (GUID string -> chosen name).
+pub(crate) const MOD_NAMES_FILE: &'static str = "mod_names.json";
+
+fn mod_names_path(base_path: &Path) -> PathBuf {
+    base_path.join(MOD_NAMES_FILE)
+}
+
+async fn load_mod_names(base_path: &Path) -> HashMap<String, String> {
+    match tokio::fs::read_to_string(mod_names_path(base_path)).await {
+        Ok(text) => serde_json::from_str(&text).unwrap_or_default(),
+        Err(_) => HashMap::new(),
+    }
+}
+
+async fn save_mod_names(base_path: &Path, names: &HashMap<String, String>) -> TAResult<()> {
+    let text = serde_json::to_string_pretty(names)
+        .map_err(|e| anyhow::anyhow!("serialize mod names: {e}"))?;
+    tokio::fs::write(mod_names_path(base_path), text)
+        .await
+        .into_ta_result()
+}
 pub(crate) const MANIFEST_FILE: &'static str = "manifest.json";
 const NO_PATCH_FILES_WARNING: &str = "no Helldivers 2 patch files found in this archive";
 
@@ -255,6 +278,7 @@ pub(crate) async fn ensure_mods_loaded<'a>(
                 manifest,
                 directory: mod_dir,
                 sources: Vec::new(),
+                display_name: None,
             };
             if let Err(e) = r#mod.normalize_paths().await {
                 log::error!("Path normalization failed for {:?}: {:#}", r#mod.directory, e);
@@ -262,6 +286,20 @@ pub(crate) async fn ensure_mods_loaded<'a>(
             r#mod.resolve_sources().await;
 
             mods.push(r#mod);
+        }
+    }
+
+    // Display-name overrides (rename_mod). Stored apart from the mods'
+    // own manifests, so renames survive updates and never touch mod files.
+    let names = load_mod_names(base_path).await;
+    if !names.is_empty() {
+        for m in mods.iter_mut() {
+            if let Some(display) = names.get(&m.guid().to_string()) {
+                let display = display.trim().to_string();
+                if !display.is_empty() {
+                    m.display_name = Some(display);
+                }
+            }
         }
     }
 
@@ -289,6 +327,65 @@ pub async fn delete_mod(state: State<'_, AppState>, guid: Uuid) -> TAResult<()> 
         }
     });
     Ok(())
+}
+
+/// Rename an installed mod's display name. The override lives in
+/// mod_names.json (keyed by GUID), so the mod's own manifest -- and
+/// anything that matches mods by manifest name -- is never touched.
+/// Passing the manifest's own name clears the override.
+pub(crate) async fn do_rename_mod(
+    state: &AppState,
+    mod_directory: &Path,
+    new_name: &str,
+) -> TAResult<()> {
+    let new_name = new_name.trim().to_string();
+    if new_name.is_empty() {
+        return Err(anyhow::anyhow!("A mod name cannot be empty.").into());
+    }
+    if new_name.chars().count() > 128 {
+        return Err(anyhow::anyhow!(
+            "A mod name cannot be longer than 128 characters."
+        )
+        .into());
+    }
+
+    let mut state_mods = state.mods.lock().await;
+    let mods = ensure_mods_loaded(&mut state_mods, &state.base_path).await?;
+    let (guid, manifest_name) = {
+        let m = mods
+            .iter()
+            .find(|m| m.directory == mod_directory)
+            .ok_or_else(|| {
+                anyhow::anyhow!("No installed mod at {}", mod_directory.display())
+            })?;
+        (m.guid(), m.name().to_string())
+    };
+
+    let mut names = load_mod_names(&state.base_path).await;
+    if new_name == manifest_name {
+        names.remove(&guid.to_string());
+    } else {
+        names.insert(guid.to_string(), new_name.clone());
+    }
+    save_mod_names(&state.base_path, &names).await?;
+
+    if let Some(m) = mods.iter_mut().find(|m| m.directory == mod_directory) {
+        m.display_name = if new_name == manifest_name {
+            None
+        } else {
+            Some(new_name)
+        };
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn rename_mod(
+    state: State<'_, AppState>,
+    mod_directory: PathBuf,
+    new_name: String,
+) -> TAResult<()> {
+    do_rename_mod(&state, &mod_directory, &new_name).await
 }
 
 /// [`delete_mod`] without Tauri's `State` wrapper; the returned cleanup
@@ -775,6 +872,7 @@ async fn install_archive_steps(
             manifest,
             directory: mod_dir.clone(),
             sources: Vec::new(),
+            display_name: None,
         };
 
         log::info!("Checking for duplicate...");
@@ -1332,6 +1430,7 @@ async fn adopt_folder_in_place(
             manifest,
             directory: mod_dir.to_path_buf(),
             sources: Vec::new(),
+            display_name: None,
         };
 
         check_not_installed(mods, &r#mod, subject, AddRoute::Folder)?;
@@ -1381,6 +1480,7 @@ async fn install_from_folder_inner(
         manifest,
         directory: mod_dir.to_path_buf(),
         sources: Vec::new(),
+        display_name: None,
     };
 
     log::info!("Checking for duplicate...");
@@ -1774,6 +1874,7 @@ async fn install_update_steps(
         manifest,
         directory: old_dir,
         sources: Vec::new(),
+        display_name: None,
     };
 
     if let Err(e) = new_mod.normalize_paths().await {
@@ -2675,6 +2776,7 @@ mod tests {
             }),
             directory: old_dir.clone(),
             sources: Vec::new(),
+            display_name: None,
         }];
 
         let update_zip = base.path().join("update.zip");
@@ -2713,6 +2815,7 @@ mod tests {
             }),
             directory: base.path().join(MODS_DIRECTORY).join("CoolMod"),
             sources: Vec::new(),
+            display_name: None,
         }];
 
         let new_manifest = serde_json::json!({
@@ -2758,6 +2861,7 @@ mod tests {
             }),
             directory: old_dir.clone(),
             sources: Vec::new(),
+            display_name: None,
         }];
 
         // Not a real archive: Archive::open will fail on the unsupported/invalid content.
@@ -3998,6 +4102,7 @@ mod tests {
             manifest: Manifest::parse(v1_manifest(GUID_A, "Alpha").as_bytes(), "manifest.json").unwrap(),
             directory: outside.path().to_path_buf(),
             sources: Vec::new(),
+            display_name: None,
         });
         write_profiles(base.path(), &[("Default", &[GUID_A])]);
 
@@ -4628,5 +4733,59 @@ mod tests {
         assert!(msg.contains("Nothing was changed"), "{msg}");
         assert_eq!(std::fs::read(old.directory.join("Red").join(patch_file_name())).unwrap(), b"v1");
         assert_eq!(mods_folder_names(base.path()), folders_before);
+    }
+
+    #[tokio::test]
+    async fn rename_mod_sets_override_persists_and_resets() {
+        let base = tempfile::tempdir().unwrap();
+        let (guid, dir) = make_existing_mod(base.path(), "CoolMod").await;
+        let state = fresh_library(base.path()).await;
+
+        do_rename_mod(&state, &dir, "My Cool Mod").await.unwrap();
+        {
+            let guard = state.mods.lock().await;
+            let m = guard
+                .as_ref()
+                .unwrap()
+                .iter()
+                .find(|m| m.guid() == guid)
+                .unwrap();
+            assert_eq!(m.display_name.as_deref(), Some("My Cool Mod"));
+        }
+
+        // A fresh load (new AppState, same data dir) still sees it.
+        let state2 = fresh_library(base.path()).await;
+        {
+            let guard = state2.mods.lock().await;
+            let m = guard
+                .as_ref()
+                .unwrap()
+                .iter()
+                .find(|m| m.guid() == guid)
+                .unwrap();
+            assert_eq!(m.display_name.as_deref(), Some("My Cool Mod"));
+        }
+
+        // Renaming back to the manifest's own name clears the override.
+        do_rename_mod(&state2, &dir, "CoolMod").await.unwrap();
+        {
+            let guard = state2.mods.lock().await;
+            let m = guard
+                .as_ref()
+                .unwrap()
+                .iter()
+                .find(|m| m.guid() == guid)
+                .unwrap();
+            assert_eq!(m.display_name, None);
+        }
+    }
+
+    #[tokio::test]
+    async fn rename_mod_rejects_empty_and_unknown_mods() {
+        let base = tempfile::tempdir().unwrap();
+        let (_, dir) = make_existing_mod(base.path(), "CoolMod").await;
+        let state = fresh_library(base.path()).await;
+        assert!(do_rename_mod(&state, &dir, "   ").await.is_err());
+        assert!(do_rename_mod(&state, Path::new("no/such/mod"), "X").await.is_err());
     }
 }
