@@ -492,15 +492,18 @@ fn fold_boot_scripts(
             rest.push(triplet);
             continue;
         };
+        // Chef's patch is multi-resource, so it is not a single-payload text
+        // boot. Detect the loader first or it stays below the merged swap
+        // script and the game runs that script as its boot.
+        if boot_deploy::is_loader_boot(&path) {
+            loaders.push(triplet);
+            continue;
+        }
         if !boot_deploy::is_text_boot_script(&path) {
             rest.push(triplet);
             continue;
         }
-        if boot_deploy::is_loader_boot(&path) {
-            loaders.push(triplet);
-        } else {
-            boots.push((path, triplet));
-        }
+        boots.push((path, triplet));
     }
     if !loaders.is_empty() {
         log::info!(
@@ -1183,6 +1186,47 @@ mod tests {
         assert!(file_at < loader_at, "the loader must be the highest boot");
         let loader_text = String::from_utf8_lossy(&patches[loader_at].1);
         assert!(!loader_text.contains("stratagem_swap"), "the file mod was pasted into the loader");
+    }
+
+    /// Chef's real patch carries the boot stub plus its core, so it is not a
+    /// single-payload text boot. It still has to deploy above other boots.
+    #[tokio::test]
+    async fn a_multi_resource_loader_deploys_after_other_boot_scripts() {
+        let data = tempfile::tempdir().unwrap();
+        let file_mod = tempfile::tempdir().unwrap();
+        let loader = tempfile::tempdir().unwrap();
+        write_text_boot_script(file_mod.path(), "stratagem_swap = true\n");
+        let mut chef = vec![0u8; 512];
+        chef[0..4].copy_from_slice(&0xF000_0011u32.to_le_bytes());
+        chef[4..8].copy_from_slice(&2u32.to_le_bytes());
+        chef[8..12].copy_from_slice(&3u32.to_le_bytes());
+        chef[0x68..0x70].copy_from_slice(&boot_deploy::BOOT_RESOURCE);
+        chef.extend(b"--@@LOADER@@\nChef Shared Loader\n");
+        std::fs::write(loader.path().join("9ba626afa44a3aa3.patch_0"), chef).unwrap();
+        let (file_mod, file_cfg) = legacy_mod("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", file_mod.path());
+        let (loader_mod, loader_cfg) = legacy_mod("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", loader.path());
+        let mods = vec![loader_mod, file_mod];
+        let configs = vec![loader_cfg, file_cfg];
+        do_deploy(data.path(), &no_skip_list(), pair_mods_with_configs(&mods, &configs))
+            .await
+            .unwrap();
+
+        let mut patches = Vec::new();
+        for entry in std::fs::read_dir(data.path()).unwrap() {
+            let path = entry.unwrap().path();
+            let name = path.file_name().unwrap().to_string_lossy().to_string();
+            if name.ends_with("gpu_resources") || name.ends_with(".stream") || !name.contains(".patch_") {
+                continue;
+            }
+            let index: u32 = name.split(".patch_").nth(1).unwrap().parse().unwrap();
+            patches.push((index, std::fs::read(path).unwrap()));
+        }
+        patches.sort_by_key(|(index, _)| *index);
+        let loader_at = patches.iter().position(|(_, bytes)| bytes.windows(b"Chef Shared Loader".len()).any(|w| w == b"Chef Shared Loader")).unwrap();
+        let file_at = patches.iter().position(|(_, bytes)| bytes.windows(b"stratagem_swap".len()).any(|w| w == b"stratagem_swap")).unwrap();
+        assert!(file_at < loader_at, "Chef must stay above the swap script");
+        let loader_text = String::from_utf8_lossy(&patches[loader_at].1);
+        assert!(!loader_text.contains("stratagem_swap"), "the swap script was merged into Chef");
     }
 
     fn legacy_mod(guid: &str, dir: &std::path::Path) -> (Mod, Config) {

@@ -107,7 +107,18 @@ pub fn is_loader_boot(path: &Path) -> bool {
     let Ok(data) = fs::read(path) else {
         return false;
     };
-    lua_text(&data).is_some_and(loader_kind)
+    if lua_text(&data).is_some_and(loader_kind) {
+        return true;
+    }
+    // Chef ships the boot stub and its core in one multi-resource patch, so
+    // the single-payload reader misses it. A higher boot then replaces it
+    // and the game runs that script instead of the loader.
+    let header = data.len().min(512);
+    let boot_in_header = data[..header].windows(8).any(|word| word == BOOT_RESOURCE);
+    boot_in_header
+        && data.windows(b"--@@LOADER@@".len()).any(|word| word == b"--@@LOADER@@")
+        && (data.windows(b"Chef Shared Loader".len()).any(|word| word == b"Chef Shared Loader")
+            || data.windows(b"Boot Mod Loader".len()).any(|word| word == b"Boot Mod Loader"))
 }
 
 /// A mod that does an unconditional `require("ffi")` cannot start under a
