@@ -584,10 +584,102 @@ async fn collect_stat_plans(mods: &[(&Mod, &Config)]) -> anyhow::Result<Vec<serd
     Ok(plan_edits)
 }
 
+/// Sealed tables written by the previous deploy, kept beside the vanilla stock
+/// backup. The seal changes every write, so this copy is the only byte-for-byte
+/// record of "the game file is our output."
+const STOCK_OUTPUT_DIR: &str = "output";
+
+/// `true` when `game` should replace the vanilla stock backup.
+///
+/// A missing stock file is seeded from the game. A game file that matches the
+/// stock backup, or matches the previous deploy's sealed output, leaves the
+/// backup alone. Anything else is a table Steam replaced.
+fn game_file_replaces_stock(game: Option<&[u8]>, stock: Option<&[u8]>, output: Option<&[u8]>) -> bool {
+    let Some(game) = game else {
+        return false;
+    };
+    let Some(stock) = stock else {
+        return true;
+    };
+    if game == stock {
+        return false;
+    }
+    !output.is_some_and(|output| output == game)
+}
+
+async fn read_bytes_if_present(path: &Path) -> anyhow::Result<Option<Vec<u8>>> {
+    use anyhow::Context;
+    match tokio::fs::read(path).await {
+        Ok(bytes) => Ok(Some(bytes)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e).with_context(|| format!("read {}", path.display())),
+    }
+}
+
+/// Brings `ordnance-stock` in line with the live game tables before plans run.
+///
+/// Plans are always applied to the stock backup, then the result is copied
+/// over the game. The backup is the first vanilla copy Ordnance saw, which
+/// goes stale when Steam patches the game. Refresh it only when the live file
+/// is neither that backup nor the sealed output of the last deploy. A matching
+/// plaintext (Steam resealed the same vanilla) and a plaintext equal to
+/// applying the current plans (an output from before this snapshot existed)
+/// also keep the backup, so a deploy cannot seed the stock from its own edits.
+async fn refresh_stat_stock(
+    game_dir: &Path,
+    stock_dir: &Path,
+    plan_edits: &[serde_json::Value],
+) -> anyhow::Result<()> {
+    use anyhow::Context;
+    let output_dir = stock_dir.join(STOCK_OUTPUT_DIR);
+    for fname in STAT_TABLE_FILES {
+        let game_path = game_dir.join(fname);
+        let stock_path = stock_dir.join(fname);
+        let output_path = output_dir.join(fname);
+        let game = read_bytes_if_present(&game_path).await?;
+        let stock = read_bytes_if_present(&stock_path).await?;
+        let output = read_bytes_if_present(&output_path).await?;
+        if !game_file_replaces_stock(game.as_deref(), stock.as_deref(), output.as_deref()) {
+            continue;
+        }
+        let game_bytes = game.as_ref().expect("replace is only set when the game file exists");
+        if let Some(stock_bytes) = stock.as_ref() {
+            let game_plain = hd2edit::seal_open(game_bytes);
+            let stock_plain = hd2edit::seal_open(stock_bytes);
+            if game_plain == stock_plain {
+                log::info!("{fname}: game file is a reseal of the stock backup");
+                continue;
+            }
+            let edits: Vec<&serde_json::Value> = plan_edits
+                .iter()
+                .filter(|e| e.get("file").and_then(|v| v.as_str()) == Some(fname))
+                .collect();
+            if !edits.is_empty() {
+                match stat_deploy::plaintext_after_edits(&edits, stock_bytes) {
+                    Ok(applied) if applied == game_plain => {
+                        log::info!("{fname}: game file matches the plans applied to the stock backup");
+                        continue;
+                    }
+                    Ok(_) => {}
+                    Err(err) => {
+                        log::warn!(
+                            "{fname}: leaving the stock backup in place; the game file is neither it nor a clean apply of the current plans ({err:#})"
+                        );
+                        continue;
+                    }
+                }
+            }
+            log::info!("{fname}: game file matches neither the stock backup nor the last output; replacing the backup");
+        }
+        tokio::fs::copy(&game_path, &stock_path)
+            .await
+            .with_context(|| format!("refresh stock {fname}"))?;
+    }
+    Ok(())
+}
+
 /// Applies the merged stat plans against a stock backup, returning a handle
 /// that keeps the resealed output alive until it is copied into data/game/.
-/// The stock backup is seeded from the game's current files on first use, so
-/// later deploys apply to the same vanilla base (idempotent).
 async fn apply_stat_plans(
     data_dir: &Path,
     plan_edits: &[serde_json::Value],
@@ -600,15 +692,7 @@ async fn apply_stat_plans(
     let game_dir = data_dir.join("game");
     let stock_dir = data_dir.join("ordnance-stock");
     tokio::fs::create_dir_all(&stock_dir).await.context("create stock dir")?;
-    for fname in STAT_TABLE_FILES {
-        let src = game_dir.join(fname);
-        let dst = stock_dir.join(fname);
-        if !dst.is_file() && src.is_file() {
-            tokio::fs::copy(&src, &dst)
-                .await
-                .with_context(|| format!("seed stock {fname}"))?;
-        }
-    }
+    refresh_stat_stock(&game_dir, &stock_dir, plan_edits).await?;
     let out = stat_deploy::apply_plan(&plan_json, &stock_dir)?;
     Ok(Some(out))
 }
@@ -641,12 +725,21 @@ async fn do_deploy(data_dir: &Path, settings: &Settings, mods: Vec<(&Mod, &Confi
     if let Some(out) = &stat_out {
         use anyhow::Context;
         let game_dir = data_dir.join("game");
+        let output_dir = data_dir.join("ordnance-stock").join(STOCK_OUTPUT_DIR);
+        tokio::fs::create_dir_all(&output_dir)
+            .await
+            .context("create stock output dir")?;
         for fname in STAT_TABLE_FILES {
             let src = out.dir.join(fname);
             if src.is_file() {
-                tokio::fs::copy(&src, game_dir.join(fname))
+                let recorded = output_dir.join(fname);
+                tokio::fs::copy(&src, &recorded)
                     .await
-                    .with_context(|| format!("copy resealed {fname}"))?;
+                    .with_context(|| format!("record resealed {fname}"))?;
+                if let Err(err) = tokio::fs::copy(&src, game_dir.join(fname)).await {
+                    let _ = tokio::fs::remove_file(&recorded).await;
+                    return Err(err).with_context(|| format!("copy resealed {fname}"));
+                }
             }
         }
     }
@@ -1435,5 +1528,61 @@ mod tests {
             .chain(std::iter::once(bottom.path().join(patch_file_name(0))))
             .collect();
         assert_eq!(order, expected, "bottom mod must get the highest patch index");
+    }
+
+    #[test]
+    fn stock_backup_follows_the_game_file_only_when_it_is_new_vanilla() {
+        let vanilla = b"vanilla-table".as_slice();
+        let patched = b"patched-table".as_slice();
+        let updated = b"updated-vanilla".as_slice();
+        assert!(game_file_replaces_stock(Some(vanilla), None, None), "first seed");
+        assert!(!game_file_replaces_stock(None, None, None), "nothing to seed from");
+        assert!(!game_file_replaces_stock(Some(vanilla), Some(vanilla), None));
+        assert!(
+            !game_file_replaces_stock(Some(patched), Some(vanilla), Some(patched)),
+            "the previous deploy's output must not become the stock backup"
+        );
+        assert!(
+            game_file_replaces_stock(Some(updated), Some(vanilla), Some(patched)),
+            "a steam update matches neither backup"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_reseal_of_the_same_vanilla_does_not_replace_the_stock_backup() {
+        let data = tempfile::tempdir().unwrap();
+        let game = data.path().join("game");
+        let stock = data.path().join("ordnance-stock");
+        tokio::fs::create_dir_all(&game).await.unwrap();
+        tokio::fs::create_dir_all(&stock).await.unwrap();
+        let plain = b"same vanilla plaintext";
+        let stock_seal = hd2edit::seal(plain);
+        let game_seal = hd2edit::seal(plain);
+        assert_ne!(stock_seal, game_seal, "two seals of one plaintext differ");
+        let name = "generated_entities.dl_bin";
+        tokio::fs::write(stock.join(name), &stock_seal).await.unwrap();
+        tokio::fs::write(game.join(name), &game_seal).await.unwrap();
+
+        refresh_stat_stock(&game, &stock, &[]).await.unwrap();
+
+        assert_eq!(tokio::fs::read(stock.join(name)).await.unwrap(), stock_seal);
+    }
+
+    #[tokio::test]
+    async fn a_changed_table_the_plans_do_not_edit_replaces_the_stock_backup() {
+        let data = tempfile::tempdir().unwrap();
+        let game = data.path().join("game");
+        let stock = data.path().join("ordnance-stock");
+        tokio::fs::create_dir_all(&game).await.unwrap();
+        tokio::fs::create_dir_all(&stock).await.unwrap();
+        let name = "generated_damage_settings.dl_bin";
+        let stock_seal = hd2edit::seal(b"october vanilla");
+        let game_seal = hd2edit::seal(b"november vanilla");
+        tokio::fs::write(stock.join(name), &stock_seal).await.unwrap();
+        tokio::fs::write(game.join(name), &game_seal).await.unwrap();
+
+        refresh_stat_stock(&game, &stock, &[]).await.unwrap();
+
+        assert_eq!(tokio::fs::read(stock.join(name)).await.unwrap(), game_seal);
     }
 }

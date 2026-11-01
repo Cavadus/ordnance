@@ -224,37 +224,54 @@ fn apply_plan_inner(plan: &[Value], stock_dir: &Path, out_dir: &Path) -> anyhow:
         }
         let sealed_bytes =
             fs::read(stock_dir.join(filename)).with_context(|| format!("read {filename}"))?;
-        let mut blob = seal_open(&sealed_bytes);
-        let target = murmur64(&blob);
-        let mut floats: Vec<usize> = Vec::new();
-        let header_ats: Vec<usize> = headers(&blob).iter().map(|(a, _, _)| *a).collect();
-        for e in edits {
-            let who = mod_of(e);
-            apply_edit(&mut blob, e, &mut floats).map_err(|err| {
-                let label = if who.is_empty() { filename.clone() } else { format!("mod \"{who}\" ({filename})") };
-                anyhow::anyhow!("{label}: {err:#}")
-            })?;
-        }
-        for at in header_ats {
-            if blob[at + 16] != 1 {
-                bail!("bad header flag in {filename}");
-            }
-            for k in 17..24 {
-                blob[at + k] = 0;
-            }
-        }
-        correct(&mut blob, target, &floats).map_err(|e| anyhow::anyhow!("{e} in {filename}"))?;
-        if murmur64(&blob) != target {
-            bail!("hash correction failed: {filename}");
-        }
+        let blob = plaintext_after_edits(edits, &sealed_bytes)?;
         let sealed = seal(&blob);
-        if murmur64(&seal_open(&sealed)) != target {
+        if murmur64(&seal_open(&sealed)) != murmur64(&blob) {
             bail!("round trip failed: {filename}");
         }
         fs::write(out_dir.join(filename), &sealed).with_context(|| format!("write {filename}"))?;
         log::info!("wrote {filename}");
     }
     Ok(())
+}
+
+/// Applies `edits` (all for one table) to a sealed stock file and returns the
+/// corrected plaintext. Used to tell a previous deploy's output from a new
+/// vanilla table without trusting the seal, which is different every time.
+pub fn plaintext_after_edits(edits: &[&Value], sealed_stock: &[u8]) -> anyhow::Result<Vec<u8>> {
+    let filename = edits
+        .first()
+        .and_then(|e| e.get("file"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("table");
+    let mut blob = seal_open(sealed_stock);
+    let target = murmur64(&blob);
+    let mut floats: Vec<usize> = Vec::new();
+    let header_ats: Vec<usize> = headers(&blob).iter().map(|(a, _, _)| *a).collect();
+    for e in edits {
+        let who = mod_of(e);
+        apply_edit(&mut blob, e, &mut floats).map_err(|err| {
+            let label = if who.is_empty() {
+                filename.to_string()
+            } else {
+                format!("mod \"{who}\" ({filename})")
+            };
+            anyhow::anyhow!("{label}: {err:#}")
+        })?;
+    }
+    for at in header_ats {
+        if blob[at + 16] != 1 {
+            bail!("bad header flag in {filename}");
+        }
+        for k in 17..24 {
+            blob[at + k] = 0;
+        }
+    }
+    correct(&mut blob, target, &floats).map_err(|e| anyhow::anyhow!("{e} in {filename}"))?;
+    if murmur64(&blob) != target {
+        bail!("hash correction failed: {filename}");
+    }
+    Ok(blob)
 }
 
 pub fn apply_plan(plan_json: &str, stock_dir: &Path) -> anyhow::Result<OutHold> {
