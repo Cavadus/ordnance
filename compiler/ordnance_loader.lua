@@ -212,6 +212,10 @@ local menu_api = (function()
   local settings, groups, group_of, rows = {}, {}, {}, {}
   local open, selected, scroll, capture = false, 1, 0, nil
   local gui, gui_world, drawn, draw_failed = nil, nil, {}, false
+  local boxes = {}
+  local screen_noted = false
+  local key_ids = nil
+  local mouse_was_down = false
   local held, index_of, just = {}, {}, {}
   local saved_input = nil
   local FONT = "core/performance_hud/debug"
@@ -563,6 +567,87 @@ local menu_api = (function()
     return "f10"
   end
 
+  -- The names Keyboard.button_name actually uses. Built once; the headlamp
+  -- mod does the same scan and the game keeps running.
+  local function ensure_key_ids()
+    if key_ids then return key_ids end
+    local S = stingray()
+    local K = S and S.Keyboard
+    if type(K) ~= "table" or type(K.button_name) ~= "function" then return nil end
+    local map = {}
+    for id = 0, 511 do
+      local ok, name = pcall(K.button_name, id)
+      if ok and type(name) == "string" and name ~= "" then
+        local lower = string.lower(name)
+        if map[lower] == nil then map[lower] = id end
+      end
+    end
+    key_ids = map
+    return map
+  end
+
+  local function pressed_names()
+    local map = ensure_key_ids()
+    if not map then return {} end
+    local S = stingray()
+    local K = S and S.Keyboard
+    local fn = (saved_input and saved_input.pressed) or (K and K.pressed)
+    if type(fn) ~= "function" then return {} end
+    local out = {}
+    for name, id in pairs(map) do
+      local ok, down = pcall(fn, id)
+      if ok and (down == true or down == 1) then out[#out + 1] = name end
+    end
+    return out
+  end
+
+  local function command_for(name)
+    if name == "up" or name == "up arrow" or name == "arrow up" or name == "cursor up" then return "up" end
+    if name == "down" or name == "down arrow" or name == "arrow down" or name == "cursor down" then return "down" end
+    if name == "left" or name == "left arrow" or name == "arrow left" or name == "cursor left" then return "left" end
+    if name == "right" or name == "right arrow" or name == "arrow right" or name == "cursor right" then return "right" end
+    if name == "enter" or name == "return" or name == "numpad enter" then return "enter" end
+    if name == "escape" or name == "esc" then return "close" end
+    if name == "backspace" then return "back" end
+    return nil
+  end
+
+  local function activate(row)
+    if not row then return end
+    local ty = row.spec.type
+    if ty == "key" then capture = row
+    elseif ty == "button" and type(row.spec.run) == "function" then
+      local ok, err = pcall(row.spec.run)
+      if not ok then say(row.owner .. " button " .. row.id .. ": " .. tostring(err)) end
+    elseif ty == "toggle" or ty == "choice" or ty == "slider" or ty == "color" then
+      nudge(row, 1)
+    end
+  end
+
+  local function cursor_xy(S)
+    local M = S and S.Mouse
+    if type(M) ~= "table" or type(M.axis_index) ~= "function" or type(M.axis) ~= "function" then return nil end
+    local ok, idx = pcall(M.axis_index, "cursor")
+    if not ok or idx == nil then return nil end
+    local ok2, v = pcall(M.axis, idx)
+    if not ok2 or v == nil or type(S.Vector3) ~= "table" or type(S.Vector3.to_elements) ~= "function" then return nil end
+    local ok3, x, y = pcall(S.Vector3.to_elements, v)
+    if ok3 and type(x) == "number" and type(y) == "number" then return x, y end
+    return nil
+  end
+
+  local function mouse_click(S)
+    local M = S and S.Mouse
+    if type(M) ~= "table" or type(M.button_index) ~= "function" or type(M.button) ~= "function" then return false end
+    local ok, idx = pcall(M.button_index, "left")
+    if not ok or idx == nil then return false end
+    local ok2, v = pcall(M.button, idx)
+    local down = ok2 and ((type(v) == "number" and v > 0.5) or v == true)
+    local click = down and not mouse_was_down
+    mouse_was_down = down and true or false
+    return click
+  end
+
   local function combo_from(keyname)
     local mods = {}
     if mod_down("ctrl") then mods[#mods + 1] = "ctrl" end
@@ -614,19 +699,31 @@ local menu_api = (function()
     if selected > #list then selected = #list end
     if selected < 1 then selected = 1 end
     local row = list[selected] and list[selected].row
-    for name in pairs(just) do
-      if name == "up" or name == "up arrow" then move(-1)
-      elseif name == "down" or name == "down arrow" then move(1)
-      elseif name == "left" or name == "left arrow" then if row then nudge(row, -1) end
-      elseif name == "right" or name == "right arrow" then if row then nudge(row, 1) end
-      elseif name == "esc" or name == "escape" then open = false
-      elseif (name == "enter" or name == "return") and row then
-        local ty = row.spec.type
-        if ty == "key" then capture = row
-        elseif ty == "button" and type(row.spec.run) == "function" then
-          local ok, err = pcall(row.spec.run)
-          if not ok then say(row.owner .. " button " .. row.id .. ": " .. tostring(err)) end
-        elseif ty == "toggle" then nudge(row, 1)
+    local seen = {}
+    for name in pairs(just) do seen[name] = true end
+    for _, name in ipairs(pressed_names()) do seen[name] = true end
+    for name in pairs(seen) do
+      local cmd = command_for(name)
+      if cmd == "up" then move(-1)
+      elseif cmd == "down" then move(1)
+      elseif cmd == "left" then if row then nudge(row, -1) end
+      elseif cmd == "right" then if row then nudge(row, 1) end
+      elseif cmd == "close" then open = false capture = nil
+      elseif cmd == "enter" then activate(row)
+      elseif cmd == "back" and row and row.spec.type == "key" and not row.spec.menu then set_value(row, "off", true)
+      end
+    end
+    local S = stingray()
+    if S and mouse_click(S) then
+      local x, y = cursor_xy(S)
+      if x and y then
+        for i = 1, #boxes do
+          local b = boxes[i]
+          if x >= b.x and x <= b.x + b.w and y >= b.y and y <= b.y + b.h then
+            selected = b.index
+            activate(b.row)
+            break
+          end
         end
       end
     end
@@ -671,7 +768,10 @@ local menu_api = (function()
     if world == nil then return end
     if gui ~= nil and gui_world ~= world then gui, gui_world, drawn = nil, nil, {} end
     if gui == nil then
-      local ok, g = pcall(S.World.create_screen_gui, world, "scale", 1, 1)
+      local ok, g = pcall(S.World.create_screen_gui, world, "immediate", "material", FONT)
+      if not ok or g == nil then
+        ok, g = pcall(S.World.create_screen_gui, world)
+      end
       if not ok or g == nil then
         draw_failed = true
         say("options menu: the game did not give a screen to draw on")
@@ -684,24 +784,34 @@ local menu_api = (function()
       if id ~= nil and type(S.Gui[kind]) == "function" then pcall(S.Gui[kind], gui, id) end
     end
     drawn = {}
-    local w, h = 1920, 1080
-    if type(A.back_buffer_size) == "function" then
+    local w, h, how = 1920, 1080, "default"
+    if type(S.Gui.resolution) == "function" then
+      local ok, rw, rh = pcall(S.Gui.resolution)
+      if ok and type(rw) == "number" and type(rh) == "number" and rw > 200 and rh > 200 then w, h, how = rw, rh, "gui" end
+    end
+    if how == "default" and type(A.back_buffer_size) == "function" then
       local ok, bw, bh = pcall(A.back_buffer_size)
-      if ok and type(bw) == "number" and type(bh) == "number" and bw > 0 and bh > 0 then w, h = bw, bh end
+      if ok and type(bw) == "number" and type(bh) == "number" and bw > 200 and bh > 200 then w, h, how = bw, bh, "buffer" end
+    end
+    if not screen_noted then
+      screen_noted = true
+      say(string.format("menu screen %s %dx%d", how, w, h))
+      flush()
     end
     local scale = math.min(w / 1920, h / 1080)
-    if scale <= 0 then scale = 1 end
+    if scale < 0.75 then scale = 0.75 end
     local list = lines()
     local window = 16
     if selected < scroll + 1 then scroll = selected - 1 end
     if selected > scroll + window then scroll = selected - window end
     if scroll < 0 then scroll = 0 end
     local shown = math.min(window, math.max(0, #list - scroll))
-    local row_h = 26 * scale
-    local panel_w = math.min(w - 48 * scale, 720 * scale)
-    local panel_h = 48 * scale + shown * row_h
-    local x = 28 * scale
-    local top = h - 28 * scale
+    local row_h = math.max(32, math.floor(34 * scale))
+    local panel_w = math.min(w - 80, math.max(640, math.floor(860 * scale)))
+    local panel_h = row_h + shown * row_h + math.floor(16 * scale)
+    local x = math.floor((w - panel_w) / 2)
+    local bottom = math.floor((h - panel_h) / 2)
+    local top = bottom + panel_h
     local bg = color(S, 210, 12, 14, 16)
     local fg = color(S, 255, 236, 232, 214)
     local dim = color(S, 255, 160, 156, 140)
@@ -713,22 +823,24 @@ local menu_api = (function()
     end
     local function text(str, px, py, size, c)
       if c == nil then return end
-      local ok, id = pcall(S.Gui.text, gui, tostring(str), FONT, size, FONT, S.Vector2(px, py), c)
+      local ok, id = pcall(S.Gui.text, gui, tostring(str), FONT, size, FONT, S.Vector3(px, py, 50), c)
       if ok and id ~= nil then drawn[#drawn + 1] = { "destroy_text", id } end
     end
-    rect(x, top - panel_h, panel_w, panel_h, bg, 40)
-    text("Ordnance    " .. string.upper(menu_key()) .. " closes    arrows change    enter rebinds", x + 16 * scale, top - 28 * scale, 16 * scale, fg)
+    boxes = {}
+    rect(x, bottom, panel_w, panel_h, bg, 40)
+    text("Ordnance    " .. string.upper(menu_key()) .. " closes    click or arrows    enter rebinds", x + 16 * scale, top - row_h, math.floor(18 * scale), fg)
     for i = 1, shown do
       local item = list[scroll + i]
-      local y = top - 44 * scale - i * row_h
+      local y = top - row_h - i * row_h
       if item.kind == "title" then
-        text(item.title, x + 16 * scale, y, 16 * scale, hi)
+        text(item.title, x + 20 * scale, y, math.floor(18 * scale), hi)
       else
         local mark = (scroll + i == selected) and "> " or "  "
         local label = item.row.spec.label or item.row.id
-        if scroll + i == selected then rect(x + 8 * scale, y - 4 * scale, panel_w - 16 * scale, row_h, color(S, 50, 255, 196, 64), 41) end
-        text(mark .. label, x + 16 * scale, y, 15 * scale, fg)
-        text(show(item.row), x + panel_w - 180 * scale, y, 15 * scale, dim)
+        if scroll + i == selected then rect(x + 8, y - 4, panel_w - 16, row_h, color(S, 50, 255, 196, 64), 41) end
+        text(mark .. label, x + 20 * scale, y, math.floor(18 * scale), fg)
+        text(show(item.row), x + panel_w - 220 * scale, y, math.floor(18 * scale), dim)
+        boxes[#boxes + 1] = { x = x, y = y - 4, w = panel_w, h = row_h, index = scroll + i, row = item.row }
       end
     end
   end
