@@ -268,6 +268,16 @@ local function dog_arm()
   say("hang watchdog on")
 end
 
+local function dog_disarm()
+  dog.owner = false
+  dog.stack = {}
+  if type(debug) ~= "table" or type(debug.sethook) ~= "function" then return end
+  if dog.hook and type(debug.gethook) == "function" and debug.gethook() == dog.hook then
+    debug.sethook()
+  end
+  dog.hook = nil
+end
+
 -- Options menu. Mods receive their own chef table (local chef = ...). The
 -- calls Chef's menu documents are here: option, bind, get, set, save, load.
 -- Anything else logs and returns nil, and the mod keeps running.
@@ -861,16 +871,33 @@ local menu_api = (function()
     return nil
   end
 
+  local function drop_gui()
+    local S = stingray()
+    if S and gui and type(S.Gui) == "table" then
+      for i = 1, #drawn do
+        local kind, id = drawn[i][1], drawn[i][2]
+        if id ~= nil and type(S.Gui[kind]) == "function" then pcall(S.Gui[kind], gui, id) end
+      end
+    end
+    drawn = {}
+    if S and gui and gui_world and type(S.World) == "table" and type(S.World.destroy_gui) == "function" then
+      pcall(S.World.destroy_gui, gui_world, gui)
+    end
+    gui, gui_world = nil, nil
+  end
+
+  local function release()
+    open, capture = false, nil
+    suppress(false)
+    drop_gui()
+  end
+
   local function render()
     local S = stingray()
     if not open or draw_failed then
-      if S and gui and #drawn > 0 and type(S.Gui) == "table" then
-        for i = 1, #drawn do
-          local kind, id = drawn[i][1], drawn[i][2]
-          if id ~= nil and type(S.Gui[kind]) == "function" then pcall(S.Gui[kind], gui, id) end
-        end
-        drawn = {}
-      end
+      -- A screen GUI left up while the game quits hangs the renderer. Drop it
+      -- as soon as the menu is closed, while its world is still alive.
+      if gui then drop_gui() end
       return
     end
     if not S or type(S.Application) ~= "table" or type(S.World) ~= "table" or type(S.Gui) ~= "table" then return end
@@ -1339,7 +1366,7 @@ local menu_api = (function()
     return table.concat(parts, ", ")
   end
 
-  return { chef_for = chef_for, update = update, render = render, use_options = use_options, describe = describe }
+  return { chef_for = chef_for, update = update, render = render, use_options = use_options, describe = describe, release = release }
 end)()
 
 -- Mods hook update while init runs, and they keep the function they find.
@@ -1349,10 +1376,12 @@ end)()
 local call_update, call_render
 local menu_update_said = false
 local update_stopped, render_stopped = false, false
+local closing = false
 local function ran_too_long(err)
   return string.find(tostring(err), "ran too long", 1, true) ~= nil
 end
 local function on_update(dt)
+  if closing then return end
   if not menu_update_said then
     menu_update_said = true
     say("menu update live")
@@ -1372,6 +1401,7 @@ local function on_update(dt)
   end
 end
 local function on_render(...)
+  if closing then return end
   if not render_stopped and type(call_render) == "function" and call_render ~= on_render then
     dog_enter("render", 3)
     local ran, result = pcall(call_render, ...)
@@ -1580,10 +1610,20 @@ local function merge_into(dst, src)
 end
 
 local function hook_shutdown()
-  if #on_shutdown == 0 then return end
   local previous = rawget(_G, "shutdown")
   if type(previous) ~= "function" then previous = nil end
-  rawset(_G, "shutdown", function(...)
+  local function shutdown_fn(...)
+    if closing then
+      if previous ~= nil then return previous(...) end
+      return
+    end
+    closing = true
+    -- The count hook and a live screen GUI both stall the engine while it
+    -- tears the world down. Let go of them before any mod's own shutdown.
+    dog_disarm()
+    if type(menu_api.release) == "function" then pcall(menu_api.release) end
+    say("shutdown")
+    flush()
     local results, failed = { n = 0 }, nil
     if previous ~= nil then
       local packed = { pcall(previous, ...) }
@@ -1592,17 +1632,18 @@ local function hook_shutdown()
         for i = 2, #packed do results[i - 1] = packed[i] end
       else
         failed = packed[2]
+        say("shutdown: " .. tostring(failed))
+        flush()
       end
     end
     for i, fn in ipairs(on_shutdown) do
       local ran, problem = pcall(fn)
       if not ran then say("on_shutdown " .. i .. ": " .. tostring(problem)) end
     end
-    say(string.format("shutdown: %d on_shutdown function(s)", #on_shutdown))
     flush()
-    if failed ~= nil then error(failed, 0) end
     return unpack(results, 1, results.n)
-  end)
+  end
+  rawset(_G, "shutdown", shutdown_fn)
 end
 
 local function start()
