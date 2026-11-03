@@ -210,6 +210,46 @@ if rawget(_G, "CowboyBingusModLoader") == nil then
   })
 end
 
+local menu_api
+
+-- The game's own scripts keep the Keyboard functions they find at init.
+-- Wrap those before init runs, or a later swap never reaches them.
+local raw_input = {}
+
+local function install_input_gate()
+  if raw_input.ready then return end
+  local S = rawget(_G, "stingray")
+  local K = type(S) == "table" and S.Keyboard or nil
+  if type(K) ~= "table" or type(K.pressed) ~= "function" then return end
+  local function blocked()
+    return menu_api ~= nil and type(menu_api.blocking) == "function" and menu_api.blocking()
+  end
+  local function wrap(name, quiet)
+    local orig = K[name]
+    if type(orig) ~= "function" then return end
+    raw_input[name] = orig
+    K[name] = function(...)
+      if blocked() then return quiet end
+      return orig(...)
+    end
+  end
+  wrap("pressed", false)
+  wrap("released", false)
+  wrap("any_pressed", false)
+  wrap("any_released", false)
+  wrap("button", 0)
+  local keys = K.keystrokes
+  if type(keys) == "function" then
+    raw_input.keystrokes = keys
+    K.keystrokes = function(...)
+      if blocked() then return {} end
+      return keys(...)
+    end
+  end
+  raw_input.ready = true
+  say("input gate installed")
+end
+
 -- A mod that never returns is stopped. The hook counts Lua instructions and
 -- only while one of our calls into a mod is running. A long gap is the engine,
 -- not a loop, and does not count. The first time the limit passes is only a
@@ -281,7 +321,7 @@ end
 -- Options menu. Mods receive their own chef table (local chef = ...). The
 -- calls Chef's menu documents are here: option, bind, get, set, save, load.
 -- Anything else logs and returns nil, and the mod keeps running.
-local menu_api = (function()
+menu_api = (function()
   local settings, groups, group_of, rows = {}, {}, {}, {}
   local open, selected, scroll, capture = false, 1, 0, nil
   local gui, gui_world, drawn, draw_failed = nil, nil, {}, false
@@ -417,7 +457,7 @@ local menu_api = (function()
     local S = stingray()
     local K = S and S.Keyboard
     if type(K) ~= "table" or type(K.button) ~= "function" then return false end
-    local fn = (saved_input and saved_input.button) or K.button
+    local fn = raw_input.button or (saved_input and saved_input.button) or K.button
     local ok, v = pcall(fn, i)
     if not ok then return false end
     return (type(v) == "number" and v > 0.5) or v == true
@@ -504,7 +544,7 @@ local menu_api = (function()
       -- Empty list, not nil. Nil is what the chat box turned into a newline.
       if K.keystrokes ~= nil then K.keystrokes = function() return {} end end
     elseif not on and saved_input then
-      drain_keystrokes(saved_input.keystrokes)
+      drain_keystrokes(raw_input.keystrokes or saved_input.keystrokes)
       K.pressed, K.button, K.keystrokes = saved_input.pressed, saved_input.button, saved_input.keystrokes
       saved_input = nil
     end
@@ -728,7 +768,7 @@ local menu_api = (function()
     local map = ensure_key_ids()
     local S = stingray()
     local K = S and S.Keyboard
-    local fn = (saved_input and saved_input.pressed) or (K and K.pressed)
+    local fn = raw_input.pressed or (saved_input and saved_input.pressed) or (K and K.pressed)
     if type(fn) ~= "function" then return {} end
     local out = {}
     for i = 1, #NAV_NAMES do
@@ -868,10 +908,13 @@ local menu_api = (function()
     nav_held = down
     if cmds.up then move(-1) end
     if cmds.down then move(1) end
-    if cmds.left and row then nudge(row, -1) end
-    if cmds.right and row then nudge(row, 1) end
+    -- Enter is the game's chat key. Nothing in Lua can swallow that press,
+    -- so a key row rebinds with Right and Enter does not activate a row.
+    if cmds.left and row and row.spec.type ~= "key" and row.spec.type ~= "button" then nudge(row, -1) end
+    if cmds.right and row then
+      if row.spec.type == "key" or row.spec.type == "button" then activate(row) else nudge(row, 1) end
+    end
     if cmds.close then open, capture, nav_held = false, nil, {} end
-    if cmds.enter then activate(row) end
     if cmds.back and row and row.spec.type == "key" and not row.spec.menu then set_value(row, "off", true) end
     local S = stingray()
     if S and mouse_click(S) then
@@ -1010,7 +1053,7 @@ local menu_api = (function()
     end
     boxes = {}
     rect(x, bottom, panel_w, panel_h, bg, 40)
-    text("Ordnance    " .. string.upper(menu_key()) .. " closes    click or arrows    enter rebinds", x + 16 * scale, top - row_h, math.floor(18 * scale), fg)
+    text("Ordnance    " .. string.upper(menu_key()) .. " closes    click or arrows    right rebinds", x + 16 * scale, top - row_h, math.floor(18 * scale), fg)
     for i = 1, shown do
       local item = list[scroll + i]
       local y = top - row_h - i * row_h
@@ -1392,7 +1435,9 @@ local menu_api = (function()
     return table.concat(parts, ", ")
   end
 
-  return { chef_for = chef_for, update = update, render = render, use_options = use_options, describe = describe, release = release }
+  local function blocking() return open or capture ~= nil end
+
+  return { chef_for = chef_for, update = update, render = render, use_options = use_options, describe = describe, release = release, blocking = blocking }
 end)()
 
 -- Mods hook update while init runs, and they keep the function they find.
@@ -1675,6 +1720,7 @@ end
 local function start()
   if L.started then return end
   L.started = true
+  install_input_gate()
   dog_arm()
   for _, key in ipairs({ "update", "render", "shutdown" }) do
     if type(rawget(_G, key)) ~= "function" then rawset(_G, key, function() end) end
@@ -1718,6 +1764,7 @@ end
 
 local game_init = rawget(_G, "init")
 rawset(_G, "init", function(...)
+  install_input_gate()
   local results = { n = 0 }
   if type(game_init) == "function" then
     local packed = { pcall(game_init, ...) }
