@@ -23,9 +23,9 @@
     "windows": [
       {
         "title": "Ordnance",
-        "width": 800,
+        "width": 1120,
         "height": 600,
-        "minWidth": 800,
+        "minWidth": 1120,
         "minHeight": 600,
         "decorations": false,
         "backgroundColor": "#000",

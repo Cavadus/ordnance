@@ -181,7 +181,7 @@
                     aria-label={t("sidebar.profiles.export.tip")}
                     title={t("sidebar.profiles.export.tip")}
                 >
-                    <Download class="w-full h-full block ml-auto mr-auto" />
+                    <Upload class="w-full h-full block ml-auto mr-auto" />
                 </button>
                 <button
                     class="w-7 h-7 p-1 hover:bg-zinc-800 hover:text-yellow-300 rounded-md text-zinc-400 transition"
@@ -189,7 +189,7 @@
                     aria-label={t("sidebar.profiles.import.tip")}
                     title={t("sidebar.profiles.import.tip")}
                 >
-                    <Upload class="w-full h-full block ml-auto mr-auto" />
+                    <Download class="w-full h-full block ml-auto mr-auto" />
                 </button>
                 <button
                     class="w-7 h-7 p-1 hover:bg-zinc-800 hover:text-yellow-300 rounded-md text-zinc-400 transition"
