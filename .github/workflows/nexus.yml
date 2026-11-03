@@ -1,0 +1,162 @@
+# Publish a GitHub release to Nexus Mods mod 18263.
+#
+# Runs after build.yml creates the release. It does not run on tag pushes
+# itself, and it skips prereleases. Each asset is a new version of the file
+# slot already on the mod page (the ids below are the current MAIN files).
+# The release notes are posted once, with the Windows setup, because
+# POST /mods/{id}/changelogs appends and a second call duplicates the note.
+#
+# Re-running a successful job uploads every file again and appends the note
+# again. Do not re-run it to "retry" a release that already published.
+name: Publish to Nexus Mods
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  nexus:
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          # Changelog and the mod-page version ride on the primary file only.
+          - file_id: "72412"
+            pattern: "Ordnance-VERSION-windows-x64-setup.exe"
+            display: "Ordnance VERSION Windows X64 Setup"
+            version_from: tag
+            changelog: true
+            update_mod_version: true
+            manager_download: true
+          - file_id: "72411"
+            pattern: "Ordnance-VERSION-windows-x64-portable.zip"
+            display: "Ordnance VERSION Windows X64 Portable"
+            version_from: tag
+            changelog: false
+            update_mod_version: false
+            manager_download: false
+          - file_id: "72416"
+            pattern: "Ordnance-VERSION-linux-amd64.deb"
+            display: "Ordnance VERSION Linux Amd64.Deb"
+            version_from: tag
+            changelog: false
+            update_mod_version: false
+            manager_download: false
+          - file_id: "72415"
+            pattern: "Ordnance-VERSION-linux-x64.tar.gz"
+            display: "Ordnance VERSION Linux X64.Tar.Gz"
+            version_from: tag
+            changelog: false
+            update_mod_version: false
+            manager_download: false
+          - file_id: "72414"
+            pattern: "Ordnance-VERSION-linux-x86_64.AppImage"
+            display: "Ordnance VERSION Linux X86 64.Appimage"
+            version_from: tag
+            changelog: false
+            update_mod_version: false
+            manager_download: false
+          - file_id: "72413"
+            pattern: "Ordnance-VERSION-linux-x86_64.rpm"
+            display: "Ordnance VERSION Linux X86 64.Rpm"
+            version_from: tag
+            changelog: false
+            update_mod_version: false
+            manager_download: false
+          - file_id: "72409"
+            pattern: "ordnance-extension-chrome-*.zip"
+            display: "Ordnance Extension Chrome EXTVER"
+            version_from: filename
+            changelog: false
+            update_mod_version: false
+            manager_download: false
+          - file_id: "72410"
+            pattern: "ordnance-extension-firefox-*.zip"
+            display: "Ordnance Extension Firefox EXTVER"
+            version_from: filename
+            changelog: false
+            update_mod_version: false
+            manager_download: false
+    steps:
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release download "${{ github.event.release.tag_name }}" --dir dist --repo "${{ github.repository }}"
+
+      - name: Select this file
+        id: asset
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.release.tag_name }}"
+          version="${tag#v}"
+          if [ "$version" = "$tag" ] || [ -z "$version" ]; then
+            echo "::error::release tag '$tag' is not a vX.Y.Z tag"
+            exit 1
+          fi
+          pattern="${{ matrix.pattern }}"
+          pattern="${pattern/VERSION/$version}"
+          matches=(dist/$pattern)
+          if [ "${#matches[@]}" -ne 1 ] || [ ! -f "${matches[0]}" ]; then
+            echo "::error::expected one asset matching $pattern, found ${#matches[@]}"
+            exit 1
+          fi
+          path="${matches[0]}"
+          base=$(basename "$path")
+          if [ "${{ matrix.version_from }}" = "filename" ]; then
+            extver=$(printf '%s' "$base" | sed -n 's/^ordnance-extension-[a-z]*-\(.*\)\.zip$/\1/p')
+            if [ -z "$extver" ]; then
+              echo "::error::could not read an extension version from $base"
+              exit 1
+            fi
+            file_version="$extver"
+          else
+            file_version="$version"
+          fi
+          display="${{ matrix.display }}"
+          display="${display/VERSION/$version}"
+          display="${display/EXTVER/$file_version}"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+          echo "version=$file_version" >> "$GITHUB_OUTPUT"
+          echo "display=$display" >> "$GITHUB_OUTPUT"
+
+      - name: Read release notes
+        id: notes
+        if: ${{ matrix.changelog }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          body=$(gh release view "${{ github.event.release.tag_name }}" --repo "${{ github.repository }}" --json body --jq .body)
+          if [ -z "$body" ]; then
+            echo "::error::release ${{ github.event.release.tag_name }} has no notes to send to Nexus"
+            exit 1
+          fi
+          delim="NOTES_$(uuidgen | tr -d '-')"
+          {
+            echo "body<<$delim"
+            printf '%s\n' "$body"
+            echo "$delim"
+          } >> "$GITHUB_OUTPUT"
+
+      # v1.0.0-beta.10. Do not float @main: Nexus has already renamed these inputs once.
+      - name: Upload to Nexus Mods
+        uses: Nexus-Mods/upload-action@c96019556046053aa26044b44396cd38929daf23
+        with:
+          api_key: ${{ secrets.NEXUSMODS_API_KEY }}
+          mod_id: "18263"
+          file_id: ${{ matrix.file_id }}
+          filename: ${{ steps.asset.outputs.path }}
+          display_name: ${{ steps.asset.outputs.display }}
+          description: ${{ steps.asset.outputs.display }}
+          version: ${{ steps.asset.outputs.version }}
+          category: main
+          archive_existing_version: true
+          update_mod_version: ${{ matrix.update_mod_version }}
+          primary_mod_manager_download: ${{ matrix.manager_download && 'true' || '' }}
+          allow_mod_manager_download: ${{ matrix.manager_download && 'true' || '' }}
+          changelog: ${{ matrix.changelog && steps.notes.outputs.body || '' }}
