@@ -586,17 +586,29 @@ local menu_api = (function()
     return map
   end
 
+  local NAV_NAMES = {
+    "up", "down", "left", "right",
+    "up arrow", "down arrow", "left arrow", "right arrow",
+    "arrow up", "arrow down", "arrow left", "arrow right",
+    "enter", "return", "numpad enter", "escape", "esc", "backspace",
+  }
+
+  -- Only the keys the menu needs. Asking every button, every frame, stalls the game.
   local function pressed_names()
     local map = ensure_key_ids()
-    if not map then return {} end
     local S = stingray()
     local K = S and S.Keyboard
     local fn = (saved_input and saved_input.pressed) or (K and K.pressed)
     if type(fn) ~= "function" then return {} end
     local out = {}
-    for name, id in pairs(map) do
-      local ok, down = pcall(fn, id)
-      if ok and (down == true or down == 1) then out[#out + 1] = name end
+    for i = 1, #NAV_NAMES do
+      local name = NAV_NAMES[i]
+      local id = map and map[name]
+      if id == nil then id = key_index(name) end
+      if id then
+        local ok, down = pcall(fn, id)
+        if ok and (down == true or down == 1) then out[#out + 1] = name end
+      end
     end
     return out
   end
@@ -768,10 +780,9 @@ local menu_api = (function()
     if world == nil then return end
     if gui ~= nil and gui_world ~= world then gui, gui_world, drawn = nil, nil, {} end
     if gui == nil then
-      local ok, g = pcall(S.World.create_screen_gui, world, "immediate", "material", FONT)
-      if not ok or g == nil then
-        ok, g = pcall(S.World.create_screen_gui, world)
-      end
+      -- "scale", 1, 1 is the screen GUI the in-game overlays use. "immediate"
+      -- took the frame and left a black window.
+      local ok, g = pcall(S.World.create_screen_gui, world, "scale", 1, 1)
       if not ok or g == nil then
         draw_failed = true
         say("options menu: the game did not give a screen to draw on")
