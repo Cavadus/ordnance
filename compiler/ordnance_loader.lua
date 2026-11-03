@@ -814,11 +814,18 @@ local menu_api = (function()
   return { chef_for = chef_for, update = update, render = render }
 end)()
 
--- The engine keeps the update/render it finds when this chunk returns.
--- Installing them here, and pointing them at whatever mods installed
--- during init, is what makes F10 reach the menu.
+-- Mods hook update while init runs, and they keep the function they find.
+-- The menu is installed after those hooks, so it calls them and they call
+-- the game. Installing it earlier makes the two call each other until the
+-- game dies.
 local call_update, call_render
+local menu_update_said = false
 local function on_update(dt)
+  if not menu_update_said then
+    menu_update_said = true
+    say("menu update live")
+    flush()
+  end
   local ok, err = pcall(menu_api.update)
   if not ok then say("menu: " .. tostring(err)) end
   if type(call_update) == "function" and call_update ~= on_update then return call_update(dt) end
@@ -1075,11 +1082,5 @@ rawset(_G, "init", function(...)
   return unpack(results, 1, results.n)
 end)
 
-call_update = rawget(_G, "update")
-call_render = rawget(_G, "render")
-if type(call_update) ~= "function" then call_update = nil end
-if type(call_render) ~= "function" then call_render = nil end
-rawset(_G, "update", on_update)
-rawset(_G, "render", on_render)
 say("waiting for init")
 flush()
