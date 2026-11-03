@@ -2,7 +2,8 @@
 #
 # Runs after build.yml creates the release. It does not run on tag pushes
 # itself, and it skips prereleases. Each asset is a new version of the file
-# slot already on the mod page (the ids below are the current MAIN files).
+# slot already on the mod page. The ids below are the v3 API ids.
+# 18263 is the number in the site URL. The changelog call 404s with it.
 # The release notes are posted once, with the Windows setup, because
 # POST /mods/{id}/changelogs appends and a second call duplicates the note.
 #
@@ -26,56 +27,56 @@ jobs:
       matrix:
         include:
           # Changelog and the mod-page version ride on the primary file only.
-          - file_id: "72412"
+          - file_id: "8267493"
             pattern: "Ordnance-VERSION-windows-x64-setup.exe"
             display: "Ordnance VERSION Windows X64 Setup"
             version_from: tag
             changelog: true
             update_mod_version: true
             manager_download: true
-          - file_id: "72411"
+          - file_id: "8267487"
             pattern: "Ordnance-VERSION-windows-x64-portable.zip"
             display: "Ordnance VERSION Windows X64 Portable"
             version_from: tag
             changelog: false
             update_mod_version: false
             manager_download: false
-          - file_id: "72416"
+          - file_id: "8267517"
             pattern: "Ordnance-VERSION-linux-amd64.deb"
             display: "Ordnance VERSION Linux Amd64.Deb"
             version_from: tag
             changelog: false
             update_mod_version: false
             manager_download: false
-          - file_id: "72415"
+          - file_id: "8267520"
             pattern: "Ordnance-VERSION-linux-x64.tar.gz"
             display: "Ordnance VERSION Linux X64.Tar.Gz"
             version_from: tag
             changelog: false
             update_mod_version: false
             manager_download: false
-          - file_id: "72414"
+          - file_id: "8267526"
             pattern: "Ordnance-VERSION-linux-x86_64.AppImage"
             display: "Ordnance VERSION Linux X86 64.Appimage"
             version_from: tag
             changelog: false
             update_mod_version: false
             manager_download: false
-          - file_id: "72413"
+          - file_id: "8267535"
             pattern: "Ordnance-VERSION-linux-x86_64.rpm"
             display: "Ordnance VERSION Linux X86 64.Rpm"
             version_from: tag
             changelog: false
             update_mod_version: false
             manager_download: false
-          - file_id: "72409"
+          - file_id: "8267496"
             pattern: "ordnance-extension-chrome-*.zip"
             display: "Ordnance Extension Chrome EXTVER"
             version_from: filename
             changelog: false
             update_mod_version: false
             manager_download: false
-          - file_id: "72410"
+          - file_id: "8267502"
             pattern: "ordnance-extension-firefox-*.zip"
             display: "Ordnance Extension Firefox EXTVER"
             version_from: filename
@@ -148,7 +149,7 @@ jobs:
         uses: Nexus-Mods/upload-action@c96019556046053aa26044b44396cd38929daf23
         with:
           api_key: ${{ secrets.NEXUSMODS_API_KEY }}
-          mod_id: "18263"
+          mod_id: "26280904902487"
           file_id: ${{ matrix.file_id }}
           filename: ${{ steps.asset.outputs.path }}
           display_name: ${{ steps.asset.outputs.display }}
