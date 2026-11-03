@@ -485,6 +485,14 @@ local menu_api = (function()
     return true
   end
 
+  local function drain_keystrokes(fn)
+    if type(fn) ~= "function" then return end
+    for _ = 1, 8 do
+      local ok, ev = pcall(fn)
+      if not ok or type(ev) ~= "table" or next(ev) == nil then break end
+    end
+  end
+
   local function suppress(on)
     local S = stingray()
     local K = S and S.Keyboard
@@ -493,8 +501,10 @@ local menu_api = (function()
       saved_input = { pressed = K.pressed, button = K.button, keystrokes = K.keystrokes }
       K.pressed = function() return false end
       K.button = function() return 0 end
-      if K.keystrokes ~= nil then K.keystrokes = function() return nil end end
+      -- Empty list, not nil. Nil is what the chat box turned into a newline.
+      if K.keystrokes ~= nil then K.keystrokes = function() return {} end end
     elseif not on and saved_input then
+      drain_keystrokes(saved_input.keystrokes)
       K.pressed, K.button, K.keystrokes = saved_input.pressed, saved_input.button, saved_input.keystrokes
       saved_input = nil
     end
@@ -790,6 +800,7 @@ local menu_api = (function()
   end
 
   local menu_frame = 0
+  local nav_held = {}
   local function update()
     menu_frame = menu_frame + 1
     poll()
@@ -824,29 +835,44 @@ local menu_api = (function()
         end
       else
         capture = nil
+        nav_held = {}
       end
       suppress(open)
       return
     end
-    if not open then suppress(false) return end
+    if not open then
+      -- Keep the keys until the one that closed the menu is up, then throw
+      -- away anything the chat box would type (Enter becomes a newline).
+      local still = false
+      for name in pairs(held) do still = true break end
+      if not still then for _, name in ipairs(pressed_names()) do still = true break end end
+      if not still then suppress(false) end
+      return
+    end
     local list = lines()
     if selected > #list then selected = #list end
     if selected < 1 then selected = 1 end
     local row = list[selected] and list[selected].row
-    local seen = {}
-    for name in pairs(just) do seen[name] = true end
-    for _, name in ipairs(pressed_names()) do seen[name] = true end
-    for name in pairs(seen) do
-      local cmd = command_for(name)
-      if cmd == "up" then move(-1)
-      elseif cmd == "down" then move(1)
-      elseif cmd == "left" then if row then nudge(row, -1) end
-      elseif cmd == "right" then if row then nudge(row, 1) end
-      elseif cmd == "close" then open = false capture = nil
-      elseif cmd == "enter" then activate(row)
-      elseif cmd == "back" and row and row.spec.type == "key" and not row.spec.menu then set_value(row, "off", true)
+    -- One command per press. The engine names an arrow both "down" and
+    -- "down arrow", and acting on both jumped a row, which is the first row
+    -- of the next section.
+    local down, cmds = {}, {}
+    for name in pairs(just) do down[name] = true end
+    for _, name in ipairs(pressed_names()) do down[name] = true end
+    for name in pairs(down) do
+      if not nav_held[name] then
+        local cmd = command_for(name)
+        if cmd then cmds[cmd] = true end
       end
     end
+    nav_held = down
+    if cmds.up then move(-1) end
+    if cmds.down then move(1) end
+    if cmds.left and row then nudge(row, -1) end
+    if cmds.right and row then nudge(row, 1) end
+    if cmds.close then open, capture, nav_held = false, nil, {} end
+    if cmds.enter then activate(row) end
+    if cmds.back and row and row.spec.type == "key" and not row.spec.menu then set_value(row, "off", true) end
     local S = stingray()
     if S and mouse_click(S) then
       local x, y = cursor_xy(S)
