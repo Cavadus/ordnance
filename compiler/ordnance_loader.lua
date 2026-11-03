@@ -210,6 +210,64 @@ if rawget(_G, "CowboyBingusModLoader") == nil then
   })
 end
 
+-- A mod that never returns is stopped. The hook counts Lua instructions and
+-- only while one of our calls into a mod is running. A long gap is the engine,
+-- not a loop, and does not count. The first time the limit passes is only a
+-- mark: the next million instructions means it is still in Lua.
+local dog = { owner = false, stack = {} }
+
+local function dog_now()
+  if type(os) ~= "table" or type(os.clock) ~= "function" then return nil end
+  local ok, t = pcall(os.clock)
+  if ok and type(t) == "number" then return t end
+  return nil
+end
+
+local function dog_enter(name, limit)
+  local now = dog_now()
+  dog.stack[#dog.stack + 1] = {
+    owner = dog.owner, since = dog.since, skew = dog.skew, tick = dog.tick,
+    over = dog.over, limit = dog.limit,
+  }
+  if now == nil then return end
+  dog.owner, dog.since, dog.skew, dog.tick, dog.over, dog.limit = name, now, 0, now, false, limit or 3
+end
+
+local function dog_leave()
+  local prev = dog.stack[#dog.stack]
+  dog.stack[#dog.stack] = nil
+  if prev == nil then dog.owner = false return end
+  dog.owner, dog.since, dog.skew, dog.tick, dog.over, dog.limit =
+    prev.owner, prev.since, prev.skew, prev.tick, prev.over, prev.limit
+end
+
+local function dog_arm()
+  if dog.hook then return end
+  if type(debug) ~= "table" or type(debug.sethook) ~= "function" or type(debug.gethook) ~= "function" then
+    say("hang watchdog off: this Lua has no debug hook")
+    return
+  end
+  local prev = debug.gethook()
+  if type(prev) == "function" then
+    say("hang watchdog off: another hook is already set")
+    return
+  end
+  local function hook()
+    if not dog.owner then return end
+    local now = dog_now()
+    if now == nil then return end
+    local gap = now - dog.tick
+    dog.tick = now
+    if gap > 0.5 then dog.skew = dog.skew + gap end
+    if (now - dog.skew) - dog.since <= dog.limit then return end
+    if not dog.over then dog.over = true return end
+    error("ordnance stopped " .. tostring(dog.owner) .. ": it ran too long", 2)
+  end
+  dog.hook = hook
+  debug.sethook(hook, "", 1000000)
+  say("hang watchdog on")
+end
+
 -- Options menu. Mods receive their own chef table (local chef = ...). The
 -- calls Chef's menu documents are here: option, bind, get, set, save, load.
 -- Anything else logs and returns nil, and the mod keeps running.
@@ -249,19 +307,37 @@ local menu_api = (function()
     return data
   end
 
-  local function load_settings()
-    local path = settings_path()
-    if path == nil then return end
+  local SETTINGS_END = "-- end"
+
+  local function read_settings_file(path)
     local ok, file = pcall(io.open, path, "r")
-    if not ok or file == nil then return end
+    if not ok or file == nil then return nil, false end
+    local bag, closed = {}, false
     for line in file:lines() do
-      local owner, key, kind, data = string.match(line, "^([^\t]*)\t([^\t]*)\t([bns])\t(.*)$")
-      if owner and key then
-        settings[owner] = settings[owner] or {}
-        settings[owner][key] = decode(kind, data)
+      if line == SETTINGS_END then closed = true
+      else
+        local owner, key, kind, data = string.match(line, "^([^\t]*)\t([^\t]*)\t([bns])\t(.*)$")
+        if owner and key then
+          bag[owner] = bag[owner] or {}
+          bag[owner][key] = decode(kind, data)
+        end
       end
     end
     pcall(function() file:close() end)
+    return bag, closed
+  end
+
+  local function load_settings()
+    local path = settings_path()
+    if path == nil then return end
+    -- A finished .tmp is a save that did not get renamed into place. It is
+    -- newer than the file it was meant to replace. A .tmp with no end line
+    -- was cut off and is ignored.
+    local main = read_settings_file(path)
+    local tmp, tmp_closed = read_settings_file(path .. ".tmp")
+    local use = tmp_closed and tmp or main
+    if type(use) ~= "table" then return end
+    for owner, bag in pairs(use) do settings[owner] = bag end
   end
 
   local function save_settings()
@@ -275,10 +351,22 @@ local menu_api = (function()
       end
     end
     table.sort(lines)
-    local ok, file = pcall(io.open, path, "w")
-    if ok and file ~= nil then
-      pcall(function() file:write(table.concat(lines, "\n")) if #lines > 0 then file:write("\n") end file:close() end)
+    lines[#lines + 1] = SETTINGS_END
+    local text = table.concat(lines, "\n") .. "\n"
+    local tmp = path .. ".tmp"
+    local function write_to(dest)
+      local ok, file = pcall(io.open, dest, "w")
+      if not ok or file == nil then return false end
+      local wrote = false
+      pcall(function() file:write(text) file:close() wrote = true end)
+      return wrote
     end
+    if not write_to(tmp) then return end
+    pcall(os.remove, path)
+    local renamed = false
+    pcall(function() renamed = os.rename(tmp, path) == true end)
+    if renamed then return end
+    if write_to(path) then pcall(os.remove, tmp) end
   end
 
   local function stored(owner, key, default)
@@ -468,7 +556,9 @@ local menu_api = (function()
 
   local function fire(row)
     for i = 1, #row.changed do
+      dog_enter(row.owner .. " " .. row.id, 3)
       local ok, err = pcall(row.changed[i], row.value)
+      dog_leave()
       if not ok then say(row.owner .. " option " .. row.id .. ": " .. tostring(err)) end
     end
   end
@@ -521,7 +611,16 @@ local menu_api = (function()
     for i = 1, #groups do
       local g = groups[i]
       out[#out + 1] = { kind = "title", title = g.title }
-      for j = 1, #g.rows do out[#out + 1] = { kind = "row", row = g.rows[j] } end
+      local sub = false
+      for j = 1, #g.rows do
+        local row = g.rows[j]
+        local heading = row.spec.heading
+        if type(heading) == "string" and heading ~= "" then
+          sub = row.spec.sub == true
+          out[#out + 1] = { kind = "heading", title = heading, sub = sub }
+        end
+        out[#out + 1] = { kind = "row", row = row, sub = sub }
+      end
     end
     return out
   end
@@ -823,8 +922,14 @@ local menu_api = (function()
     if scroll < 0 then scroll = 0 end
     local shown = math.min(window, math.max(0, #list - scroll))
     local row_h = math.max(32, math.floor(34 * scale))
+    local hint = nil
+    local picked = list[selected]
+    if picked and picked.kind == "row" and type(picked.row.spec.hint) == "string" and picked.row.spec.hint ~= "" then
+      hint = picked.row.spec.hint
+      if #hint > 90 then hint = string.sub(hint, 1, 87) .. "..." end
+    end
     local panel_w = math.min(w - 80, math.max(640, math.floor(860 * scale)))
-    local panel_h = row_h + shown * row_h + math.floor(16 * scale)
+    local panel_h = row_h + shown * row_h + (hint and row_h or 0) + math.floor(16 * scale)
     local x = math.floor((w - panel_w) / 2)
     local bottom = math.floor((h - panel_h) / 2)
     local top = bottom + panel_h
@@ -848,24 +953,28 @@ local menu_api = (function()
     for i = 1, shown do
       local item = list[scroll + i]
       local y = top - row_h - i * row_h
-      if item.kind == "title" then
-        text(item.title, x + 20 * scale, y, math.floor(18 * scale), hi)
+      if item.kind == "title" or item.kind == "heading" then
+        local indent = (item.sub and 36 or 20) * scale
+        local size = math.floor((item.sub and 16 or 18) * scale)
+        text(item.title, x + indent, y, size, item.kind == "title" and hi or dim)
       else
         local mark = (scroll + i == selected) and "> " or "  "
         local label = item.row.spec.label or item.row.id
+        local indent = (item.sub and 36 or 20) * scale
         if scroll + i == selected then rect(x + 8, y - 4, panel_w - 16, row_h, color(S, 50, 255, 196, 64), 41) end
-        text(mark .. label, x + 20 * scale, y, math.floor(18 * scale), fg)
+        text(mark .. label, x + indent, y, math.floor(18 * scale), fg)
         text(show(item.row), x + panel_w - 220 * scale, y, math.floor(18 * scale), dim)
         boxes[#boxes + 1] = { x = x, y = y - 4, w = panel_w, h = row_h, index = scroll + i, row = item.row }
       end
     end
+    if hint then text(hint, x + 16 * scale, bottom + 8 * scale, math.floor(16 * scale), dim) end
   end
 
   local option_sets = {}
 
   local function chef_for(owner)
     local chef = { version = "ordnance-loader-1", api = 1, options = option_sets[owner] or {} }
-    chef.capabilities = { menu = true, bindings = true }
+    chef.capabilities = { menu = true, bindings = true, option_headings = true }
     function chef.has(name) return chef.capabilities[name] == true end
     function chef.log(msg, ...)
       if type(msg) == "string" and select("#", ...) > 0 then
@@ -947,6 +1056,91 @@ local menu_api = (function()
   add_option("ordnance", "menu_key", { type = "key", label = "Menu key", default = "f10", menu = true, _title = "Ordnance" })
   say("options menu: " .. menu_key())
 
+  -- Boot Mod Loader's bindings menu. Helmet Headlamp (and anything else
+  -- written for it) looks this global up by name and registers during play.
+  -- The call is register_binding(id, label, slot, options), not a method.
+  local bindings = {}
+  local mbm = { api = 1, version = 2, capacity = 256, window = "Ordnance options menu" }
+  function mbm.register_binding(id, label, slot, options)
+    if type(id) ~= "string" or id == "" or #id > 96 or string.find(id, "%c") then
+      return false, "invalid binding registration"
+    end
+    if slot ~= nil and type(slot) ~= "number" then return false, "invalid binding registration" end
+    if options ~= nil and type(options) ~= "table" then return false, "invalid binding registration" end
+    if type(label) ~= "string" or string.find(label, "%S") == nil or #label > 127 then
+      return false, "invalid binding registration"
+    end
+    local category = nil
+    if options and options.category ~= nil then
+      if type(options.category) ~= "string" or string.find(options.category, "%S") == nil or #options.category > 64 then
+        return false, "invalid binding category"
+      end
+      category = options.category
+    end
+    local owner = category or "bindings"
+    local existing = rows[owner .. "|" .. id]
+    if existing then
+      if existing.spec.label == label then return true end
+      return false, "binding already registered differently"
+    end
+    local row, err = add_option(owner, id, { type = "key", default = "off", label = label, _title = owner })
+    if not row then return false, err end
+    bindings[id] = row
+    say("binding " .. id .. " (" .. owner .. ")")
+    return true
+  end
+  function mbm.is_down(id)
+    local row = bindings[id]
+    if row == nil then return nil end
+    if open or capture then return false end
+    local name = row.value
+    if type(name) ~= "string" or name == "" or name == "off" then return false end
+    return key_down(name) == true
+  end
+  function mbm.ready() return true end
+  function mbm.poll(ids, out)
+    if type(ids) ~= "table" or type(out) ~= "table" then return false, "invalid poll arguments" end
+    local fields = { "down", "pressed", "released", "last" }
+    for i = 1, #fields do
+      local f = fields[i]
+      if out[f] == nil then out[f] = {} elseif type(out[f]) ~= "table" then return false, "invalid poll arguments" end
+    end
+    for i = 1, #ids do
+      local down = mbm.is_down(ids[i])
+      local was = out.last[i] == true
+      out.down[i], out.pressed[i], out.released[i], out.last[i] = down, down == true and not was, was and down ~= true, down == true
+    end
+    return true
+  end
+  function mbm.set_binding(id, spec)
+    local row = bindings[id]
+    if row == nil then return false, "not an extended binding" end
+    local name
+    if spec == nil then name = row.default
+    elseif type(spec) == "table" and spec.button == nil and spec[1] == nil then name = "off"
+    elseif type(spec) == "string" then name = string.lower(spec)
+    elseif type(spec) == "table" and type(spec.button) == "string" then name = string.lower(spec.button)
+    else return false, "invalid binding" end
+    set_value(row, name, true)
+    return true
+  end
+  function mbm.binding(id)
+    local row = bindings[id]
+    if row == nil then return nil end
+    if row.value == "off" then return {} end
+    return { { "keyboard", row.value, modifiers = {}, trigger = "press" } }
+  end
+  function mbm.binding_info(id)
+    local row = bindings[id]
+    if row == nil then return nil end
+    local state = "set"
+    if row.value == "off" and row.default ~= "off" then state = "cleared"
+    elseif row.value == row.default then state = "default" end
+    return { backend = "extended", state = state }
+  end
+  rawset(_G, "ModBindingsMenu", mbm)
+  say("ModBindingsMenu ready")
+
   local function use_options(saved)
     option_sets = type(saved) == "table" and saved or {}
   end
@@ -969,6 +1163,10 @@ end)()
 -- game dies.
 local call_update, call_render
 local menu_update_said = false
+local update_stopped, render_stopped = false, false
+local function ran_too_long(err)
+  return string.find(tostring(err), "ran too long", 1, true) ~= nil
+end
 local function on_update(dt)
   if not menu_update_said then
     menu_update_said = true
@@ -977,10 +1175,27 @@ local function on_update(dt)
   end
   local ok, err = pcall(menu_api.update)
   if not ok then say("menu: " .. tostring(err)) end
-  if type(call_update) == "function" and call_update ~= on_update then return call_update(dt) end
+  if update_stopped or type(call_update) ~= "function" or call_update == on_update then return end
+  dog_enter("update", 3)
+  local ran, result = pcall(call_update, dt)
+  dog_leave()
+  if ran then return result end
+  say("update: " .. tostring(result))
+  if ran_too_long(result) then
+    update_stopped = true
+    say("update will not be called again this launch")
+  end
 end
 local function on_render(...)
-  if type(call_render) == "function" and call_render ~= on_render then call_render(...) end
+  if not render_stopped and type(call_render) == "function" and call_render ~= on_render then
+    dog_enter("render", 3)
+    local ran, result = pcall(call_render, ...)
+    dog_leave()
+    if not ran then
+      say("render: " .. tostring(result))
+      if ran_too_long(result) then render_stopped = true end
+    end
+  end
   local ok, err = pcall(menu_api.render)
   if not ok then say("menu draw: " .. tostring(err)) end
 end
@@ -1053,12 +1268,14 @@ local function run_addon(entry)
   end
   local clock0 = os.clock()
   local ran, result
+  dog_enter(entry.name, 10)
   if wants_chef(source) then
     local mine = menu_api.chef_for(entry.name)
     ran, result = xpcall(function() return chunk(mine) end, traceback)
   else
     ran, result = xpcall(chunk, traceback)
   end
+  dog_leave()
   local took = (os.clock() - clock0) * 1000
   if ran then
     if type(package) == "table" and type(package.loaded) == "table" and package.loaded[entry.name] == nil then
@@ -1091,7 +1308,9 @@ local function run_guest(entry)
   end
   local before = {}
   for _, key in ipairs(CALLBACKS) do before[key] = rawget(_G, key) end
+  dog_enter(entry.name, 10)
   local ran, result = xpcall(chunk, traceback)
+  dog_leave()
   if not ran then
     say(entry.name .. ": FAILED: " .. tostring(result))
     for _, key in ipairs(CALLBACKS) do rawset(_G, key, before[key]) end
@@ -1104,7 +1323,9 @@ local function run_guest(entry)
       local captured = now
       if key == "init" then
         rawset(_G, key, before[key])
+        dog_enter(entry.name .. " init", 10)
         local ok, problem = pcall(captured)
+        dog_leave()
         if not ok then say(entry.name .. " init: " .. tostring(problem)) end
       else
         local previous = before[key]
@@ -1113,7 +1334,10 @@ local function run_guest(entry)
         if type(previous) ~= "function" then previous = nil end
         rawset(_G, key, function(...)
           local ok, problem = pcall(captured, ...)
-          if not ok then say(entry.name .. " " .. key .. ": " .. tostring(problem)) end
+          if not ok then
+            say(entry.name .. " " .. key .. ": " .. tostring(problem))
+            if ran_too_long(problem) then error(problem, 0) end
+          end
           if previous ~= nil then return previous(...) end
         end)
       end
@@ -1136,12 +1360,14 @@ local function run_options(entry)
     return
   end
   local ran, result
+  dog_enter(entry.name, 10)
   if wants_chef(source) then
     local mine = menu_api.chef_for(entry.name)
     ran, result = xpcall(function() return chunk(mine) end, traceback)
   else
     ran, result = xpcall(chunk, traceback)
   end
+  dog_leave()
   if not ran then
     say("options " .. entry.name .. ": FAILED: " .. tostring(result))
     return nil
@@ -1197,6 +1423,7 @@ end
 local function start()
   if L.started then return end
   L.started = true
+  dog_arm()
   for _, key in ipairs({ "update", "render", "shutdown" }) do
     if type(rawget(_G, key)) ~= "function" then rawset(_G, key, function() end) end
   end
