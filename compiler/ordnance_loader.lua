@@ -574,8 +574,14 @@ local menu_api = (function()
     return value
   end
 
-  local function add_option(owner, id, spec)
-    if type(id) ~= "string" or string.match(id, "^[%w_%.%-]+$") == nil then
+  local function loose_id(id)
+    return type(id) == "string" and id ~= "" and #id <= 96 and string.find(id, "%c") == nil
+  end
+
+  local function add_option(owner, id, spec, loose)
+    if loose then
+      if not loose_id(id) then return nil, "invalid id" end
+    elseif type(id) ~= "string" or string.match(id, "^[%w_%.%-]+$") == nil then
       return nil, "ids are letters, digits, _ . -"
     end
     local err = check_spec(spec)
@@ -773,7 +779,9 @@ local menu_api = (function()
     return table.concat(mods, "+") .. "+" .. keyname
   end
 
+  local menu_frame = 0
   local function update()
+    menu_frame = menu_frame + 1
     poll()
     if capture then
       for name in pairs(just) do
@@ -1056,20 +1064,188 @@ local menu_api = (function()
   add_option("ordnance", "menu_key", { type = "key", label = "Menu key", default = "f10", menu = true, _title = "Ordnance" })
   say("options menu: " .. menu_key())
 
-  -- Boot Mod Loader's bindings menu. Helmet Headlamp (and anything else
-  -- written for it) looks this global up by name and registers during play.
-  -- The call is register_binding(id, label, slot, options), not a method.
-  local bindings = {}
-  local mbm = { api = 1, version = 2, capacity = 256, window = "Ordnance options menu" }
-  function mbm.register_binding(id, label, slot, options)
-    if type(id) ~= "string" or id == "" or #id > 96 or string.find(id, "%c") then
-      return false, "invalid binding registration"
+  -- The other loaders' menus are two globals any mod can call. Nothing here
+  -- is named after a particular mod. A mod written today or later gets a row
+  -- by calling these, the same way the mods already installed do.
+  local function as_text(v)
+    if type(v) == "string" then return v end
+    if type(v) == "function" then
+      local ok, s = pcall(v)
+      if ok and type(s) == "string" then return s end
     end
+    return nil
+  end
+
+  local MOM_PER, MOM_MODS = 32, 112
+  local mom_rows, mom_meta, mom_pending, mom_per = {}, {}, {}, {}
+  local mom_n, mom_mods = 0, 0
+
+  local function mom_describe(spec)
+    if type(spec) ~= "table" then return nil, "invalid option registration" end
+    local ty = spec.type
+    local label = as_text(spec.label)
+    if label == nil or string.find(label, "%S") == nil or #label > 127 then return nil, "invalid option registration" end
+    if ty ~= "toggle" and ty ~= "choice" and ty ~= "slider" then return nil, "type must be toggle, choice or slider" end
+    if ty == "choice" and (type(spec.choices) ~= "table" or #spec.choices < 2 or #spec.choices > 16) then
+      return nil, "choices must list 2 to 16 names"
+    end
+    if ty == "slider" and not (finite(spec.min) and finite(spec.max) and spec.min < spec.max) then
+      return nil, "slider needs min < max"
+    end
+    local step = ty == "slider" and spec.step or nil
+    if step == 0 then step = nil end
+    if step ~= nil and not (finite(step) and step > 0 and step <= spec.max - spec.min) then
+      return nil, "slider needs 0 < step <= max - min"
+    end
+    local hint = type(spec.description) == "string" and #spec.description <= 200 and spec.description or nil
+    local s = { type = ty, label = label, default = spec.default, choices = spec.choices, min = spec.min, max = spec.max, step = step, hint = hint }
+    local meta = { kind = ty, default = clean(s, ty == "choice" and (spec.default or 1) or spec.default), min = spec.min, max = spec.max, step = step }
+    if ty == "choice" then meta.n = #spec.choices end
+    return { spec = s, meta = meta }
+  end
+
+  local function mom_same(a, b)
+    if a.kind ~= b.kind or a.default ~= b.default then return false end
+    if a.kind == "choice" then return a.n == b.n end
+    if a.kind == "slider" then return a.min == b.min and a.max == b.max and a.step == b.step end
+    return true
+  end
+
+  local mom = {
+    api = 1, version = 3, max_mods = MOM_MODS, max_options = MOM_PER, revision = "ordnance-loader-1",
+    window = "Ordnance options menu",
+  }
+  function mom.register_option(id, spec)
+    if not loose_id(id) then return false, "invalid option registration" end
+    local parsed, why = mom_describe(spec)
+    if not parsed then return false, why end
+    local had = mom_rows[id]
+    if had then
+      if mom_same(mom_meta[id], parsed.meta) then return true end
+      return false, "option already registered differently"
+    end
+    if spec.mod_id ~= nil and (type(spec.mod_id) ~= "string" or #spec.mod_id > 64 or string.match(spec.mod_id, "^[%w_%.%-/:]+$") == nil) then
+      return false, "invalid mod_id"
+    end
+    local title = as_text(spec.mod) or "Options"
+    local owner = spec.mod_id or title
+    if mom_n >= MOM_PER * MOM_MODS then return false, "register_option: " .. (MOM_PER * MOM_MODS) .. " options already" end
+    if (mom_per[owner] or 0) >= MOM_PER then return false, "mod already has " .. MOM_PER .. " options" end
+    if mom_per[owner] == nil and mom_mods >= MOM_MODS then return false, "all " .. MOM_MODS .. " mod categories are in use" end
+    parsed.spec._title = title
+    local row, err = add_option(owner, id, parsed.spec, true)
+    if not row then return false, err end
+    mom_rows[id], mom_meta[id] = row, parsed.meta
+    mom_n = mom_n + 1
+    if mom_per[owner] == nil then mom_mods = mom_mods + 1 end
+    mom_per[owner] = (mom_per[owner] or 0) + 1
+    local waiting = mom_pending[id]
+    mom_pending[id] = nil
+    if waiting then
+      for i = 1, #waiting do row.changed[#row.changed + 1] = waiting[i] end
+    end
+    say("option " .. id .. " (" .. title .. ")")
+    return true
+  end
+  function mom.get(id)
+    local row = mom_rows[id]
+    if row then return row.value end
+  end
+  function mom.set(id, value)
+    local row = mom_rows[id]
+    if row == nil then return false, "unknown option" end
+    local meta = mom_meta[id]
+    if meta and meta.kind ~= "toggle" and type(value) ~= "number" then return false, "invalid value" end
+    if meta and meta.kind == "toggle" and type(value) ~= "boolean" then return false, "invalid value" end
+    set_value(row, value, true)
+    return true
+  end
+  function mom.on_change(id, fn)
+    if type(id) ~= "string" or type(fn) ~= "function" then return false, "invalid callback" end
+    local row = mom_rows[id]
+    local wrapped = function(v) return fn(v, id) end
+    if row then
+      row.changed[#row.changed + 1] = wrapped
+      return true
+    end
+    local p = mom_pending[id] or {}
+    if #p >= 64 then return false end
+    p[#p + 1] = wrapped
+    mom_pending[id] = p
+    return true
+  end
+  function mom.ready() return true end
+  rawset(_G, "ModOptionsMenu", mom)
+
+  local function mouse_held(name)
+    local which = ({ ["mouse 3"] = "middle", ["mouse 4"] = "extra_1", ["mouse 5"] = "extra_2" })[name]
+    local S = stingray()
+    local M = S and S.Mouse
+    if which == nil or type(M) ~= "table" or type(M.button_index) ~= "function" or type(M.button) ~= "function" then
+      return false
+    end
+    local ok, idx = pcall(M.button_index, which)
+    if not ok or idx == nil then ok, idx = pcall(M.button_index, name) end
+    if not ok or idx == nil then return false end
+    local ok2, v = pcall(M.button, idx)
+    return ok2 and (v == true or (type(v) == "number" and v > 0.5))
+  end
+
+  local function control_held(name)
+    if open or capture then return false end
+    if type(name) ~= "string" or name == "" or name == "off" then return false end
+    if string.sub(name, 1, 6) == "mouse " then return mouse_held(name) end
+    if string.find(name, "+", 1, true) then return binding_down(name, false) end
+    return key_down(name)
+  end
+
+  -- A default is a key name, or { button, device, trigger, modifiers }, or a list of those.
+  local function binding_spec(spec)
+    if spec == nil then return "off", "press" end
+    if type(spec) == "string" then return string.lower(spec), "press" end
+    if type(spec) ~= "table" then return "off", "press" end
+    local list = (spec.button == nil and type(spec[1]) ~= "nil") and spec or { spec }
+    if spec.button == nil and spec[1] == nil then return "off", "press" end
+    for i = 1, #list do
+      local x = list[i]
+      local button, device, trigger, front = x, "keyboard", "press", ""
+      local known = true
+      if type(x) == "table" then
+        button, device, trigger = x.button, x.device or "keyboard", x.trigger or "press"
+        if type(x.modifiers) == "table" then
+          local has = {}
+          for j = 1, #x.modifiers do
+            local m = type(x.modifiers[j]) == "string" and string.lower(x.modifiers[j]) or ""
+            if m == "control" then m = "ctrl" end
+            if m == "ctrl" or m == "shift" or m == "alt" then has[m] = true else known = false end
+          end
+          for _, m in ipairs({ "ctrl", "shift", "alt" }) do if has[m] then front = front .. m .. "+" end end
+        end
+      end
+      if known and type(button) == "string" and (trigger == "press" or trigger == "hold" or trigger == "release") then
+        button = string.lower(button)
+        if device == "mouse" then
+          button = ({ middle = "mouse 3", extra_1 = "mouse 4", extra_2 = "mouse 5" })[button]
+        elseif device ~= "keyboard" then
+          button = nil
+        end
+        if button then return front .. button, trigger end
+      end
+    end
+    return "off", "press"
+  end
+
+  local bindings = {}
+  local mbm = {
+    api = 1, version = 4, capacity = 36 * MOM_MODS, window = "Ordnance options menu",
+    extended = { devices = { "keyboard", "mouse" }, triggers = { "press", "release", "hold" } },
+  }
+  function mbm.register_binding(id, label, slot, options)
+    if not loose_id(id) then return false, "invalid binding registration" end
     if slot ~= nil and type(slot) ~= "number" then return false, "invalid binding registration" end
     if options ~= nil and type(options) ~= "table" then return false, "invalid binding registration" end
-    if type(label) ~= "string" or string.find(label, "%S") == nil or #label > 127 then
-      return false, "invalid binding registration"
-    end
+    label = as_text(label)
+    if label == nil or string.find(label, "%S") == nil or #label > 127 then return false, "invalid binding registration" end
     local category = nil
     if options and options.category ~= nil then
       if type(options.category) ~= "string" or string.find(options.category, "%S") == nil or #options.category > 64 then
@@ -1077,25 +1253,32 @@ local menu_api = (function()
       end
       category = options.category
     end
-    local owner = category or "bindings"
-    local existing = rows[owner .. "|" .. id]
-    if existing then
-      if existing.spec.label == label then return true end
+    local had = bindings[id]
+    if had then
+      if had.label == label and had.slot == slot then return true end
       return false, "binding already registered differently"
     end
-    local row, err = add_option(owner, id, { type = "key", default = "off", label = label, _title = owner })
+    local name, trigger = binding_spec(options and options.default)
+    local owner = category or "Bindings"
+    local row, err = add_option(owner, id, { type = "key", default = name, label = label, _title = owner }, true)
     if not row then return false, err end
-    bindings[id] = row
+    bindings[id] = { row = row, label = label, slot = slot, trigger = trigger }
     say("binding " .. id .. " (" .. owner .. ")")
     return true
   end
   function mbm.is_down(id)
-    local row = bindings[id]
-    if row == nil then return nil end
-    if open or capture then return false end
-    local name = row.value
-    if type(name) ~= "string" or name == "" or name == "off" then return false end
-    return key_down(name) == true
+    local b = bindings[id]
+    if b == nil then return nil end
+    -- One answer per frame. A mod that asks twice, or asks and then polls, sees the same edge.
+    if b.frame ~= menu_frame then
+      local held = control_held(b.row.value)
+      local was = b.was == true
+      b.was, b.frame = held, menu_frame
+      if b.trigger == "hold" then b.down = held
+      elseif b.trigger == "release" then b.down = was and not held
+      else b.down = held and not was end
+    end
+    return b.down
   end
   function mbm.ready() return true end
   function mbm.poll(ids, out)
@@ -1113,32 +1296,34 @@ local menu_api = (function()
     return true
   end
   function mbm.set_binding(id, spec)
-    local row = bindings[id]
-    if row == nil then return false, "not an extended binding" end
+    local b = bindings[id]
+    if b == nil then return false, "not an extended binding" end
     local name
-    if spec == nil then name = row.default
+    if spec == nil then name = b.row.default
     elseif type(spec) == "table" and spec.button == nil and spec[1] == nil then name = "off"
-    elseif type(spec) == "string" then name = string.lower(spec)
-    elseif type(spec) == "table" and type(spec.button) == "string" then name = string.lower(spec.button)
-    else return false, "invalid binding" end
-    set_value(row, name, true)
+    else name = binding_spec(spec) end
+    set_value(b.row, name, true)
     return true
   end
   function mbm.binding(id)
-    local row = bindings[id]
-    if row == nil then return nil end
-    if row.value == "off" then return {} end
-    return { { "keyboard", row.value, modifiers = {}, trigger = "press" } }
+    local b = bindings[id]
+    if b == nil then return nil end
+    local name = b.row.value
+    if name == "off" then return {} end
+    local device = string.sub(name, 1, 6) == "mouse " and "mouse" or "keyboard"
+    return { { device, name, modifiers = {}, trigger = b.trigger } }
   end
   function mbm.binding_info(id)
-    local row = bindings[id]
-    if row == nil then return nil end
+    local b = bindings[id]
+    if b == nil then return nil end
+    local v, d = b.row.value, b.row.default
     local state = "set"
-    if row.value == "off" and row.default ~= "off" then state = "cleared"
-    elseif row.value == row.default then state = "default" end
+    if v == "off" and d ~= "off" then state = "cleared"
+    elseif v == d then state = "default" end
     return { backend = "extended", state = state }
   end
   rawset(_G, "ModBindingsMenu", mbm)
+  say("ModOptionsMenu ready")
   say("ModBindingsMenu ready")
 
   local function use_options(saved)
