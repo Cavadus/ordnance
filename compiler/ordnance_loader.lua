@@ -336,28 +336,23 @@ local menu_api = (function()
       or name == "left alt" or name == "right alt" or name == "left super" or name == "right super"
   end
 
+  -- Named keys only. Walking every button index can fault inside the engine,
+  -- and a Lua pcall does not catch that.
+  local WATCH = {
+    "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12",
+    "up", "down", "left", "right", "enter", "return", "escape", "esc", "backspace", "tab", "space",
+    "left ctrl", "right ctrl", "ctrl", "left shift", "right shift", "shift", "left alt", "right alt", "alt",
+  }
+  for i = 0, 9 do WATCH[#WATCH + 1] = tostring(i) end
+  for i = string.byte("a"), string.byte("z") do WATCH[#WATCH + 1] = string.char(i) end
+
   local function poll()
     just = {}
-    local S = stingray()
-    local K = S and S.Keyboard
-    if type(K) ~= "table" or type(K.button) ~= "function" then return end
-    local n = 256
-    if type(K.num_buttons) == "function" then
-      local ok, v = pcall(K.num_buttons)
-      if ok and type(v) == "number" and v > 0 and v <= 512 then n = v end
-    end
-    local fn = (saved_input and saved_input.button) or K.button
-    local name_of = K.button_name
-    for i = 0, n - 1 do
-      local ok, v = pcall(fn, i)
-      local down = ok and ((type(v) == "number" and v > 0.5) or v == true)
-      if down and not held[i] and type(name_of) == "function" then
-        local ok2, s = pcall(name_of, i)
-        if ok2 and type(s) == "string" and s ~= "" then
-          just[string.lower(s)] = true
-        end
-      end
-      held[i] = down and true or nil
+    for i = 1, #WATCH do
+      local name = WATCH[i]
+      local down = key_down(name)
+      if down and not held[name] then just[name] = true end
+      held[name] = down and true or nil
     end
   end
 
@@ -819,6 +814,28 @@ local menu_api = (function()
   return { chef_for = chef_for, update = update, render = render }
 end)()
 
+-- The engine keeps the update/render it finds when this chunk returns.
+-- Installing them here, and pointing them at whatever mods installed
+-- during init, is what makes F10 reach the menu.
+local call_update, call_render
+local function on_update(dt)
+  local ok, err = pcall(menu_api.update)
+  if not ok then say("menu: " .. tostring(err)) end
+  if type(call_update) == "function" and call_update ~= on_update then return call_update(dt) end
+end
+local function on_render(...)
+  if type(call_render) == "function" and call_render ~= on_render then call_render(...) end
+  local ok, err = pcall(menu_api.render)
+  if not ok then say("menu draw: " .. tostring(err)) end
+end
+local function adopt_frame()
+  local now_u, now_r = rawget(_G, "update"), rawget(_G, "render")
+  if type(now_u) == "function" and now_u ~= on_update then call_update = now_u end
+  if type(now_r) == "function" and now_r ~= on_render then call_render = now_r end
+  rawset(_G, "update", on_update)
+  rawset(_G, "render", on_render)
+end
+
 local function read_entry(entry)
   local ok, file = pcall(io.open, entry.path, "rb")
   if not ok or file == nil then return nil, "cannot open" end
@@ -932,6 +949,8 @@ local function run_guest(entry)
         if not ok then say(entry.name .. " init: " .. tostring(problem)) end
       else
         local previous = before[key]
+        if previous == on_update then previous = call_update end
+        if previous == on_render then previous = call_render end
         if type(previous) ~= "function" then previous = nil end
         rawset(_G, key, function(...)
           local ok, problem = pcall(captured, ...)
@@ -1031,17 +1050,8 @@ local function start()
     if not ran then say("after_startup: " .. tostring(problem)) end
   end
   hook_shutdown()
-  local prev_update, prev_render = rawget(_G, "update"), rawget(_G, "render")
-  rawset(_G, "update", function(dt)
-    local ok, err = pcall(menu_api.update)
-    if not ok then say("menu: " .. tostring(err)) end
-    if type(prev_update) == "function" then return prev_update(dt) end
-  end)
-  rawset(_G, "render", function(...)
-    if type(prev_render) == "function" then prev_render(...) end
-    local ok, err = pcall(menu_api.render)
-    if not ok then say("menu draw: " .. tostring(err)) end
-  end)
+  adopt_frame()
+  say("menu hook installed")
   flush()
 end
 
@@ -1065,5 +1075,11 @@ rawset(_G, "init", function(...)
   return unpack(results, 1, results.n)
 end)
 
+call_update = rawget(_G, "update")
+call_render = rawget(_G, "render")
+if type(call_update) ~= "function" then call_update = nil end
+if type(call_render) ~= "function" then call_render = nil end
+rawset(_G, "update", on_update)
+rawset(_G, "render", on_render)
 say("waiting for init")
 flush()
