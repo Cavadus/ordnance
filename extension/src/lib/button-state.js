@@ -7,7 +7,7 @@
  *   - `unreachable`  -> "Get Ordnance" (links to the docs install page) -- only
  *                       when the native host itself is missing, never just
  *                       because Ordnance isn't running
- *   - `install`      -> "Install with Ordnance" (also when Ordnance isn't running:
+ *   - `install`      -> "Ordnance download" (also when Ordnance isn't running:
  *                       then with the hint "Ordnance will start", since
  *                       clicking starts it)
  *   - `starting`     -> "Starting Ordnance…" (clicked while Ordnance wasn't running;
@@ -30,7 +30,7 @@
   const LABELS = {
     checking: 'Checking Ordnance…',
     unreachable: 'Get Ordnance',
-    install: 'Ordnance Download',
+    install: 'Ordnance download',
     installed: 'Installed ✓',
     update: 'Update with Ordnance',
     installing: 'Installing…',

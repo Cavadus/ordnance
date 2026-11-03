@@ -149,7 +149,7 @@ mod tests {
         for original in [
             args(&["ordnance"]),
             args(&["ordnance", "ordnance://install?url=https%3A%2F%2Fexample.com%2Fmod.zip"]),
-            args(&["ordnance", "chrome-extension://inomhciahaeeefhgdkiaabdponcfdane/", "--parent-window=0"]),
+            args(&["ordnance", "chrome-extension://flofmpojdngloeoahdiiidaddoagpngn/", "--parent-window=0"]),
             args(&["ordnance", "/home/u/.mozilla/native-messaging-hosts/com.cavadus.ordnance.json", "ordnance@cavadus.github.io"]),
         ] {
             let r = relaunch_command(exe, None, &original, &[]);

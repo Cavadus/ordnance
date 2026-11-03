@@ -20,6 +20,10 @@ pub const BOOT_RESOURCE: [u8; 8] = [0xfa, 0x95, 0x18, 0x69, 0x93, 0xdf, 0x76, 0x
 
 const LUA_TYPE: [u8; 8] = [0xe2, 0x17, 0xd1, 0x2c, 0xfa, 0x8d, 0x4e, 0xa1];
 const SCRIPT: &str = include_str!("../../../compiler/bootmerge.py");
+const LOADER_LUA: &str = include_str!("../../../compiler/ordnance_loader.lua");
+
+/// Marks the boot Ordnance itself deploys. Installed loaders are not copied.
+pub const LOADER_MARK: &str = "@@ORDNANCE@@";
 
 /// Owns the temp directory the merged patch lives in. Dropping it deletes
 /// that directory, so hold it until the patch has been copied.
@@ -43,7 +47,7 @@ fn u32_at(buf: &[u8], at: usize) -> Option<u32> {
 /// The payload length at `0xA0` counts the 8-byte `u32 length, u32 2`
 /// prefix. That pair is not at a fixed offset: Boot Mod Loader's sits at
 /// 184, the test packs sit at 192.
-fn lua_text(data: &[u8]) -> Option<&str> {
+pub(crate) fn lua_text(data: &[u8]) -> Option<&str> {
     let payload = u32_at(data, 0xA0)? as usize;
     if payload < 8 || payload > data.len() {
         return None;
@@ -267,6 +271,71 @@ pub fn merge(patches: &[(String, PathBuf)]) -> anyhow::Result<(Hold, PathBuf)> {
     Ok((hold, merged))
 }
 
+/// A single-payload boot patch whose source is `source`.
+pub fn pack_boot(source: &str) -> Vec<u8> {
+    let raw = source.as_bytes();
+    let pad = (16 - ((200 + raw.len()) % 16)) % 16;
+    let total = 200 + raw.len() + pad;
+    let mut header = vec![0u8; 192];
+    header[0..4].copy_from_slice(&0xF000_0011u32.to_le_bytes());
+    header[4..8].copy_from_slice(&1u32.to_le_bytes());
+    header[8..12].copy_from_slice(&1u32.to_le_bytes());
+    header[0x20..0x28].copy_from_slice(&(total as u64).to_le_bytes());
+    header[0x50..0x58].copy_from_slice(&LUA_TYPE);
+    // The engine finds the script through these fields. A zero offset makes
+    // it read the archive header as Lua and the process dies at the splash.
+    header[0x58..0x5C].copy_from_slice(&1u32.to_le_bytes());
+    header[0x60..0x64].copy_from_slice(&0x10u32.to_le_bytes());
+    header[0x64..0x68].copy_from_slice(&0x10u32.to_le_bytes());
+    header[0x68..0x70].copy_from_slice(&BOOT_RESOURCE);
+    header[0x70..0x78].copy_from_slice(&LUA_TYPE);
+    header[0x78..0x80].copy_from_slice(&192u64.to_le_bytes());
+    header[0xA0..0xA4].copy_from_slice(&((raw.len() + 8) as u32).to_le_bytes());
+    // Same two words every plain boot script carries. The installer and
+    // Boot Mod Loader both set them; leaving them zero still dies at splash.
+    header[0xAC..0xB0].copy_from_slice(&0x10u32.to_le_bytes());
+    header[0xB0..0xB4].copy_from_slice(&0x10u32.to_le_bytes());
+    let mut body = header;
+    body.extend_from_slice(&(raw.len() as u32).to_le_bytes());
+    body.extend_from_slice(&2u32.to_le_bytes());
+    body.extend_from_slice(raw);
+    body.extend(std::iter::repeat(0).take(pad));
+    body
+}
+
+/// The native loader, with `plains` (other boot scripts, in load order)
+/// joined in front of it so they still run.
+pub fn assemble_loader(plains: &[(String, PathBuf)]) -> anyhow::Result<(Hold, PathBuf)> {
+    if !LOADER_LUA.contains(LOADER_MARK) {
+        bail!("the Ordnance loader source is missing its marker");
+    }
+    let dir = std::env::temp_dir().join(format!(
+        "ordnance-loader-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    ));
+    fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
+    let hold = Hold { dir: dir.clone() };
+    let loader = dir.join(format!("{BOOT_NAME}.patch_0"));
+    fs::write(&loader, pack_boot(LOADER_LUA)).context("write the Ordnance loader")?;
+    if plains.is_empty() {
+        return Ok((hold, loader));
+    }
+    let mut pieces = Vec::with_capacity(plains.len() + 1);
+    pieces.extend(plains.iter().cloned());
+    pieces.push(("ordnance-loader".into(), loader));
+    let (merged_hold, merged) = merge(&pieces)?;
+    // `merge` owns a different temp dir. Copy the result into ours so one
+    // hold covers it, then drop the merge dir.
+    let dest = dir.join("loader.patch_0");
+    fs::copy(&merged, &dest).context("keep the assembled loader")?;
+    drop(merged_hold);
+    Ok((hold, dest))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -281,9 +350,15 @@ mod tests {
         header[8..12].copy_from_slice(&1u32.to_le_bytes());
         header[0x20..0x28].copy_from_slice(&(total as u64).to_le_bytes());
         header[0x50..0x58].copy_from_slice(&LUA_TYPE);
+        header[0x58..0x5C].copy_from_slice(&1u32.to_le_bytes());
+        header[0x60..0x64].copy_from_slice(&0x10u32.to_le_bytes());
+        header[0x64..0x68].copy_from_slice(&0x10u32.to_le_bytes());
         header[0x68..0x70].copy_from_slice(&BOOT_RESOURCE);
         header[0x70..0x78].copy_from_slice(&LUA_TYPE);
+        header[0x78..0x80].copy_from_slice(&192u64.to_le_bytes());
         header[0xA0..0xA4].copy_from_slice(&((raw.len() + 8) as u32).to_le_bytes());
+        header[0xAC..0xB0].copy_from_slice(&0x10u32.to_le_bytes());
+        header[0xB0..0xB4].copy_from_slice(&0x10u32.to_le_bytes());
         let mut body = header;
         body.extend_from_slice(&(raw.len() as u32).to_le_bytes());
         body.extend_from_slice(&2u32.to_le_bytes());
@@ -294,6 +369,16 @@ mod tests {
         let path = folder.join(format!("{BOOT_NAME}.patch_0"));
         fs::write(&path, body).unwrap();
         path
+    }
+
+    #[test]
+    fn the_packed_boot_tells_the_engine_where_the_script_starts() {
+        let packed = pack_boot("-- marker\n");
+        assert_eq!(u32_at(&packed, 0x58), Some(1));
+        assert_eq!(u32_at(&packed, 0x78), Some(192));
+        assert_eq!(u32_at(&packed, 0xAC), Some(0x10));
+        assert_eq!(u32_at(&packed, 0xB0), Some(0x10));
+        assert!(packed[192..].windows(b"-- marker".len()).any(|w| w == b"-- marker"));
     }
 
     #[test]

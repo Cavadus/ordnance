@@ -32,7 +32,8 @@ If you change the protocol, change this page in the same pull request and bump `
 | What | Value |
 | --- | --- |
 | Native messaging host name | `com.cavadus.ordnance` |
-| Chrome/Edge/Brave extension ID (unpacked, from the manifest `key`) | `inomhciahaeeefhgdkiaabdponcfdane` |
+| Chrome/Edge/Brave extension ID (unpacked, from the manifest `key`) | `flofmpojdngloeoahdiiidaddoagpngn` |
+| Chrome extension ID, 1.0.3 and earlier (DDMM's key; still accepted) | `inomhciahaeeefhgdkiaabdponcfdane` |
 | Firefox extension ID (`browser_specific_settings.gecko.id`) | `ordnance@cavadus.github.io` |
 | Deep-link scheme | `ordnance://` |
 | Protocol version | `1` |

@@ -37,7 +37,7 @@ import { chromium } from 'playwright';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 const EXTENSION_DIR = path.resolve(process.env.EXTENSION_DIR || path.join(ROOT, 'dist', 'chrome'));
-const EXTENSION_ID = 'inomhciahaeeefhgdkiaabdponcfdane';
+const EXTENSION_ID = 'flofmpojdngloeoahdiiidaddoagpngn';
 const HOST_NAME = 'com.cavadus.ordnance';
 
 const MOD_ID = '123';

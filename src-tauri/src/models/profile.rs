@@ -48,6 +48,14 @@ impl Config {
             Config::V2 { enabled, .. } => *enabled,
         }
     }
+
+    /// Per-option toggles, in manifest order. Legacy configs have none.
+    pub fn toggles(&self) -> &[bool] {
+        match self {
+            Config::Legacy { .. } => &[],
+            Config::V1 { toggled, .. } | Config::V2 { toggled, .. } => toggled,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

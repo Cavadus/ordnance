@@ -86,8 +86,14 @@ def correct(p, target, edited_floats=None):
         if slot[0]=='bytes':
             _,s1,s2=slot; lo=s1-s1%8; hi=(s2-s2%8)+8
             orig_b=[p[s1],p[s2]]; is_float=False; tries=65535
-            before_slot=forward(start,p,0,lo)
-            after_slot=backward(final,p,words_end,whole)
+            # A salt past the correction word is solved from the state at
+            # that word, not from the state at the salt. See hd2edit.rs.
+            if aligned and lo >= words_end:
+                before_slot=forward(start,p,0,first)
+                after_slot=backward(final,p,hi,whole)
+            else:
+                before_slot=forward(start,p,0,lo)
+                after_slot=backward(final,p,words_end,whole)
         else:
             _,fo=slot; lo=fo-fo%8; hi=lo+8
             orig_fp=u32(p,fo); is_float=True; tries=4095
@@ -111,7 +117,10 @@ def correct(p, target, edited_floats=None):
             if aligned:
                 m=((after*INV)&MASK)^h_before; w=unmix(m)
                 if (w&0xFF)==1:
-                    wr64(p,X+16,w); return (salt,0)
+                    saved=bytes(p[X+16:X+24])
+                    wr64(p,X+16,w)
+                    if murmur64(p)==target: return (salt,0)
+                    p[X+16:X+24]=saved
             else:
                 need=(after*INV)&MASK
                 m20=((np.uint64(h_before)^varr)*MUL_np)^np.uint64(need)
@@ -120,8 +129,10 @@ def correct(p, target, edited_floats=None):
                 idx=np.flatnonzero(hit)
                 if idx.size:
                     t=int(idx[0])
+                    saved12=rd64(p,X+12); saved20=rd64(p,X+20)
                     wr64(p,X+12,fixed12|(t<<40)); wr64(p,X+20,int(u[idx[0]]))
-                    return (salt,t)
+                    if murmur64(p)==target: return (salt,t)
+                    wr64(p,X+12,saved12); wr64(p,X+20,saved20)
         restore()
     raise RuntimeError('no hash correction found')
 

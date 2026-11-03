@@ -113,6 +113,31 @@ pub async fn get_guid_renames(state: State<'_, AppState>) -> TAResult<Vec<(uuid:
     Ok(state.guid_renames())
 }
 
+const PROFILE_SHARE_LIMIT: usize = 8 * 1024 * 1024;
+
+/// Writes a profile share the UI already built. The save dialog chose `path`.
+#[tauri::command]
+pub fn write_profile_share(path: String, contents: String) -> Result<(), String> {
+    let path = std::path::Path::new(&path);
+    if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+        return Err("A profile share has to be a .json file.".into());
+    }
+    if contents.len() > PROFILE_SHARE_LIMIT {
+        return Err("That profile share is too large to be manifests only.".into());
+    }
+    std::fs::write(path, contents).map_err(|err| err.to_string())
+}
+
+/// Reads a profile share the UI is about to import.
+#[tauri::command]
+pub fn read_profile_share(path: String) -> Result<String, String> {
+    let data = std::fs::read(&path).map_err(|err| err.to_string())?;
+    if data.len() > PROFILE_SHARE_LIMIT {
+        return Err("That profile share is too large to be manifests only.".into());
+    }
+    String::from_utf8(data).map_err(|_| "That file is not a text profile share.".into())
+}
+
 /// Move entries still listing a mod by an ID it had before an update this
 /// session (a page that hadn't caught up yet) over to its new ID.
 pub(crate) fn apply_guid_renames(config: &mut ProfilesConfig, renames: &[(uuid::Uuid, uuid::Uuid)]) {

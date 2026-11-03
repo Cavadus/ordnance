@@ -1,18 +1,16 @@
 /**
  * @file Nexus Mods content script.
  *
- * Button placement mirrors Arsenal's production extension (read from a
- * working install): the action bar on every mod page holds the "Manual
- * download" action as an `<li id="action-manual">` with an `<a>` inside,
- * and the one-click button belongs in a list item right after it. The
- * Files accordion (`.accordion-downloads`) then lists each file as a
- * `dd[data-id]` section with its own "Manual download" link, and one
- * button mounts right after each of those too -- Arsenal's per-file
- * placement. These selectors were cross-checked against that verified
- * markup rather than a live fetch, because nexusmods.com still serves
- * Cloudflare's interactive challenge to headless clients (see
- * extension/test/fixtures/nexusmods-blocked.html for what those fetches
- * return).
+ * Nexus already draws a "Mod manager download" link (`#action-nmm`, and
+ * the same label on each file). That is the button we brand: shield,
+ * Ordnance yellow, and our label. Adding a second button left the Nexus
+ * one reading "Mod manager download". Pages with only "Manual download"
+ * still get a new list item after that link.
+ *
+ * These selectors were cross-checked against Arsenal's extension and
+ * against Nexus's own button markup rather than a live fetch, because
+ * nexusmods.com still serves Cloudflare's interactive challenge to
+ * headless clients (see extension/test/fixtures/nexusmods-blocked.html).
  *
  * When neither anchor can be found (challenge page, logged-out variants,
  * modals), the mounts come back empty and the shared driver falls back to
@@ -37,6 +35,46 @@
    * @param {Document} doc
    * @returns {HTMLElement|null}
    */
+  /** @param {Element} link */
+  function isManualLink(link) {
+    return /manual/i.test(link.textContent ?? '');
+  }
+
+  /** @param {Element} link */
+  function inFileList(link) {
+    return Boolean(link.closest('.accordion-downloads'));
+  }
+
+  /**
+   * Nexus's mod-manager control. Already-claimed links are skipped so a
+   * rescan does not brand them twice.
+   * @param {Element} link
+   */
+  function isManagerLink(link) {
+    if (!link || (link.tagName !== 'A' && link.tagName !== 'BUTTON')) return false;
+    if (link.hasAttribute('data-ordnance-root') || link.hasAttribute('data-ordnance-adopt')) return false;
+    if (link.closest('#action-ordnance')) return false;
+    const li = link.closest('li');
+    if (li && (li.id === 'action-nmm' || li.id === 'action-vortex')) return true;
+    return /mod manager download/i.test(link.textContent ?? '');
+  }
+
+  /** @param {Document} doc @returns {HTMLElement|null} */
+  function findAdoptedAction(doc) {
+    const marked = doc.querySelector(
+      '#action-nmm a[data-ordnance-root], #action-nmm a[data-ordnance-adopt], #action-nmm button[data-ordnance-root], #action-nmm button[data-ordnance-adopt], #action-vortex a[data-ordnance-root], #action-vortex a[data-ordnance-adopt], #action-vortex button[data-ordnance-root], #action-vortex button[data-ordnance-adopt]',
+    );
+    if (marked) return marked;
+    return Array.from(doc.querySelectorAll('a[data-ordnance-adopt], a[data-ordnance-root], button[data-ordnance-adopt], button[data-ordnance-root]')).find((el) => !inFileList(el)) || null;
+  }
+
+  /** @param {Document} doc @returns {HTMLElement|null} */
+  function findActionManager(doc) {
+    const byId = doc.querySelector('#action-nmm a, #action-nmm button, #action-vortex a, #action-vortex button');
+    if (byId && isManagerLink(byId)) return byId;
+    return Array.from(doc.querySelectorAll('a, button')).find((el) => isManagerLink(el) && !inFileList(el)) || null;
+  }
+
   function findManualAction(doc) {
     const byId = doc.getElementById('action-manual');
     if (byId) return byId;
@@ -45,19 +83,21 @@
       if (el.parentElement) bars.add(el.parentElement);
     }
     for (const bar of bars) {
-      const link = Array.from(bar.querySelectorAll('a')).find((a) =>
-        /manual/i.test(a.textContent ?? ''),
+      const link = Array.from(bar.querySelectorAll('a, button')).find((a) =>
+        isManualLink(a),
       );
       if (link) return link;
     }
-    return null;
+    const compact = doc.querySelector('mod-download-modal[trigger="compact"][file]');
+    if (!compact) return null;
+    const manual = Array.from(compact.querySelectorAll('a, button')).find(isManualLink);
+    return manual || compact;
   }
 
   /**
-   * Places the button widget's container right after the manual download
-   * action in the action bar, matching Arsenal's own placement
-   * (`insertAdjacentElement` "afterend" on the manual `<li>`).
-   * Idempotent: returns the existing container on later scans.
+   * The action-bar mount. Prefers Nexus's existing mod-manager link, which
+   * the widget brands in place. Falls back to a new list item after Manual
+   * download when that link is absent.
    * @param {Document} doc
    * @returns {HTMLElement|null}
    */
@@ -65,6 +105,13 @@
     if (!doc) return null;
     const existing = doc.getElementById('action-ordnance');
     if (existing) return existing;
+    const adopted = findAdoptedAction(doc);
+    if (adopted) return adopted;
+    const manager = findActionManager(doc);
+    if (manager) {
+      manager.setAttribute('data-ordnance-adopt', '');
+      return manager;
+    }
     const manual = findManualAction(doc);
     if (!manual) return null;
     const anchorPoint =
@@ -77,30 +124,41 @@
   }
 
   /**
-   * The Files accordion (Arsenal-verified markup): each file is a
-   * `dd[data-id]` section inside `.accordion-downloads`, and each holds
-   * a "Manual download" link. One mount per file row, placed right after
-   * that link. Idempotent: rows that already carry a mount are skipped, so
-   * a scan can run on every mutation without duplicating buttons.
+   * File rows. Each "Mod manager download" link is claimed in place. A
+   * row that only has Manual download gets a mount after that link, which
+   * is the older Nexus markup.
    * @param {Document} doc
-   * @returns {Array<HTMLElement>} Mounts for file rows that don't have one yet.
+   * @returns {Array<HTMLElement>}
    */
   function findFileRowMounts(doc) {
     const mounts = [];
+    for (const link of doc.querySelectorAll('a, button')) {
+      if (!isManagerLink(link) || !inFileList(link)) continue;
+      link.setAttribute('data-ordnance-adopt', '');
+      mounts.push(link);
+    }
     const sections = Array.from(
       doc.querySelectorAll('.accordion-downloads dd[data-id]'),
     );
     for (const section of sections) {
-      if (section.querySelector('[data-ordnance-file-mount]')) continue;
-      const manual = Array.from(section.querySelectorAll('a')).find((a) =>
-        /manual/i.test(a.textContent ?? ''),
-      );
+      if (section.querySelector('[data-ordnance-file-mount], [data-ordnance-adopt], [data-ordnance-root]')) continue;
+      const manual = Array.from(section.querySelectorAll('a, button')).find(isManualLink);
       if (!manual) continue;
       const mount = doc.createElement('span');
       mount.setAttribute('data-ordnance-file-mount', section.dataset.id || '');
       mount.style.cssText = 'display:inline-flex;align-items:center;';
       manual.insertAdjacentElement('afterend', mount);
       mounts.push(mount);
+    }
+    for (const list of doc.querySelectorAll('ul.accordion-downloads')) {
+      if (list.querySelector('[data-ordnance-file-mount], [data-ordnance-adopt], [data-ordnance-root]')) continue;
+      const manual = Array.from(list.querySelectorAll('a, button')).find(isManualLink);
+      if (!manual) continue;
+      const fileId = list.closest('dd[data-id]')?.dataset.id || '';
+      const item = doc.createElement('li');
+      item.setAttribute('data-ordnance-file-mount', fileId);
+      list.prepend(item);
+      mounts.push(item);
     }
     return mounts;
   }
@@ -123,6 +181,9 @@
 
   const adapter = {
     name: 'nexus',
+    // Nexus paints `li > a` and ignores a shadow host in the row. The
+    // branded anchor is what makes the button read as Ordnance.
+    branded: true,
     findInsertionPoint,
     findInsertionPoints,
     // Deliberately never returns a URL: Nexus free downloads must be a

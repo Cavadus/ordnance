@@ -7,9 +7,9 @@
  * No bundler: this just copies files and writes one manifest.json per
  * browser (see manifest.mjs for the actual per-browser differences).
  *
- * The Chrome manifest `key` (which pins the unpacked extension id to
- * inomhciahaeeefhgdkiaabdponcfdane) is a secret never committed to this
- * repo. The build looks for it, in order:
+ * The Chrome manifest `key` pins the unpacked extension id to
+ * flofmpojdngloeoahdiiidaddoagpngn. The public key is committed; the
+ * private key is not. The build looks for the public key, in order:
  *   1. `ORDNANCE_MANIFEST_KEY` env var (the base64 DER public key itself).
  *   2. A file at `ORDNANCE_MANIFEST_KEY_FILE` (default: extension/chrome-public-key.txt,
  *      the committed PUBLIC key -- it is not a secret; the private key never enters the repo).

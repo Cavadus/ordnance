@@ -546,21 +546,21 @@ mod tests {
     fn detects_chromium_shape() {
         let origin = detect_host_mode(&args(&[
             "/path/to/ordnance",
-            "chrome-extension://inomhciahaeeefhgdkiaabdponcfdane/",
+            "chrome-extension://flofmpojdngloeoahdiiidaddoagpngn/",
         ]))
         .unwrap();
-        assert_eq!(origin.0, "chrome-extension://inomhciahaeeefhgdkiaabdponcfdane/");
+        assert_eq!(origin.0, "chrome-extension://flofmpojdngloeoahdiiidaddoagpngn/");
     }
 
     #[test]
     fn detects_chromium_shape_with_windows_parent_window_arg() {
         let origin = detect_host_mode(&args(&[
             "C:\\ordnance.exe",
-            "chrome-extension://inomhciahaeeefhgdkiaabdponcfdane/",
+            "chrome-extension://flofmpojdngloeoahdiiidaddoagpngn/",
             "--parent-window=1234",
         ]))
         .unwrap();
-        assert_eq!(origin.0, "chrome-extension://inomhciahaeeefhgdkiaabdponcfdane/");
+        assert_eq!(origin.0, "chrome-extension://flofmpojdngloeoahdiiidaddoagpngn/");
     }
 
     #[test]

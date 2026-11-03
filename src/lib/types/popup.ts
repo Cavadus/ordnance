@@ -84,7 +84,7 @@ export class InputPopup extends Popup<string | null> {
 export class WaitPopup extends Popup {
     component = WaitPopupComponent;
 
-    constructor(public readonly message: string) {
+    constructor(public readonly message: string, public readonly live = false) {
         super();
     }
 }

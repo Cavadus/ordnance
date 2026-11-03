@@ -22,11 +22,13 @@
         setBridgeFrontendReady, getLastUpdateReport, skipUpdateVersion, browserExtensionActive,
         detectImportSources, takePendingDeepLinks, getGuidRenames, resolveReplaceRequest, pickDirectory, modConflicts, type ImportSource,
         type UpdateStatusEntry, type UpdateCheckReport, type BridgeConsentDecision, type BridgeSoftError,
-        type ReplaceOffer, type InstalledMod
+        type ReplaceOffer, type InstalledMod, type DeployReport
     } from "$lib/utils/commands";
+    import { deployProgress } from "$lib/state/deployProgress.svelte";
     import type { UUID } from "$lib/types/uuid";
     import { usePopup } from "$lib/state/popup.svelte";
     import { useProfiles } from "$lib/state/profiles.svelte";
+    import { useLibrary } from "$lib/state/library.svelte";
     import { useToast } from "$lib/state/toast.svelte";
     import {
         ConfirmPopup,
@@ -62,6 +64,7 @@
     const popups = usePopup();
     const { show: showPopup } = popups;
     const profilesStore = useProfiles();
+    const library = useLibrary();
     const { show: showToast } = useToast();
     const appWindow = getCurrentWindow();
 
@@ -70,6 +73,7 @@
     const CLOSE_SAVE_TIMEOUT_MS = 5000;
 
     let mods = $state<Mod[]>([]);
+    $effect(() => { library.set(mods); });
     let searchText = $state<string>("");
     let profileConfigs = $state<Config[]>([]);
     let iconPaths = new SvelteMap<UUID, string | null>();
@@ -937,8 +941,13 @@
                 } else {
                     deploying = true;
                     try {
-                        await deploy(currentProfile.Configs);
-                        deployed = true;
+                        const report = await deploy(currentProfile.Configs);
+                        if (!report.Deployed) {
+                            softError = { code: "DEPLOY_FAILED", message: skippedDetails(report) };
+                        } else {
+                            deployed = true;
+                            if (report.Skipped.length > 0) warnings.push(skippedDetails(report));
+                        }
                     } catch (ex: unknown) {
                         const message = errorMessage(ex);
                         softError = {
@@ -1048,8 +1057,14 @@
 
             deploying = true;
             try {
-                await deploy(currentProfile.Configs);
-                showToast("info", t("toast.auto_import.deployed", { name: mod.name }));
+                const report = await deploy(currentProfile.Configs);
+                if (!report.Deployed) {
+                    showToast("warning", t("toast.auto_import.deploy_failed", { message: skippedDetails(report) }));
+                } else if (report.Skipped.length > 0) {
+                    showToast("warning", skippedDetails(report));
+                } else {
+                    showToast("info", t("toast.auto_import.deployed", { name: mod.name }));
+                }
             } catch (ex: unknown) {
                 showToast("warning", t("toast.auto_import.deploy_failed", { message: errorMessage(ex) }));
             } finally {
@@ -1064,6 +1079,40 @@
         if (ex instanceof Error) return ex.message;
         if (typeof ex === "string") return ex;
         return "Unknown error!";
+    }
+
+    function skippedDetails(report: DeployReport): string {
+        return report.Skipped.map((skip) => `${skip.Name}: ${skip.Message}`).join("\n\n");
+    }
+
+    function deployNotice(report: DeployReport, missing = 0): NotificationPopup {
+        if (!report.Deployed) {
+            return new NotificationPopup("error", t("pages.mods.popup.notification.deploy_partial.nothing", { details: skippedDetails(report) }));
+        }
+        if (report.Skipped.length > 0) {
+            let message = t("pages.mods.popup.notification.deploy_partial.deployed", { details: skippedDetails(report) });
+            if (missing > 0) {
+                message += `\n\n${t("pages.mods.popup.notification.deploy_success.missing_skipped", { count: missing })}`;
+            }
+            return new NotificationPopup("warning", message);
+        }
+        if (missing > 0) {
+            return new NotificationPopup("warning", t("pages.mods.popup.notification.deploy_success.missing_skipped", { count: missing }));
+        }
+        return new NotificationPopup("info", t("pages.mods.popup.notification.deploy_success.message"));
+    }
+
+    async function withDeployProgress<T>(work: () => Promise<T>): Promise<T> {
+        deployProgress.text = "";
+        const unlisten = await listen<{ Detail: string }>("deploy://progress", (event) => {
+            deployProgress.text = event.payload.Detail;
+        });
+        try {
+            return await work();
+        } finally {
+            unlisten();
+            deployProgress.text = "";
+        }
     }
 
     /** An error for the log file and the error screen: its message, and
@@ -1467,12 +1516,16 @@
         const saved = await doSaveProfiles();
         if (!saved.ok) log.warn(`Failed to save profiles before redeploying: ${saved.error}`);
 
-        const wait = new WaitPopup(t("pages.mods.popup.wait.deploy.message"));
+        const wait = new WaitPopup(t("pages.mods.popup.wait.deploy.message"), true);
         showPopup(wait);
         deploying = true;
         try {
-            await deploy(currentProfile.Configs);
-            showToast("info", t("toast.updates.redeployed"));
+            const report = await withDeployProgress(() => deploy(currentProfile.Configs));
+            if (!report.Deployed || report.Skipped.length > 0) {
+                showPopup(deployNotice(report));
+            } else {
+                showToast("info", t("toast.updates.redeployed"));
+            }
         } catch (ex: unknown) {
             showPopup(new ErrorPopup(t("pages.mods.popup.error.deploy.message"), errorMessage(ex)));
         } finally {
@@ -1727,15 +1780,13 @@
             return;
         }
 
-        const wait = new WaitPopup(t("pages.mods.popup.wait.deploy.message"));
+        const wait = new WaitPopup(t("pages.mods.popup.wait.deploy.message"), true);
         showPopup(wait);
         deploying = true;
 
         try {
-            await deploy(currentProfile.Configs);
-            showPopup(missing > 0
-                ? new NotificationPopup("warning", t("pages.mods.popup.notification.deploy_success.missing_skipped", { count: missing }))
-                : new NotificationPopup("info", t("pages.mods.popup.notification.deploy_success.message")));
+            const report = await withDeployProgress(() => deploy(currentProfile.Configs));
+            showPopup(deployNotice(report, missing));
         } catch(ex: unknown) {
             showPopup(new ErrorPopup(t("pages.mods.popup.error.deploy.message"), errorMessage(ex)));
         } finally {
@@ -2236,7 +2287,7 @@
                                 class="text-[10px] font-semibold tracking-widest text-zinc-400 uppercase"
                                 style="writing-mode: vertical-rl;"
                             >
-                                {t("pages.mods.library_button.tip")}
+                                {t("pages.mods.library_button.text")}
                             </span>
                             {#if libraryMods.length > 0}
                                 <span

@@ -27,11 +27,11 @@
    * value involved is a static constant).
    * @returns {SVGSVGElement}
    */
-  function buildEmblem() {
+  function buildEmblem(size) {
     const svg = document.createElementNS(SVG_NS, 'svg');
     svg.setAttribute('viewBox', '0 0 512 512');
-    svg.setAttribute('width', '14');
-    svg.setAttribute('height', '14');
+    svg.setAttribute('width', String(size));
+    svg.setAttribute('height', String(size));
     svg.setAttribute('aria-hidden', 'true');
     svg.setAttribute('focusable', 'false');
     svg.setAttribute('class', 'ordnance-emblem');
@@ -113,6 +113,197 @@
   `;
 
   /**
+   * Nexus styles `li > a` as the action button and ignores anything else in
+   * the row, which is why a shadow-DOM widget there never read as ours.
+   * This is the in-page button, same shape Arsenal uses: a real anchor,
+   * the emblem, and our own label.
+   */
+  const BRANDED_STYLE = `
+    .ordnance-download-btn {
+      display: inline-flex !important;
+      flex-wrap: wrap;
+      align-items: center !important;
+      justify-content: flex-start !important;
+      gap: 6px !important;
+      background: #FFC61A !important;
+      color: #0B0B0C !important;
+      border: none !important;
+      border-radius: 5px !important;
+      font: 600 14px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+      padding: 7px 9px !important;
+      text-decoration: none !important;
+      text-shadow: none !important;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      white-space: nowrap;
+      user-select: none;
+    }
+    .ordnance-download-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: #fff;
+      opacity: 0;
+      transition: opacity 0.2s ease-in-out;
+    }
+    .ordnance-download-btn:hover::before { opacity: 0.22; }
+    .ordnance-download-btn:hover { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); }
+    .ordnance-download-btn > svg:not(.ordnance-emblem) { display: none !important; }
+    .ordnance-download-btn .ordnance-emblem,
+    .ordnance-download-btn .ordnance-label {
+      position: relative;
+      z-index: 1;
+    }
+    .ordnance-download-btn .ordnance-emblem {
+      width: 18px !important;
+      height: 18px !important;
+      flex: none;
+    }
+    .ordnance-download-btn[data-state="installing"],
+    .ordnance-download-btn[data-state="checking"] { cursor: progress; opacity: 0.85; }
+    .ordnance-download-btn[data-state="installed"] { background: #2ecc71 !important; }
+    .ordnance-download-btn[data-state="update"] { background: #3ba7ff !important; }
+    .ordnance-download-btn[data-state="error"] { background: #ff5555 !important; color: #1a0000 !important; }
+    .ordnance-download-btn[data-state="unreachable"] {
+      background: #0B0B0C !important;
+      color: #FFC61A !important;
+    }
+    .ordnance-download-btn .ordnance-hint {
+      flex-basis: 100%;
+      position: relative;
+      z-index: 1;
+      font: 500 11px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+      color: inherit !important;
+      white-space: normal;
+    }
+    .ordnance-download-btn .ordnance-hint[hidden] { display: none !important; }
+  `;
+
+  function ensureBrandedStyle() {
+    if (document.getElementById('ordnance-branded-style')) return;
+    const style = document.createElement('style');
+    style.id = 'ordnance-branded-style';
+    style.textContent = BRANDED_STYLE;
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  /**
+   * `nmm=1` is Nexus telling the browser to hand the file to whatever app
+   * registered the `nxm://` protocol. On this machine that app is Arsenal.
+   * Drop the flag so the same popup does a normal browser download, which
+   * is the one Ordnance captures.
+   * @param {string} href
+   * @returns {string|null}
+   */
+  function stripModManagerFlag(href) {
+    if (!href || /^nxm:/i.test(href)) return null;
+    let url;
+    try {
+      url = new URL(href, document.baseURI || 'https://www.nexusmods.com/');
+    } catch {
+      return null;
+    }
+    if (url.protocol === 'nxm:') return null;
+    url.searchParams.delete('nmm');
+    if (/^https?:/i.test(href)) return url.href;
+    return `${url.pathname}${url.search}${url.hash}`;
+  }
+
+  /**
+   * Prefer the nearby Manual download link. It is the same popup without
+   * the mod-manager handoff. Otherwise use this link with `nmm` removed.
+   * @param {HTMLElement} link
+   * @returns {string|null}
+   */
+  function browserDownloadHref(link) {
+    const scope = link.closest('ul, dd, mod-download-modal') || link.parentElement;
+    if (scope) {
+      for (const other of scope.querySelectorAll('a[href]')) {
+        if (other === link) continue;
+        if (!/manual/i.test(other.textContent || '')) continue;
+        const href = stripModManagerFlag(other.getAttribute('href'));
+        if (href) return href;
+      }
+    }
+    return stripModManagerFlag(link.getAttribute('href') || '');
+  }
+
+  /** @param {HTMLElement} link */
+  function pointAtBrowserDownload(link) {
+    if (!link || link.tagName !== 'A') return;
+    const href = browserDownloadHref(link);
+    if (href) link.setAttribute('href', href);
+  }
+
+  /**
+   * In-page Nexus button. `adopt` is Nexus's own "Mod manager download"
+   * link: we brand that element instead of inserting a second one, and
+   * point it at a normal browser download so `nxm://` does not open Arsenal.
+   * With no element to adopt, the host is a new anchor.
+   * @param {HTMLElement|null} adopt
+   * @returns {ButtonWidget}
+   */
+  function createBrandedButton(adopt) {
+    ensureBrandedStyle();
+    const host = adopt || document.createElement('a');
+    if (!adopt) host.href = '#';
+    else pointAtBrowserDownload(host);
+    host.classList.add('ordnance-download-btn');
+    host.setAttribute('data-ordnance-root', '');
+    host.removeAttribute('data-ordnance-adopt');
+    if (!host.querySelector('.ordnance-emblem')) {
+      host.insertBefore(buildEmblem(18), host.firstChild);
+    }
+    let label = host.querySelector('.ordnance-label') || host.querySelector('.flex-label');
+    if (!label) {
+      label = document.createElement('span');
+      label.className = 'ordnance-label';
+      host.appendChild(label);
+    }
+    label.classList.add('ordnance-label');
+    if (!adopt) label.textContent = 'Ordnance download';
+    let hint = host.querySelector('.ordnance-hint');
+    if (!hint) {
+      hint = document.createElement('span');
+      hint.className = 'ordnance-hint';
+      hint.hidden = true;
+      host.appendChild(hint);
+    }
+
+    return {
+      host,
+      render(state) {
+        host.dataset.state = state.state;
+        label.textContent = state.label;
+        host.setAttribute('aria-disabled', state.clickable ? 'false' : 'true');
+      },
+      setHint(text) {
+        if (text) {
+          hint.textContent = text;
+          hint.hidden = false;
+        } else {
+          hint.hidden = true;
+        }
+      },
+      onClick(handler) {
+        host.addEventListener('click', (event) => {
+          if (!event.isTrusted) return;
+          // A link we created has nowhere to go. Nexus's own link must keep
+          // its click, or the slow/fast page never opens. Rewrite it first:
+          // `nmm=1` would hand the file to the registered nxm app.
+          if (adopt) pointAtBrowserDownload(host);
+          else {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+          handler(event);
+        }, true);
+      },
+    };
+  }
+
+  /**
    * @typedef {object} ButtonWidget
    * @property {HTMLElement} host - The element inserted into the page (a shadow host).
    * @property {(state: import('../lib/button-state.js').ButtonState) => void} render
@@ -122,10 +313,13 @@
 
   /**
    * Builds the shadow-DOM button widget. Does not insert it into the page.
-   * @param {{floating: boolean}} [opts]
+   * @param {{floating?: boolean, branded?: boolean}} [opts]
+   *   `branded` is the Nexus action-bar button: a real anchor with the
+   *   emblem, not a shadow widget. Nexus paints `li > a` and skips the rest.
    * @returns {ButtonWidget}
    */
   function createButtonWidget(opts = {}) {
+    if (opts.branded) return createBrandedButton(opts.adopt || null);
     const host = document.createElement('div');
     host.setAttribute('data-ordnance-root', '');
     if (opts.floating) host.className = 'ordnance-floating-host';
@@ -151,10 +345,10 @@
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'ordnance-btn';
-    button.appendChild(buildEmblem());
+    button.appendChild(buildEmblem(14));
     const label = document.createElement('span');
     label.className = 'ordnance-label';
-    label.textContent = 'Ordnance Download';
+    label.textContent = 'Ordnance download';
     button.appendChild(label);
     wrapper.appendChild(button);
 
@@ -402,8 +596,15 @@
       mount(container) {
         if (container && mountedContainers.has(container)) return;
         if (container) mountedContainers.add(container);
-        const widget = createButtonWidget({ floating: !container });
-        if (container) container.appendChild(widget.host);
+        const adopt = Boolean(container && container.hasAttribute('data-ordnance-adopt'));
+        const widget = createButtonWidget({
+          floating: !container,
+          branded: Boolean(adapter.branded) && Boolean(container),
+          adopt: adopt ? container : null,
+        });
+        if (adopt) {
+          // The page already has this link. Branding it is the mount.
+        } else if (container) container.appendChild(widget.host);
         else document.documentElement.appendChild(widget.host);
         widget.onClick(() => { void click(widget); });
         widgets.push({ widget, container });

@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 
-const CHROME_EXTENSION_ARG: &str = "chrome-extension://inomhciahaeeefhgdkiaabdponcfdane/";
+const CHROME_EXTENSION_ARG: &str = "chrome-extension://flofmpojdngloeoahdiiidaddoagpngn/";
 
 /// Copy the compiled `ordnance` binary into a fresh portable-mode temp
 /// directory (a `portable.txt` marker makes `data_dir::decide_base_dir`

@@ -7,7 +7,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::bridge::allowlist::{CHROME_EXTENSION_ID, FIREFOX_EXTENSION_ID};
+use crate::bridge::allowlist::{CHROME_EXTENSION_ID, CHROME_EXTENSION_ID_LEGACY, FIREFOX_EXTENSION_ID};
 
 /// The native messaging host name both browsers look the manifest up by.
 pub const HOST_NAME: &str = "com.cavadus.ordnance";
@@ -87,10 +87,11 @@ fn escape_json_string(s: &str) -> String {
 /// The manifest content for a Chromium-family browser.
 pub fn chromium_manifest_json(exe_path: &Path) -> String {
     format!(
-        "{{\n  \"name\": \"{}\",\n  \"description\": \"Ordnance bridge\",\n  \"path\": \"{}\",\n  \"type\": \"stdio\",\n  \"allowed_origins\": [\"chrome-extension://{}/\"]\n}}\n",
+        "{{\n  \"name\": \"{}\",\n  \"description\": \"Ordnance bridge\",\n  \"path\": \"{}\",\n  \"type\": \"stdio\",\n  \"allowed_origins\": [\"chrome-extension://{}/\", \"chrome-extension://{}/\"]\n}}\n",
         HOST_NAME,
         escape_json_string(&exe_path.to_string_lossy()),
         CHROME_EXTENSION_ID,
+        CHROME_EXTENSION_ID_LEGACY,
     )
 }
 
@@ -317,6 +318,7 @@ fn windows_remove_key(hive_subkey: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bridge::allowlist::{CHROME_EXTENSION_ID, CHROME_EXTENSION_ID_LEGACY};
 
     #[test]
     fn chromium_manifest_has_expected_shape() {
@@ -327,7 +329,11 @@ mod tests {
         assert_eq!(value["type"], "stdio");
         assert_eq!(
             value["allowed_origins"][0],
-            "chrome-extension://inomhciahaeeefhgdkiaabdponcfdane/"
+            format!("chrome-extension://{CHROME_EXTENSION_ID}/")
+        );
+        assert_eq!(
+            value["allowed_origins"][1],
+            format!("chrome-extension://{CHROME_EXTENSION_ID_LEGACY}/")
         );
     }
 

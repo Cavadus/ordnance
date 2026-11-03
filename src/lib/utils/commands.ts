@@ -31,6 +31,14 @@ export async function modConflicts(mods: { guid: string; directory: string }[]):
     return await invoke<ModConflict[]>('mod_conflicts', { mods });
 }
 
+export async function writeProfileShare(path: string, contents: string): Promise<void> {
+    await invoke<void>('write_profile_share', { path, contents });
+}
+
+export async function readProfileShare(path: string): Promise<string> {
+    return await invoke<string>('read_profile_share', { path });
+}
+
 export async function pickDirectory(): Promise<string | null> {
     try {
         return await invoke<string | null>('pick_directory');
@@ -327,6 +335,26 @@ export async function getGuidRenames(): Promise<[UUID, UUID][]> {
     return await invoke<[UUID, UUID][]>("get_guid_renames");
 }
 
+export type BugReportFacts = {
+    Os: string;
+    Version: string;
+    GamePath: string;
+    GameBuild: string | null;
+    DeployedPatches: string[];
+    PatchesTruncated: boolean;
+    LogTail: string;
+};
+
+/** OS, game build, deployed patch names, and the tail of the log. */
+export async function bugReportFacts(): Promise<BugReportFacts> {
+    return await invoke<BugReportFacts>("bug_report_facts");
+}
+
+/** OS clipboard. The webview clipboard API deadlocks the window on Linux. */
+export async function copyText(text: string): Promise<void> {
+    await invoke<void>("copy_text", { text });
+}
+
 export async function loadSettings(): Promise<Settings> {
     log.debug("Invoking `load_settings`.");
     return await invoke<Settings>("load_settings");
@@ -473,9 +501,13 @@ export async function autoDetectAndSaveGamePath(): Promise<string | null> {
     return await invoke<string | null>("auto_detect_and_save_game_path");
 }
 
-export async function deploy(configs: Config[]): Promise<void> {
+export type DeploySkip = { Name: string; Message: string };
+
+export type DeployReport = { Skipped: DeploySkip[]; Deployed: boolean };
+
+export async function deploy(configs: Config[]): Promise<DeployReport> {
     log.debug("Invoking `deploy`.");
-    await invoke<void>("deploy", { configs });
+    return await invoke<DeployReport>("deploy", { configs });
 }
 
 export async function purge(): Promise<void> {

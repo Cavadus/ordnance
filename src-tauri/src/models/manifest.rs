@@ -251,6 +251,28 @@ impl Manifest {
 
         serde_json::from_value(value).map_err(|e| anyhow::anyhow!("{}: {}", origin, e))
     }
+
+    /// Option names in manifest order. A stat-plan edit names one of these
+    /// to apply only while that option is ticked.
+    pub fn option_names(&self) -> Vec<&str> {
+        match self {
+            Manifest::Legacy(m) => m
+                .options
+                .as_ref()
+                .map(|opts| opts.iter().map(String::as_str).collect())
+                .unwrap_or_default(),
+            Manifest::V1(m) => m
+                .options
+                .as_ref()
+                .map(|opts| opts.iter().map(|opt| opt.name.as_str()).collect())
+                .unwrap_or_default(),
+            Manifest::V2(m) => m
+                .options
+                .as_ref()
+                .map(|opts| opts.iter().map(|opt| opt.name.as_str()).collect())
+                .unwrap_or_default(),
+        }
+    }
 }
 
 fn decode_manifest_text(data: &[u8], origin: &str) -> String {

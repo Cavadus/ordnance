@@ -1,6 +1,6 @@
 [package]
 name = "ordnance"
-version = "0.4.3"
+version = "0.4.4"
 description = "Ordnance Mod Manager — compiles Helldivers 2 stat mods into one sealed .dl_bin swap."
 authors = ["katsyk", "Cavadus"]
 license = "MIT"
@@ -56,6 +56,11 @@ base64 = "0.22"
 same-file = "1.0"
 crypto_box = "0.9.1"
 blake2 = "0.11.0"
+# Windows and macOS clipboard. Linux must not use this: an in-process X11
+# clipboard inside the GTK app, and the webview's own clipboard API, both
+# deadlock the window. Linux copies by spawning wl-copy or xclip.
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+arboard = "3"
 
 [target.x86_64-pc-windows-gnu]
 linker = "x86_64-w64-mingw32-gcc"

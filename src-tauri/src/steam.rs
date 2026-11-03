@@ -99,14 +99,24 @@ pub fn parse_library_paths(vdf: &str) -> Vec<PathBuf> {
         .collect()
 }
 
+/// Read one quoted field out of a `steamapps/appmanifest_<id>.acf`.
+pub fn parse_acf_field(acf: &str, key: &str) -> Option<String> {
+    let prefix = format!("\"{key}\"");
+    acf.lines().find_map(|line| {
+        let rest = line.trim().strip_prefix(&prefix)?;
+        extract_quoted_value(rest.trim_start())
+    })
+}
+
 /// Read the `installdir` value out of a `steamapps/appmanifest_<id>.acf`'s
 /// contents, if present.
 pub fn parse_installdir(acf: &str) -> Option<String> {
-    acf.lines().find_map(|line| {
-        let trimmed = line.trim();
-        let rest = trimmed.strip_prefix("\"installdir\"")?;
-        extract_quoted_value(rest.trim_start())
-    })
+    parse_acf_field(acf, "installdir")
+}
+
+/// Read the `buildid` value. That is the game build a deploy was built against.
+pub fn parse_buildid(acf: &str) -> Option<String> {
+    parse_acf_field(acf, "buildid")
 }
 
 /// Parse a single VDF/KeyValues quoted string starting at `rest` (which
@@ -286,6 +296,13 @@ mod tests {
 }
 "#;
         assert_eq!(parse_installdir(acf).as_deref(), Some("Helldivers 2"));
+        assert_eq!(parse_buildid(acf), None);
+    }
+
+    #[test]
+    fn parses_buildid_from_acf() {
+        let acf = "\"buildid\"\t\t\"26251122\"\n";
+        assert_eq!(parse_buildid(acf).as_deref(), Some("26251122"));
     }
 
     #[test]

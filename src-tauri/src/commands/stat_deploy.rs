@@ -65,6 +65,24 @@ fn req(e: &Value, key: &str) -> anyhow::Result<usize> {
     }
 }
 
+/// Which copy of `tid` a row edit names. Files such as the stratagem table
+/// repeat one section type; the plan carries the index so the applier does
+/// not guess. Omitted means the first copy.
+fn section_base(blob: &[u8], tid: u32, section: usize) -> anyhow::Result<usize> {
+    let bases: Vec<usize> = headers(blob)
+        .into_iter()
+        .filter(|(_, t, _)| *t == tid)
+        .map(|(at, _, _)| at + 24)
+        .collect();
+    bases.get(section).copied().with_context(|| {
+        format!("table {tid:08x} has {} section(s); plan asked for section {section}", bases.len())
+    })
+}
+
+fn plan_section(e: &Value) -> usize {
+    e.get("section").and_then(|v| v.as_u64()).unwrap_or(0) as usize
+}
+
 fn find_record(blob: &[u8], base: usize, stride: usize, rid: u32) -> anyhow::Result<usize> {
     let count = rd_u32(blob, base + 8) as usize;
     for i in 0..count {
@@ -177,11 +195,7 @@ fn apply_edit(blob: &mut [u8], e: &Value, floats: &mut Vec<usize>) -> anyhow::Re
         Ok(())
     } else {
         let (tid, stride) = (req(e, "type")? as u32, req(e, "stride")?);
-        let base = headers(blob)
-            .iter()
-            .find(|(_, t, _)| *t == tid)
-            .map(|(at, _, _)| at + 24)
-            .with_context(|| format!("table header for {table}"))?;
+        let base = section_base(blob, tid, plan_section(e))?;
         let rec = find_record(blob, base, stride, hx(&e["record"]) as u32)?;
         let off = rec + e["offset"].as_u64().unwrap_or(0) as usize;
         do_op(blob, off, op, e["kind"].as_str().unwrap_or(""), &e["value"], floats)
@@ -274,6 +288,17 @@ pub fn plaintext_after_edits(edits: &[&Value], sealed_stock: &[u8]) -> anyhow::R
     Ok(blob)
 }
 
+/// Field edits for a mod that still ships a whole-table file swap. The mod's
+/// own `stat-plan.json` wins when it has one. The guid is Stratagem Balls
+/// Stay Put; the plan clears the walkable-ground flag on each named record.
+pub fn bundled_plan(guid: uuid::Uuid) -> Option<&'static str> {
+    if guid == uuid::uuid!("9bc8fcbb-ad8c-4724-898a-0d0d383d55ae") {
+        Some(include_str!("../../plans/stratagem-balls-stay-put.json"))
+    } else {
+        None
+    }
+}
+
 pub fn apply_plan(plan_json: &str, stock_dir: &Path) -> anyhow::Result<OutHold> {
     let plan: Vec<Value> = serde_json::from_str(plan_json).context("parse plan")?;
     let dir = std::env::temp_dir().join(format!(
@@ -343,6 +368,20 @@ mod tests {
     }
 
     #[test]
+    fn row_edit_can_name_a_later_copy_of_the_same_section() {
+        let mut blob = section(0x30EB_6399, &row_body(8, &[1]));
+        blob.extend(section(0x30EB_6399, &row_body(8, &[2])));
+        let untouched = rd_u32(&blob, 24 + 16 + 4);
+        let edit = json!({"file": "generated_stratagem_settings.dl_bin", "type": "0x30EB6399", "section": 1,
+                          "stride": 8, "record": 2, "offset": 4, "kind": "u32", "value": 9, "op": "set"});
+        apply_edit(&mut blob, &edit, &mut Vec::new()).unwrap();
+        assert_eq!(rd_u32(&blob, 24 + 16 + 4), untouched);
+        let second = 48 + 24 + 16;
+        assert_eq!(rd_u32(&blob, second), 2);
+        assert_eq!(rd_u32(&blob, second + 4), 9);
+    }
+
+    #[test]
     fn row_edit_with_integer_add_and_mul() {
         let mut blob = section(0xBBBB_0002, &row_body(12, &[5, 9]));
         let rec = 24 + 16 + 12;
@@ -357,6 +396,39 @@ mod tests {
         apply_edit(&mut blob, &mul, &mut floats).unwrap();
         assert_eq!(rd_u32(&blob, rec + 4), 26);
         assert!(floats.is_empty(), "integer ops must not be recorded as float edits");
+    }
+
+    #[test]
+    fn the_stratagem_plan_changes_only_the_named_flags() {
+        let Some(home) = std::env::var_os("HOME") else { return };
+        let stock_path = PathBuf::from(home).join(".local/share/Steam/steamapps/common/Helldivers 2/data/ordnance-stock/generated_stratagem_settings.dl_bin");
+        if !stock_path.is_file() {
+            return;
+        }
+        let stock = fs::read(&stock_path).unwrap();
+        let plan: Vec<Value> = serde_json::from_str(include_str!("../../plans/stratagem-balls-stay-put.json")).unwrap();
+        assert_eq!(plan.len(), 105);
+        let refs: Vec<&Value> = plan.iter().collect();
+        let mut out = plaintext_after_edits(&refs, &stock).unwrap();
+        for (at, _, _) in headers(&out) {
+            for k in 17..24 {
+                out[at + k] = 0;
+            }
+        }
+        let plain = seal_open(&stock);
+        let changed: Vec<usize> = plain.iter().zip(&out).enumerate().filter(|(_, (a, b))| a != b).map(|(i, _)| i).collect();
+        assert_eq!(changed.len(), 105);
+        for edit in &plan {
+            let section = edit["section"].as_u64().unwrap() as usize;
+            let stride = edit["stride"].as_u64().unwrap() as usize;
+            let record = edit["record"].as_u64().unwrap() as u32;
+            let offset = edit["offset"].as_u64().unwrap() as usize;
+            let value = edit["value"].as_u64().unwrap() as u32;
+            let base = section_base(&out, 0x30EB_6399, section).unwrap();
+            let rec = find_record(&out, base, stride, record).unwrap();
+            assert_eq!(rd_u32(&out, rec + offset), value);
+            assert!(changed.contains(&(rec + offset)));
+        }
     }
 
     #[test]

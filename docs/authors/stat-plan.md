@@ -58,10 +58,12 @@ is a JSON array of edit objects:
 | buckets | keyed tables only | Hash bucket count. |
 | stride | always | Record size in bytes. |
 | record | row tables only | The record's id, 0x hex or integer. |
+| section | no | Which copy of `type` to edit, starting at 0. Row tables only. Omit it for the first copy. |
 | offset | set/mul/add only | Byte offset within the record. |
 | kind | set/mul/add only | u32 or f32. |
 | value | set/mul/add only | The operand. A number, or for u32 set, a 0x hex string. |
 | src / dst | clone only | Source and destination record ids. |
+| option | no | The manifest option name this edit belongs to. When present, the edit applies only while that option is ticked. An edit with no option applies whenever the mod is enabled. |
 
 ### Addressing modes
 
@@ -72,6 +74,8 @@ present:
    scanning buckets hash entries for the matching key pair, then indexing
    by stride.
 2. **Row table** — has record but no lo. The record is found by id.
+   A file can contain the same section type more than once. `section` picks
+   which copy; the applier does not search the others.
 3. **Clone** — has src and dst. Copies an entire record.
 
 Every edit carries its own geometry. **The applier must not know any game

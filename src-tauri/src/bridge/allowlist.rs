@@ -3,17 +3,24 @@
 
 /// Chrome/Edge/Brave/Opera/Vivaldi extension ID (from the unpacked
 /// manifest's `key`) and the Firefox extension ID
-/// (`browser_specific_settings.gecko.id`) -- the only two callers the app
-/// side of the bridge ever trusts. Kept in one place so both the origin
-/// check and the native-messaging manifests reference the same values.
-pub const CHROME_EXTENSION_ID: &str = "inomhciahaeeefhgdkiaabdponcfdane";
+/// (`browser_specific_settings.gecko.id`). Kept in one place so both the
+/// origin check and the native-messaging manifests reference the same values.
+pub const CHROME_EXTENSION_ID: &str = "flofmpojdngloeoahdiiidaddoagpngn";
+/// Ordnance 1.0.3 and earlier reused DDMM's manifest key, so they share
+/// that extension id. Still accepted so an already-installed 1.0.3 keeps
+/// talking to Ordnance. The extension package itself no longer uses it,
+/// which is what lets DDMM stay installed beside Ordnance.
+pub const CHROME_EXTENSION_ID_LEGACY: &str = "inomhciahaeeefhgdkiaabdponcfdane";
 pub const FIREFOX_EXTENSION_ID: &str = "ordnance@cavadus.github.io";
 
 /// The exact `origin` values the app accepts on a forwarded request -- the
 /// host relay sets this field itself (see `host::relay`), so trusting it
 /// here means trusting the host, not the browser's own claim.
-fn allowed_origins() -> [String; 1] {
-    [format!("chrome-extension://{CHROME_EXTENSION_ID}/")]
+fn allowed_origins() -> [String; 2] {
+    [
+        format!("chrome-extension://{CHROME_EXTENSION_ID}/"),
+        format!("chrome-extension://{CHROME_EXTENSION_ID_LEGACY}/"),
+    ]
 }
 
 /// Whether `origin` (as set by the host relay) is one this app accepts.
@@ -81,6 +88,7 @@ mod tests {
 
     #[test]
     fn chrome_origin_is_allowed() {
+        assert!(is_allowed_origin("chrome-extension://flofmpojdngloeoahdiiidaddoagpngn/"));
         assert!(is_allowed_origin("chrome-extension://inomhciahaeeefhgdkiaabdponcfdane/"));
     }
 

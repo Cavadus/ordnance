@@ -12,13 +12,12 @@ import {
 
 const BACKGROUND_MAIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'src', 'background', 'main.js');
 
-// The real key, from /home/rabite/dev/ordnance-secrets/manifest-key.txt (base64
-// DER SubjectPublicKeyInfo). Safe to hardcode: it's a *public* key, and this
-// exact value is already published in docs/development/bridge-protocol.md
-// as the thing that derives the pinned extension id.
+// The public key committed in extension/chrome-public-key.txt. It is not a
+// secret. Ordnance 1.0.4 replaced the key 1.0.3 inherited from DDMM, which
+// is what made Chrome treat the two extensions as one.
 const REAL_CHROME_KEY =
-  'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkNbeQACUodr/ZNy48l1PPcc8EW2eqt2cIKPgBBBUF8cnDBvMDIFObISN8aPchgYHtjQ1lwxwMUu3YXJJ2QsYnFzSEIGJax1r6QR9fYFr/AoE7bV7ICY8/AUHShaZ78/yN82olTGquL+9pZp/HvtCBr1nVzD7hxR8nWJVmjiqWmSJIQrH8jSJ331IzxGVv2CzQ0IvC2fDvCszOlSKGhzjPix0vdPwCzIUZDvfR9vhVzZHOusoUICNjq+9Z6t2Ul/KKoQTyBKxJOZYpostva3zgh5z/FXN5Zpl08lcRnUM3YjYSosg3T+RFgzwJhgGiQ8enJwfiJzdL4mmDO3iQPsFLQIDAQAB';
-const EXPECTED_ID = 'inomhciahaeeefhgdkiaabdponcfdane';
+  'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAh3VO4y1hslv+JfR/H/Z1yoM6R8tENKiv7Qm7qWrojSaOTJFv5uLhBxvHmADkaae9Iux4IVO1E0MyCd00QbCaqBXLj5CejCV4cmr2djskDP5UKw65IA6zkaaFGifhdPiP3pZexdVkRCl7RlZAtxd8G4GB0I9aRO0A9PKKtUr++Ky4qdjIZlIzkdOG0W/mLDC2PQfSXJ4w2BLaWj3/A7VxTQHHEK9jrD93I8SxRCQOEX6KGt/XwSctLbAFMdrYAAYxyF+KNb/PH3zp2meDEgEe6p74Cey09pzhJuqu+D+kQJIiGSJX0N31gwob9FgQZ1iHgBPI7vxQ7eKIF31lsglQKwIDAQAB';
+const EXPECTED_ID = 'flofmpojdngloeoahdiiidaddoagpngn';
 
 describe('extensionIdFromKey', () => {
   it('derives the pinned unpacked id from the real manifest key', async () => {

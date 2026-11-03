@@ -49,6 +49,10 @@ export function useProfiles() {
             const p = profiles[index];
             if (p && p.Version === 'V1') p.Name = name;
         },
+        setConfigs(index: number, configs: Profile['Configs']) {
+            const p = profiles[index];
+            if (p && p.Version === 'V1') p.Configs = configs;
+        },
 
         async save() {
             await saveProfiles({ Profiles: profiles, Active: activeProfile });

@@ -347,6 +347,6 @@ mod tests {
         assert_eq!(found, vec!["ordnance://install?url=https%3A%2F%2Fexample.com%2Fmod.zip", "ordnance://open"]);
         assert!(links_from_args(["ordnance"]).is_empty());
         // Native-messaging host arguments are not links.
-        assert!(links_from_args(["ordnance", "chrome-extension://inomhciahaeeefhgdkiaabdponcfdane/", "--parent-window=0"]).is_empty());
+        assert!(links_from_args(["ordnance", "chrome-extension://flofmpojdngloeoahdiiidaddoagpngn/", "--parent-window=0"]).is_empty());
     }
 }

@@ -226,8 +226,16 @@ pub fn correct(p: &mut [u8], target: u64, edited_floats: &[usize]) -> Result<(),
         let (lo, hi, before_slot, after_slot, orig_fp, orig_b0, orig_b1, tries) = if !is_float {
             let lo = s1 - s1 % 8;
             let hi = (s2 - s2 % 8) + 8;
-            let bs = forward(start, p, 0, lo);
-            let as_ = backward(final_h, p, words_end, whole);
+            // A header salt past the correction word does not change the
+            // state at that word. Anchor there, and at the state the salt
+            // word has to reach. Anchoring at the salt itself accepts a
+            // word whose low byte is 1 and whose hash is still wrong.
+            let salt_after = aligned && lo >= words_end;
+            let (bs, as_) = if salt_after {
+                (forward(start, p, 0, first), backward(final_h, p, hi, whole))
+            } else {
+                (forward(start, p, 0, lo), backward(final_h, p, words_end, whole))
+            };
             (lo, hi, bs, as_, 0u32, p[s1], p[s2], 65535u32)
         } else {
             let fo = s1;
@@ -260,8 +268,12 @@ pub fn correct(p: &mut [u8], target: u64, edited_floats: &[usize]) -> Result<(),
                 let m = after.wrapping_mul(INV) ^ h_before;
                 let w = unmix(m);
                 if (w & 0xFF) == 1 {
+                    let saved = rd64(p, x + 16);
                     wr64(p, x + 16, w);
-                    return Ok(());
+                    if murmur64(p) == target {
+                        return Ok(());
+                    }
+                    wr64(p, x + 16, saved);
                 }
             } else {
                 let need = after.wrapping_mul(INV);
@@ -277,9 +289,15 @@ pub fn correct(p: &mut [u8], target: u64, edited_floats: &[usize]) -> Result<(),
                     }
                 }
                 if let Some((t, u)) = found {
+                    let saved12 = rd64(p, x + 12);
+                    let saved20 = rd64(p, x + 20);
                     wr64(p, x + 12, fixed12 | (t << 40));
                     wr64(p, x + 20, u);
-                    return Ok(());
+                    if murmur64(p) == target {
+                        return Ok(());
+                    }
+                    wr64(p, x + 12, saved12);
+                    wr64(p, x + 20, saved20);
                 }
             }
         }

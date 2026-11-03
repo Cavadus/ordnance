@@ -129,9 +129,14 @@ They're not claimed as verified captures.
 
 ## The Chrome manifest key
 
-Chrome/Edge/Brave's unpacked extension id (`inomhciahaeeefhgdkiaabdponcfdane`) is pinned by putting
+Chrome/Edge/Brave's unpacked extension id (`flofmpojdngloeoahdiiidaddoagpngn`) is pinned by putting
 the corresponding **public** key in the manifest's `key` field. The public key is committed at
 `extension/chrome-public-key.txt` (public keys aren't secret; every published manifest contains one).
 The matching **private** key is only needed to sign `.crx` packages and is kept by the maintainer,
 never in this repo. `scripts/build.mjs` reads the committed file by default; `ORDNANCE_MANIFEST_KEY` or
 `ORDNANCE_MANIFEST_KEY_FILE` can override it.
+
+1.0.3 and earlier reused DDMM's key, so Chrome treated the two extensions as the same one and
+installing Ordnance replaced DDMM. 1.0.4 has its own key. Firefox was already a separate id
+(`ordnance@cavadus.github.io`). The app still accepts the old Chrome id, so an already-installed
+1.0.3 keeps working.

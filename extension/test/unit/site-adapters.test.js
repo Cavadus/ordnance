@@ -145,4 +145,32 @@ describe('Nexus adapter', () => {
     const doc = loadFixture('nexusmods-blocked.html');
     expect(globalThis.Ordnance.siteAdapters.nexus.findInsertionPoints(doc)).toEqual([]);
   });
+
+  it('takes over Mod manager download instead of adding a second button', () => {
+    const doc = loadFixture('nexusmods-manager-row.html');
+    const points = globalThis.Ordnance.siteAdapters.nexus.findInsertionPoints(doc);
+    expect(doc.getElementById('action-ordnance')).toBeNull();
+    const manager = doc.querySelector('#action-nmm a');
+    expect(manager.hasAttribute('data-ordnance-adopt')).toBe(true);
+    expect(doc.getElementById('action-manual').textContent).toContain('Manual download');
+    const list = doc.querySelector('ul.accordion-downloads');
+    const fileLink = Array.from(list.querySelectorAll('a')).find((a) => /mod manager download/i.test(a.textContent));
+    expect(fileLink.hasAttribute('data-ordnance-adopt')).toBe(true);
+    expect(list.querySelectorAll('li').length).toBe(2);
+    expect(list.textContent).toContain('Manual download');
+    expect(points.length).toBe(2);
+    const again = globalThis.Ordnance.siteAdapters.nexus.findInsertionPoints(doc);
+    expect(again.length).toBe(1);
+    expect(again[0].hasAttribute('data-ordnance-adopt')).toBe(true);
+  });
+
+  it('takes over the mod manager link inside the compact modal', () => {
+    const doc = loadFixture('nexusmods-modal.html');
+    const point = globalThis.Ordnance.siteAdapters.nexus.findInsertionPoint(doc);
+    const modal = doc.querySelector('mod-download-modal');
+    expect(doc.getElementById('action-ordnance')).toBeNull();
+    expect(point.hasAttribute('data-ordnance-adopt')).toBe(true);
+    expect(modal.contains(point)).toBe(true);
+    expect(modal.textContent).toContain('Manual download');
+  });
 });

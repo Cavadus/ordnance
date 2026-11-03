@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+  <meta charset="UTF-8">
+  <title>Nexus file row</title>
+</head>
+<body>
+  <!-- Current action bar: Nexus's own button keeps its label. Ours is a sibling. -->
+  <ul class="modactions-list">
+    <li id="action-nmm">
+      <a href="/popup?id=1&amp;nmm=1"><span class="flex-label">Mod manager download</span></a>
+    </li>
+    <li id="action-manual">
+      <a href="/popup?id=1"><span class="flex-label">Manual download</span></a>
+    </li>
+  </ul>
+
+  <!-- Current Files tab: one ul per file, manager link plus manual link. -->
+  <ul class="accordion-downloads clearfix">
+    <li>
+      <a class="btn inline-flex" href="/popup?id=9&amp;nmm=1"><span class="flex-label">Mod manager download</span></a>
+    </li>
+    <li>
+      <a class="btn inline-flex" href="/popup?id=9"><span class="flex-label">Manual download</span></a>
+    </li>
+  </ul>
+</body>
+</html>

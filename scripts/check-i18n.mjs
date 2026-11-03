@@ -1,14 +1,19 @@
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { join, relative } from 'path';
 
-function flattenKeys(obj, prefix = null) {
+function flattenKeys(obj, prefix = []) {
     const keys = [];
     for (const [k, v] of Object.entries(obj)) {
-        const fullKey = prefix ? `${prefix}.${k}` : k;
+        // The runtime splits a key on every dot, so a name like "add.tip"
+        // never resolves and the hover shows the key itself.
+        if (k.includes('.')) {
+            throw new Error(`Translation key contains a dot: ${[...prefix, k].join('.')}`);
+        }
+        const path = [...prefix, k];
         if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
-            keys.push(...flattenKeys(v, fullKey));
+            keys.push(...flattenKeys(v, path));
         } else {
-            keys.push(fullKey);
+            keys.push(path.join('.'));
         }
     }
     return keys;

@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, path::{Path, PathBuf}, sync::OnceLock};
+use std::{collections::{HashMap, HashSet}, path::{Path, PathBuf}, sync::{atomic::{AtomicU64, Ordering}, OnceLock}};
 
 use anyhow_tauri::{IntoTAResult, TAResult};
 use regex::Regex;
@@ -17,7 +17,9 @@ pub mod bridge;
 pub mod data_folder;
 pub mod import;
 pub mod dialogs;
+pub mod bug_report;
 mod boot_deploy;
+mod file_swap;
 mod hd2edit;
 mod stat_deploy;
 
@@ -27,6 +29,13 @@ struct PatchFileTriplet {
     patch: Option<PathBuf>,
     gpu_resources: Option<PathBuf>,
     stream: Option<PathBuf>,
+    /// Profile order. File swaps of one table are painted in this order.
+    seq: u64,
+}
+
+fn next_patch_seq() -> u64 {
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    SEQ.fetch_add(1, Ordering::Relaxed)
 }
 
 /// `relative` (from a mod's manifest) resolved under the mod directory
@@ -123,7 +132,7 @@ async fn add_files_from_dir(dir: &Path, groups: &mut HashMap<String, Vec<PatchFi
             groups
                 .entry(name.clone())
                 .or_default()
-                .push(PatchFileTriplet { patch, gpu_resources, stream });
+                .push(PatchFileTriplet { patch, gpu_resources, stream, seq: next_patch_seq() });
         }
     }
 
@@ -243,6 +252,12 @@ fn is_skip_listed_slot_zero(file: &Path, settings: &Settings) -> bool {
 async fn do_purge(data_dir: &Path, settings: &Settings) -> anyhow::Result<()> {
     use anyhow::Context;
     log::info!("Purging...");
+
+    let swapped = file_swap::recorded_files(data_dir);
+    if !swapped.is_empty() {
+        file_swap::restore_files(data_dir, &swapped)?;
+        file_swap::write_record(data_dir, &[])?;
+    }
 
     let deployed = read_deploy_record(data_dir).await;
     let mut patch_files = Vec::new();
@@ -445,8 +460,37 @@ async fn collect_files_for_mod(
     Ok(())
 }
 
+#[derive(serde::Serialize, Clone, Debug)]
+#[serde(rename_all = "PascalCase")]
+pub struct DeploySkip {
+    pub name: String,
+    pub message: String,
+}
+
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "PascalCase")]
+pub struct DeployReport {
+    pub skipped: Vec<DeploySkip>,
+    /// False when every mod was left out. The previous deploy is still in
+    /// the game. True once this deploy has replaced it.
+    pub deployed: bool,
+}
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "PascalCase")]
+struct DeployProgress {
+    detail: String,
+}
+
+fn report_progress(app: Option<&tauri::AppHandle>, detail: &str) {
+    log::info!("{detail}");
+    let Some(app) = app else { return };
+    use tauri::Emitter;
+    let _ = app.emit("deploy://progress", DeployProgress { detail: detail.to_string() });
+}
+
 #[tauri::command]
-pub async fn deploy(state: State<'_, AppState>, configs: Vec<Config>) -> TAResult<()> {
+pub async fn deploy(app: tauri::AppHandle, state: State<'_, AppState>, configs: Vec<Config>) -> TAResult<DeployReport> {
     let _data_op = state.data_op().into_ta_result()?;
     let mods = state.inner().mods.lock().await;
     if mods.is_none() {
@@ -465,19 +509,191 @@ pub async fn deploy(state: State<'_, AppState>, configs: Vec<Config>) -> TAResul
     let data_dir = game_root.join("data");
     crate::commands::settings::check_game_data_dir(&state.base_path, &data_dir).into_ta_result()?;
 
-    do_deploy(&data_dir, &settings, mods).await.into_ta_result()
+    deploy_with_progress(&data_dir, &settings, mods, Some(&app)).await.into_ta_result()
 }
 
 /// Deploy `mods` into the game's `data_dir`: collect every enabled mod's
-/// patch files first, then purge, then copy. Collecting first means a
-/// mod that can't be deployed (an option folder missing from it, an
-/// unreadable folder) stops the deploy before anything in the game folder
-/// is touched, so the previous deploy stays in place instead of the game
-/// being left with no mods at all.
+/// patch files first, then purge, then copy. A mod that can't be deployed
+/// is left out and named in the report. The others still deploy. If every
+/// mod is left out, nothing is purged, so the previous deploy stays.
 /// The game runs one `boot` resource, from the highest patch that carries
-/// it. A loader has to be that patch. Other boots stay below it so the
-/// loader can run them. With no loader, two or more boots are joined into
-/// one so they do not erase each other.
+/// it. Ordnance deploys that boot itself when a mod declares an addon.
+/// Installed copies of Chef, Rat, and Boot Mod Loader are not copied.
+/// With no addon, two or more plain boots are joined into one so they do
+/// not erase each other.
+fn mod_root_of(path: &Path) -> Option<PathBuf> {
+    let mut dir = path.parent();
+    while let Some(current) = dir {
+        if current.join("manifest.json").is_file() {
+            return Some(current.to_path_buf());
+        }
+        dir = current.parent();
+    }
+    None
+}
+
+fn under_root(path: &Path, root: &Path) -> bool {
+    path.starts_with(root)
+}
+
+/// Drop every file that belongs to an installed loader mod. The native
+/// boot replaces it. A loader patch with no manifest beside it (a test
+/// fixture) is left for [`fold_boot_scripts`] to skip on its own.
+fn drop_installed_loaders(groups: &mut HashMap<String, Vec<PatchFileTriplet>>) {
+    let mut roots = Vec::new();
+    if let Some(boots) = groups.get(boot_deploy::BOOT_NAME) {
+        for triplet in boots {
+            let Some(path) = triplet.patch.as_ref() else { continue };
+            if !boot_deploy::is_loader_boot(path) {
+                continue;
+            }
+            if let Some(root) = mod_root_of(path) {
+                if !roots.iter().any(|have: &PathBuf| have == &root) {
+                    log::info!("Not deploying installed loader {}", root.display());
+                    roots.push(root);
+                }
+            }
+        }
+    }
+    if roots.is_empty() {
+        return;
+    }
+    for triplets in groups.values_mut() {
+        triplets.retain(|triplet| {
+            let paths = [triplet.patch.as_ref(), triplet.gpu_resources.as_ref(), triplet.stream.as_ref()];
+            !paths.into_iter().flatten().any(|path| roots.iter().any(|root| under_root(path, root)))
+        });
+    }
+}
+
+fn boot_source(path: &Path) -> Option<String> {
+    let data = std::fs::read(path).ok()?;
+    boot_deploy::lua_text(&data).map(str::to_string)
+}
+
+fn is_declared_addon(text: &str) -> bool {
+    let line = text.lines().next().unwrap_or("").trim_end_matches('\r');
+    line.starts_with("-- HD2-Addon:")
+        || line.starts_with("-- HD2-Boot:")
+        || line.starts_with("-- HD2-Guest-Boot:")
+        || line.starts_with("-- HD2-Options:")
+}
+
+fn is_swap_installer(text: &str) -> bool {
+    text.contains("HD2FM1") && text.contains("shutdown = finish")
+}
+
+fn plan_names_file(plan: &str, target: &str) -> bool {
+    let Ok(edits) = serde_json::from_str::<Vec<serde_json::Value>>(plan) else {
+        return false;
+    };
+    edits.iter().any(|edit| edit.get("file").and_then(|v| v.as_str()) == Some(target))
+}
+
+fn manifest_name(start: &Path) -> Option<String> {
+    let mut dir = start.parent();
+    for _ in 0..6 {
+        let d = dir?;
+        let manifest = d.join("manifest.json");
+        if manifest.is_file() {
+            if let Ok(text) = std::fs::read_to_string(&manifest) {
+                if let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) {
+                    if let Some(name) = value.get("Name").and_then(|v| v.as_str()).filter(|s| !s.is_empty()) {
+                        return Some(name.to_string());
+                    }
+                }
+            }
+        }
+        dir = d.parent();
+    }
+    None
+}
+
+fn mod_root_guid(start: &Path) -> Option<uuid::Uuid> {
+    let mut dir = start.parent();
+    for _ in 0..6 {
+        let d = dir?;
+        let manifest = d.join("manifest.json");
+        if manifest.is_file() {
+            if let Ok(text) = std::fs::read_to_string(&manifest) {
+                if let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) {
+                    if let Some(guid) = value.get("Guid").and_then(|v| v.as_str()) {
+                        return uuid::Uuid::parse_str(guid).ok();
+                    }
+                }
+            }
+        }
+        dir = d.parent();
+    }
+    None
+}
+
+/// True when this patch's mod edits `target` with a stat plan, either one
+/// shipped in the mod folder or one Ordnance carries for that mod.
+fn plan_covers_swap(patch: &Path, target: &str) -> bool {
+    let mut dir = patch.parent();
+    for _ in 0..6 {
+        let Some(d) = dir else { break };
+        let path = d.join("stat-plan.json");
+        if path.is_file() {
+            if let Ok(text) = std::fs::read_to_string(&path) {
+                return plan_names_file(&text, target);
+            }
+        }
+        dir = d.parent();
+    }
+    mod_root_guid(patch)
+        .and_then(stat_deploy::bundled_plan)
+        .is_some_and(|plan| plan_names_file(plan, target))
+}
+
+/// Pull HD2FM payloads out of the deploy set, in profile order. The
+/// installer boot that would have copied them on exit is not deployed.
+fn take_file_swaps(groups: &mut HashMap<String, Vec<PatchFileTriplet>>) -> Vec<file_swap::Payload> {
+    let mut found: Vec<(u64, file_swap::Payload)> = Vec::new();
+    for triplets in groups.values_mut() {
+        let mut kept = Vec::new();
+        for triplet in triplets.drain(..) {
+            let Some(path) = triplet.patch.as_ref() else {
+                kept.push(triplet);
+                continue;
+            };
+            let bytes = std::fs::read(path).unwrap_or_default();
+            if let Some(mut payload) = file_swap::parse_hd2fm(&bytes) {
+                payload.source = path.clone();
+                payload.label = path
+                    .parent()
+                    .and_then(|parent| parent.file_name())
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("mod")
+                    .to_string();
+                payload.mod_name = manifest_name(path).unwrap_or_else(|| payload.label.clone());
+                if plan_covers_swap(path, &payload.target) {
+                    log::info!(
+                        "Not deploying file swap {} -> {}: a stat plan edits that table",
+                        payload.label,
+                        payload.target
+                    );
+                    continue;
+                }
+                log::info!("file swap {} -> {}", payload.label, payload.target);
+                found.push((triplet.seq, payload));
+                continue;
+            }
+            if boot_deploy::is_text_boot_script(path)
+                && boot_source(path).is_some_and(|text| is_swap_installer(&text))
+            {
+                log::info!("Not deploying file-swap installer {}", path.display());
+                continue;
+            }
+            kept.push(triplet);
+        }
+        *triplets = kept;
+    }
+    found.sort_by_key(|(seq, _)| *seq);
+    found.into_iter().map(|(_, payload)| payload).collect()
+}
+
 fn fold_boot_scripts(
     groups: &mut HashMap<String, Vec<PatchFileTriplet>>,
 ) -> anyhow::Result<Option<boot_deploy::Hold>> {
@@ -485,42 +701,74 @@ fn fold_boot_scripts(
         return Ok(None);
     };
     let mut rest = Vec::new();
-    let mut boots = Vec::new();
-    let mut loaders = Vec::new();
+    let mut plains = Vec::new();
+    let mut addons = Vec::new();
     for triplet in triplets.drain(..) {
         let Some(path) = triplet.patch.clone() else {
             rest.push(triplet);
             continue;
         };
-        // Chef's patch is multi-resource, so it is not a single-payload text
-        // boot. Detect the loader first or it stays below the merged swap
-        // script and the game runs that script as its boot.
+        // A loader that had no manifest still has to stay out of the boot
+        // slot. Ordnance's own boot is the one the game runs.
         if boot_deploy::is_loader_boot(&path) {
-            loaders.push(triplet);
+            log::info!("Not deploying installed loader patch {}", path.display());
             continue;
         }
-        if !boot_deploy::is_text_boot_script(&path) {
+        // A declaration (`-- HD2-Options:` and the rest) is Lua the loader
+        // reads off disk. It often does not carry the boot resource, so the
+        // boot-script check misses it. Leaving it as the highest patch makes
+        // the game run that snippet as the boot.
+        let text = boot_source(&path).unwrap_or_default();
+        let declaration = is_declared_addon(&text);
+        if !declaration && !boot_deploy::is_text_boot_script(&path) {
             rest.push(triplet);
             continue;
         }
-        boots.push((path, triplet));
+        if is_swap_installer(&text) {
+            log::info!("Not deploying file-swap installer {}", path.display());
+            continue;
+        }
+        if declaration {
+            addons.push(triplet);
+            continue;
+        }
+        plains.push((path, triplet));
     }
-    if !loaders.is_empty() {
+    if !addons.is_empty() {
+        let named: Vec<(String, PathBuf)> = plains
+            .iter()
+            .map(|(path, _)| {
+                let name = path
+                    .parent()
+                    .and_then(|parent| parent.file_name())
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("mod")
+                    .to_string();
+                (name, path.clone())
+            })
+            .collect();
         log::info!(
-            "A boot loader is enabled. It deploys last so it stays the boot the game runs. {} other boot script(s) stay below it.",
-            boots.len()
+            "Ordnance loader starts {} addon archive(s) and {} other boot script(s).",
+            addons.len(),
+            named.len()
         );
-        rest.extend(boots.into_iter().map(|(_, triplet)| triplet));
-        rest.extend(loaders);
+        let (hold, merged) = boot_deploy::assemble_loader(&named)?;
+        rest.extend(addons);
+        rest.push(PatchFileTriplet {
+            patch: Some(merged),
+            gpu_resources: None,
+            stream: None,
+            seq: next_patch_seq(),
+        });
+        *triplets = rest;
+        return Ok(Some(hold));
+    }
+    if plains.len() < 2 {
+        rest.extend(plains.into_iter().map(|(_, triplet)| triplet));
         *triplets = rest;
         return Ok(None);
     }
-    if boots.len() < 2 {
-        rest.extend(boots.into_iter().map(|(_, triplet)| triplet));
-        *triplets = rest;
-        return Ok(None);
-    }
-    let named: Vec<(String, PathBuf)> = boots
+    let named: Vec<(String, PathBuf)> = plains
         .iter()
         .map(|(path, _)| {
             let name = path
@@ -533,7 +781,7 @@ fn fold_boot_scripts(
         })
         .collect();
     log::info!(
-        "No boot loader is enabled. Merging {} boot scripts so the highest patch still runs all of them.",
+        "No addon scripts. Merging {} boot scripts so the highest patch still runs all of them.",
         named.len()
     );
     let (hold, merged) = boot_deploy::merge(&named)?;
@@ -541,6 +789,7 @@ fn fold_boot_scripts(
         patch: Some(merged),
         gpu_resources: None,
         stream: None,
+        seq: next_patch_seq(),
     });
     *triplets = rest;
     Ok(Some(hold))
@@ -553,6 +802,18 @@ const STAT_TABLE_FILES: [&str; 4] = [
     "generated_explosion_settings.dl_bin",
 ];
 
+/// An edit with no `option` applies whenever the mod is enabled. An edit
+/// that names an option applies only while that box is ticked.
+fn stat_edit_selected(edit: &serde_json::Value, option_names: &[&str], toggled: &[bool]) -> anyhow::Result<bool> {
+    let Some(name) = edit.get("option").and_then(|v| v.as_str()).map(str::trim).filter(|s| !s.is_empty()) else {
+        return Ok(true);
+    };
+    let Some(index) = option_names.iter().position(|n| *n == name) else {
+        anyhow::bail!("option \"{name}\" is not in this mod's manifest");
+    };
+    Ok(toggled.get(index).copied().unwrap_or(false))
+}
+
 /// Collects each enabled mod's "stat-plan.json" (a JSON array of offset-based
 /// edits) in profile order. The plan applier applies them in order, so a later
 /// edit wins when two hit the same field.
@@ -564,22 +825,32 @@ async fn collect_stat_plans(mods: &[(&Mod, &Config)]) -> anyhow::Result<Vec<serd
             continue;
         }
         let plan_path = r#mod.directory.join("stat-plan.json");
-        if !plan_path.is_file() {
+        let text = if plan_path.is_file() {
+            tokio::fs::read_to_string(&plan_path)
+                .await
+                .with_context(|| format!("read {:?}", plan_path))?
+        } else if let Some(bundled) = stat_deploy::bundled_plan(r#mod.guid()) {
+            bundled.to_string()
+        } else {
             continue;
-        }
-        let text = tokio::fs::read_to_string(&plan_path)
-            .await
-            .with_context(|| format!("read {:?}", plan_path))?;
-        let mut edits: Vec<serde_json::Value> =
+        };
+        let edits: Vec<serde_json::Value> =
             serde_json::from_str(&text).with_context(|| format!("parse {:?}", plan_path))?;
         // Tag each edit with its mod so apply-time errors can name the mod.
+        // An edit that names an option is skipped while that box is off.
         let attribution = format!("{} ({})", r#mod.name(), r#mod.guid());
-        for e in &mut edits {
+        let names = r#mod.manifest.option_names();
+        let toggled = config.toggles();
+        for mut e in edits {
             if let Some(obj) = e.as_object_mut() {
                 obj.insert("_mod".to_string(), serde_json::Value::String(attribution.clone()));
             }
+            if stat_edit_selected(&e, &names, toggled)
+                .with_context(|| format!("{attribution}: stat-plan.json"))?
+            {
+                plan_edits.push(e);
+            }
         }
-        plan_edits.extend(edits);
     }
     Ok(plan_edits)
 }
@@ -594,6 +865,27 @@ const STOCK_OUTPUT_DIR: &str = "output";
 /// A missing stock file is seeded from the game. A game file that matches the
 /// stock backup, or matches the previous deploy's sealed output, leaves the
 /// backup alone. Anything else is a table Steam replaced.
+/// `Some` when `src` would change the plaintext length of the table already
+/// in the game. A missing game file is not a conflict.
+async fn different_table_length(src: &Path, game_path: &Path) -> anyhow::Result<Option<String>> {
+    use anyhow::Context;
+    let next = tokio::fs::read(src).await.with_context(|| format!("read {}", src.display()))?;
+    let existing = match tokio::fs::read(game_path).await {
+        Ok(bytes) => bytes,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(e).with_context(|| format!("read {}", game_path.display())),
+    };
+    let have = hd2edit::seal_open(&existing).len();
+    let want = hd2edit::seal_open(&next).len();
+    if have == want {
+        return Ok(None);
+    }
+    let name = game_path.file_name().and_then(|n| n.to_str()).unwrap_or("table");
+    Ok(Some(format!(
+        "{name} would replace a {have}-byte table with a {want}-byte one, so it was left alone"
+    )))
+}
+
 fn game_file_replaces_stock(game: Option<&[u8]>, stock: Option<&[u8]>, output: Option<&[u8]>) -> bool {
     let Some(game) = game else {
         return false;
@@ -632,7 +924,15 @@ async fn refresh_stat_stock(
 ) -> anyhow::Result<()> {
     use anyhow::Context;
     let output_dir = stock_dir.join(STOCK_OUTPUT_DIR);
-    for fname in STAT_TABLE_FILES {
+    let mut files: Vec<String> = STAT_TABLE_FILES.iter().map(|name| (*name).to_string()).collect();
+    for edit in plan_edits {
+        if let Some(name) = edit.get("file").and_then(|v| v.as_str()) {
+            if !files.iter().any(|have| have == name) {
+                files.push(name.to_string());
+            }
+        }
+    }
+    for fname in &files {
         let game_path = game_dir.join(fname);
         let stock_path = stock_dir.join(fname);
         let output_path = output_dir.join(fname);
@@ -650,26 +950,42 @@ async fn refresh_stat_stock(
                 log::info!("{fname}: game file is a reseal of the stock backup");
                 continue;
             }
-            let edits: Vec<&serde_json::Value> = plan_edits
-                .iter()
-                .filter(|e| e.get("file").and_then(|v| v.as_str()) == Some(fname))
-                .collect();
-            if !edits.is_empty() {
-                match stat_deploy::plaintext_after_edits(&edits, stock_bytes) {
-                    Ok(applied) if applied == game_plain => {
-                        log::info!("{fname}: game file matches the plans applied to the stock backup");
-                        continue;
-                    }
-                    Ok(_) => {}
-                    Err(err) => {
-                        log::warn!(
-                            "{fname}: leaving the stock backup in place; the game file is neither it nor a clean apply of the current plans ({err:#})"
-                        );
-                        continue;
+            // A different length is a different build of the table. The file
+            // in the game is the one this build shipped. Keeping the other
+            // backup and writing it back is how an 82432-byte stratagem table
+            // replaced the 82424-byte one and the game died at startup.
+            if game_plain.len() != stock_plain.len() {
+                log::warn!(
+                    "{fname}: stock backup is {} bytes of plaintext and the game file is {}; keeping the game file",
+                    stock_plain.len(),
+                    game_plain.len()
+                );
+            } else {
+                let edits: Vec<&serde_json::Value> = plan_edits
+                    .iter()
+                    .filter(|e| e.get("file").and_then(|v| v.as_str()) == Some(fname.as_str()))
+                    .collect();
+                if !edits.is_empty() {
+                    match stat_deploy::plaintext_after_edits(&edits, stock_bytes) {
+                        Ok(applied) if applied == game_plain => {
+                            log::info!(
+                                "{fname}: game file matches the plans applied to the stock backup"
+                            );
+                            continue;
+                        }
+                        Ok(_) => {}
+                        Err(err) => {
+                            log::warn!(
+                                "{fname}: leaving the stock backup in place; the game file is neither it nor a clean apply of the current plans ({err:#})"
+                            );
+                            continue;
+                        }
                     }
                 }
+                log::info!(
+                    "{fname}: game file matches neither the stock backup nor the last output; replacing the backup"
+                );
             }
-            log::info!("{fname}: game file matches neither the stock backup nor the last output; replacing the backup");
         }
         tokio::fs::copy(&game_path, &stock_path)
             .await
@@ -697,12 +1013,85 @@ async fn apply_stat_plans(
     Ok(Some(out))
 }
 
-async fn do_deploy(data_dir: &Path, settings: &Settings, mods: Vec<(&Mod, &Config)>) -> anyhow::Result<()> {
+fn drop_mod_files(groups: &mut HashMap<String, Vec<PatchFileTriplet>>, root: &Path) {
+    for triplets in groups.values_mut() {
+        triplets.retain(|triplet| {
+            let paths = [triplet.patch.as_ref(), triplet.gpu_resources.as_ref(), triplet.stream.as_ref()];
+            !paths.into_iter().flatten().any(|path| under_root(path, root))
+        });
+    }
+    groups.retain(|_, triplets| !triplets.is_empty());
+}
+
+fn mod_dir_for<'a>(mods: &'a [(&Mod, &Config)], source: &Path) -> Option<&'a Path> {
+    mods.iter()
+        .find(|(r#mod, _)| source.starts_with(&r#mod.directory))
+        .map(|(r#mod, _)| r#mod.directory.as_path())
+}
+
+struct PlanChunk<'a> {
+    name: &'a str,
+    guid: String,
+    dir: &'a Path,
+    edits: Vec<serde_json::Value>,
+}
+
+fn plan_chunks<'a>(mods: &'a [(&Mod, &Config)], edits: &[serde_json::Value]) -> Vec<PlanChunk<'a>> {
+    let mut chunks = Vec::new();
+    for (r#mod, _) in mods {
+        let key = format!("{} ({})", r#mod.name(), r#mod.guid());
+        let mine: Vec<_> = edits
+            .iter()
+            .filter(|edit| edit.get("_mod").and_then(|v| v.as_str()) == Some(key.as_str()))
+            .cloned()
+            .collect();
+        if mine.is_empty() {
+            continue;
+        }
+        chunks.push(PlanChunk {
+            name: r#mod.name(),
+            guid: r#mod.guid().to_string(),
+            dir: &r#mod.directory,
+            edits: mine,
+        });
+    }
+    chunks
+}
+
+#[cfg(test)]
+async fn do_deploy(data_dir: &Path, settings: &Settings, mods: Vec<(&Mod, &Config)>) -> anyhow::Result<DeployReport> {
+    deploy_with_progress(data_dir, settings, mods, None).await
+}
+
+async fn deploy_with_progress(
+    data_dir: &Path,
+    settings: &Settings,
+    mods: Vec<(&Mod, &Config)>,
+    progress: Option<&tauri::AppHandle>,
+) -> anyhow::Result<DeployReport> {
     log::info!("Grouping files...");
-    let plan_edits = collect_stat_plans(&mods).await?;
+    let mut skipped: Vec<DeploySkip> = Vec::new();
+    let enabled: Vec<(&Mod, &Config)> = mods.iter().copied().filter(|(_, config)| config.enabled()).collect();
+    let total = enabled.len();
+    let mut plan_edits = Vec::new();
     let mut groups: HashMap<String, Vec<PatchFileTriplet>> = HashMap::new();
-    for (r#mod, config) in mods {
-        collect_files_for_mod(r#mod, config, &mut groups).await?;
+    for (index, (r#mod, config)) in enabled.iter().copied().enumerate() {
+        report_progress(progress, &format!("Reading {} ({} of {})", r#mod.name(), index + 1, total));
+        let mut local = HashMap::new();
+        if let Err(err) = collect_files_for_mod(r#mod, config, &mut local).await {
+            skipped.push(DeploySkip { name: r#mod.name().to_string(), message: format!("{err:#}") });
+            continue;
+        }
+        match collect_stat_plans(&[(r#mod, config)]).await {
+            Ok(edits) => plan_edits.extend(edits),
+            Err(err) => {
+                skipped.push(DeploySkip { name: r#mod.name().to_string(), message: format!("{err:#}") });
+                continue;
+            }
+        }
+        for (name, mut triplets) in local {
+            groups.entry(name).or_default().append(&mut triplets);
+        }
     }
 
     log::info!("Collected files into {} groups.", groups.len());
@@ -712,41 +1101,144 @@ async fn do_deploy(data_dir: &Path, settings: &Settings, mods: Vec<(&Mod, &Confi
         }
     }
 
-    // Two text Lua patches of the boot script would otherwise deploy as
-    // patch_N and patch_N+1, and the higher one would replace the lower.
-    // Merge them before purge so a failed merge leaves the game untouched.
+    // Payloads and the loader are resolved before purge. A mod that fails
+    // here is dropped. Anything that is not one mod's problem (a boot merge
+    // that cannot be built, a table that cannot be written) still stops
+    // the deploy before the game folder is touched.
+    let mut swaps = take_file_swaps(&mut groups);
+    drop_installed_loaders(&mut groups);
     let _boot_hold = fold_boot_scripts(&mut groups)?;
-    let stat_out = apply_stat_plans(data_dir, &plan_edits).await?;
+    let mut accepted: Vec<serde_json::Value> = Vec::new();
+    let mut stat_out = None;
+    for chunk in plan_chunks(&mods, &plan_edits) {
+        report_progress(progress, &format!("Applying {}", chunk.name));
+        let mut trial = accepted.clone();
+        trial.extend(chunk.edits.iter().cloned());
+        match apply_stat_plans(data_dir, &trial).await {
+            Ok(out) => {
+                accepted = trial;
+                stat_out = out;
+            }
+            Err(err) => {
+                let message = format!("{err:#}");
+                if !message.contains(&chunk.guid) && !message.contains(chunk.name) {
+                    return Err(err);
+                }
+                log::info!("Leaving {} out of this deploy: {message}", chunk.name);
+                skipped.push(DeploySkip { name: chunk.name.to_string(), message });
+                drop_mod_files(&mut groups, chunk.dir);
+                swaps.retain(|payload| mod_dir_for(&mods, &payload.source) != Some(chunk.dir));
+            }
+        }
+    }
+    let painted = if swaps.is_empty() {
+        None
+    } else {
+        report_progress(progress, "Applying file changes");
+        let outcome = file_swap::paint_all(
+            data_dir,
+            &swaps,
+            stat_out.as_ref().map(|out| out.dir.as_path()),
+        )?;
+        for skip in outcome.skipped {
+            log::info!("Leaving {} out of this deploy: {}", skip.mod_name, skip.message);
+            if let Some(dir) = mod_dir_for(&mods, &skip.source).map(Path::to_path_buf).or_else(|| mod_root_of(&skip.source)) {
+                drop_mod_files(&mut groups, &dir);
+            }
+            skipped.push(DeploySkip { name: skip.mod_name, message: skip.message });
+        }
+        if outcome.painted.files.is_empty() { None } else { Some(outcome.painted) }
+    };
 
+    let has_files = groups.values().any(|triplets| !triplets.is_empty());
+    let has_tables = stat_out.is_some() || painted.as_ref().is_some_and(|painted| !painted.files.is_empty());
+    if !has_files && !has_tables && !skipped.is_empty() {
+        log::info!("Every mod was left out; the previous deploy stays in place");
+        return Ok(DeployReport { skipped, deployed: false });
+    }
+
+    report_progress(progress, "Removing the previous deploy");
     do_purge(data_dir, settings).await?;
 
     log::info!("Deploying...");
 
+    let mut restore_on_purge: Vec<String> = Vec::new();
     if let Some(out) = &stat_out {
+        report_progress(progress, "Writing game tables");
         use anyhow::Context;
         let game_dir = data_dir.join("game");
         let output_dir = data_dir.join("ordnance-stock").join(STOCK_OUTPUT_DIR);
         tokio::fs::create_dir_all(&output_dir)
             .await
             .context("create stock output dir")?;
-        for fname in STAT_TABLE_FILES {
-            let src = out.dir.join(fname);
-            if src.is_file() {
-                let recorded = output_dir.join(fname);
-                tokio::fs::copy(&src, &recorded)
-                    .await
-                    .with_context(|| format!("record resealed {fname}"))?;
-                if let Err(err) = tokio::fs::copy(&src, game_dir.join(fname)).await {
-                    let _ = tokio::fs::remove_file(&recorded).await;
-                    return Err(err).with_context(|| format!("copy resealed {fname}"));
-                }
+        let mut names = std::fs::read_dir(&out.dir)
+            .map(|rd| {
+                rd.filter_map(|entry| entry.ok())
+                    .map(|entry| entry.file_name().to_string_lossy().into_owned())
+                    .filter(|name| name.ends_with(".dl_bin"))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        names.sort();
+        for fname in names {
+            let src = out.dir.join(&fname);
+            let recorded = output_dir.join(&fname);
+            let game_path = game_dir.join(&fname);
+            if let Some(message) = different_table_length(&src, &game_path).await? {
+                log::warn!("{message}");
+                skipped.push(DeploySkip { name: fname.clone(), message });
+                continue;
+            }
+            tokio::fs::copy(&src, &recorded)
+                .await
+                .with_context(|| format!("record resealed {fname}"))?;
+            if let Err(err) = tokio::fs::copy(&src, game_dir.join(&fname)).await {
+                let _ = tokio::fs::remove_file(&recorded).await;
+                return Err(err).with_context(|| format!("copy resealed {fname}"));
+            }
+            // The four gameplay tables are reapplied from stock on the next
+            // deploy. A plan that edits any other table has to be put back
+            // on purge, the same way a file swap is.
+            if !STAT_TABLE_FILES.contains(&fname.as_str()) {
+                restore_on_purge.push(fname);
             }
         }
     }
 
+    if let Some(painted) = &painted {
+        use anyhow::Context;
+        let game_dir = data_dir.join("game");
+        let output_dir = data_dir.join("ordnance-stock").join(STOCK_OUTPUT_DIR);
+        tokio::fs::create_dir_all(&game_dir).await.context("create game dir")?;
+        tokio::fs::create_dir_all(&output_dir).await.context("create stock output dir")?;
+        for fname in &painted.files {
+            let src = painted.dir.join(fname);
+            let recorded = output_dir.join(fname);
+            let game_path = game_dir.join(fname);
+            if let Some(message) = different_table_length(&src, &game_path).await? {
+                log::warn!("{message}");
+                skipped.push(DeploySkip { name: fname.clone(), message });
+                continue;
+            }
+            tokio::fs::copy(&src, &recorded)
+                .await
+                .with_context(|| format!("record swapped {fname}"))?;
+            if let Err(err) = tokio::fs::copy(&src, game_dir.join(fname)).await {
+                let _ = tokio::fs::remove_file(&recorded).await;
+                return Err(err).with_context(|| format!("copy swapped {fname}"));
+            }
+            if !restore_on_purge.iter().any(|name| name == fname) {
+                restore_on_purge.push(fname.clone());
+            }
+        }
+    }
+    if !restore_on_purge.is_empty() {
+        file_swap::write_record(data_dir, &restore_on_purge)?;
+    }
+
     if groups.is_empty() {
         log::info!("Nothing to deploy.");
-        return Ok(());
+        return Ok(DeployReport { skipped, deployed: true });
     }
     
     // Load order: `configs` is the profile's mod list, top to bottom, and
@@ -767,7 +1259,7 @@ async fn do_deploy(data_dir: &Path, settings: &Settings, mods: Vec<(&Mod, &Confi
     }
     written.sort();
 
-    log::info!("Copying files...");
+    report_progress(progress, "Copying mods into the game");
     let copied = copy_groups(data_dir, settings, &groups).await;
     // Recorded even when copying stopped partway, so the files that did
     // land are known to be Ordnance's.
@@ -775,7 +1267,7 @@ async fn do_deploy(data_dir: &Path, settings: &Settings, mods: Vec<(&Mod, &Confi
     copied?;
 
     log::info!("Deployment complete.");
-    Ok(())
+    Ok(DeployReport { skipped, deployed: true })
 }
 
 async fn copy_groups(
@@ -879,6 +1371,20 @@ mod tests {
 
     fn v2_fixture_manifest() -> Manifest {
         serde_json::from_str(V2_FIXTURE).expect("fixture should parse as a manifest")
+    }
+
+    #[test]
+    fn a_named_stat_edit_follows_that_options_toggle() {
+        let names = ["One-Two", "Arbitrator"];
+        let on = serde_json::json!({"option": "One-Two", "file": "generated_entities.dl_bin"});
+        let off = serde_json::json!({"option": "Arbitrator"});
+        let plain = serde_json::json!({"file": "generated_entities.dl_bin"});
+        let toggled = [true, false];
+        assert!(stat_edit_selected(&on, &names, &toggled).unwrap());
+        assert!(!stat_edit_selected(&off, &names, &toggled).unwrap());
+        assert!(stat_edit_selected(&plain, &names, &toggled).unwrap());
+        let err = stat_edit_selected(&serde_json::json!({"option": "Nope"}), &names, &toggled).unwrap_err();
+        assert!(err.to_string().contains("Nope"), "{err}");
     }
 
     fn patch_file_name(index: u32) -> String {
@@ -1274,11 +1780,14 @@ mod tests {
             patches.push((index, std::fs::read(path).unwrap()));
         }
         patches.sort_by_key(|(index, _)| *index);
-        let loader_at = patches.iter().position(|(_, bytes)| bytes.windows(b"Chef Shared Loader".len()).any(|w| w == b"Chef Shared Loader")).unwrap();
-        let file_at = patches.iter().position(|(_, bytes)| bytes.windows(b"stratagem_swap".len()).any(|w| w == b"stratagem_swap")).unwrap();
-        assert!(file_at < loader_at, "the loader must be the highest boot");
-        let loader_text = String::from_utf8_lossy(&patches[loader_at].1);
-        assert!(!loader_text.contains("stratagem_swap"), "the file mod was pasted into the loader");
+        assert!(
+            patches.iter().all(|(_, bytes)| !bytes.windows(b"Chef Shared Loader".len()).any(|w| w == b"Chef Shared Loader")),
+            "an installed loader is not deployed"
+        );
+        assert!(
+            patches.iter().any(|(_, bytes)| bytes.windows(b"stratagem_swap".len()).any(|w| w == b"stratagem_swap")),
+            "the other boot script still deploys"
+        );
     }
 
     /// Chef's real patch carries the boot stub plus its core, so it is not a
@@ -1315,11 +1824,136 @@ mod tests {
             patches.push((index, std::fs::read(path).unwrap()));
         }
         patches.sort_by_key(|(index, _)| *index);
-        let loader_at = patches.iter().position(|(_, bytes)| bytes.windows(b"Chef Shared Loader".len()).any(|w| w == b"Chef Shared Loader")).unwrap();
-        let file_at = patches.iter().position(|(_, bytes)| bytes.windows(b"stratagem_swap".len()).any(|w| w == b"stratagem_swap")).unwrap();
-        assert!(file_at < loader_at, "Chef must stay above the swap script");
-        let loader_text = String::from_utf8_lossy(&patches[loader_at].1);
-        assert!(!loader_text.contains("stratagem_swap"), "the swap script was merged into Chef");
+        assert!(
+            patches.iter().all(|(_, bytes)| !bytes.windows(b"Chef Shared Loader".len()).any(|w| w == b"Chef Shared Loader")),
+            "Chef is not deployed"
+        );
+        assert!(
+            patches.iter().any(|(_, bytes)| bytes.windows(b"stratagem_swap".len()).any(|w| w == b"stratagem_swap")),
+            "the other boot script still deploys"
+        );
+    }
+
+    /// An `-- HD2-Addon:` script stays in its own archive, under the boot
+    /// Ordnance deploys. The installed loader is not copied.
+    #[tokio::test]
+    async fn an_addon_stays_under_the_ordnance_loader() {
+        let data = tempfile::tempdir().unwrap();
+        let addon = tempfile::tempdir().unwrap();
+        let loader = tempfile::tempdir().unwrap();
+        write_text_boot_script(addon.path(), "-- HD2-Addon: mods/test/lamp\nmarker_lamp = true\n");
+        write_text_boot_script(loader.path(), "--@@LOADER@@\nChef Shared Loader\n");
+        let (addon_mod, addon_cfg) = legacy_mod("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", addon.path());
+        let (loader_mod, loader_cfg) = legacy_mod("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", loader.path());
+        let mods = vec![loader_mod, addon_mod];
+        let configs = vec![loader_cfg, addon_cfg];
+        do_deploy(data.path(), &no_skip_list(), pair_mods_with_configs(&mods, &configs))
+            .await
+            .unwrap();
+
+        let mut patches = Vec::new();
+        for entry in std::fs::read_dir(data.path()).unwrap() {
+            let path = entry.unwrap().path();
+            let name = path.file_name().unwrap().to_string_lossy().to_string();
+            if name.ends_with("gpu_resources") || name.ends_with(".stream") || !name.contains(".patch_") {
+                continue;
+            }
+            let index: u32 = name.split(".patch_").nth(1).unwrap().parse().unwrap();
+            patches.push((index, std::fs::read(path).unwrap()));
+        }
+        patches.sort_by_key(|(index, _)| *index);
+        assert!(patches.len() >= 2, "the addon and the loader should both deploy");
+        let mark = boot_deploy::LOADER_MARK.as_bytes();
+        let loader_at = patches.iter().position(|(_, bytes)| bytes.windows(mark.len()).any(|w| w == mark)).unwrap();
+        let addon_at = patches.iter().position(|(_, bytes)| bytes.windows(b"marker_lamp".len()).any(|w| w == b"marker_lamp")).unwrap();
+        assert!(addon_at < loader_at, "the addon archive stays below the Ordnance boot");
+        assert!(
+            patches.iter().all(|(_, bytes)| {
+                let mentions_chef = bytes.windows(b"Chef Shared Loader".len()).any(|w| w == b"Chef Shared Loader");
+                let ours = bytes.windows(mark.len()).any(|w| w == mark);
+                !mentions_chef || ours
+            }),
+            "Chef's patch is not deployed"
+        );
+        assert!(!patches[loader_at].1.windows(b"marker_lamp".len()).any(|w| w == b"marker_lamp"));
+    }
+
+    /// Treasure Radar's option files are named like a boot patch but carry a
+    /// different resource. They must stay below the Ordnance boot, or the
+    /// game runs `return { kinds = ... }` and dies on startup.
+    #[tokio::test]
+    async fn an_option_declaration_without_the_boot_resource_stays_under_the_loader() {
+        let data = tempfile::tempdir().unwrap();
+        let option = tempfile::tempdir().unwrap();
+        let raw = b"-- HD2-Options: mods/chef/treasure_radar\nreturn { kinds = { weapon = true } }\n";
+        let pad = (16 - ((200 + raw.len()) % 16)) % 16;
+        let total = 200 + raw.len() + pad;
+        let mut header = vec![0u8; 192];
+        header[0..4].copy_from_slice(&0xF000_0011u32.to_le_bytes());
+        header[4..8].copy_from_slice(&1u32.to_le_bytes());
+        header[8..12].copy_from_slice(&1u32.to_le_bytes());
+        header[0x20..0x28].copy_from_slice(&(total as u64).to_le_bytes());
+        let lua = [0xe2, 0x17, 0xd1, 0x2c, 0xfa, 0x8d, 0x4e, 0xa1];
+        header[0x50..0x58].copy_from_slice(&lua);
+        header[0x68..0x70].copy_from_slice(&[0xfb, 0xde, 0x5e, 0xba, 0x64, 0x4a, 0x76, 0x86]);
+        header[0x70..0x78].copy_from_slice(&lua);
+        header[0xA0..0xA4].copy_from_slice(&((raw.len() + 8) as u32).to_le_bytes());
+        let mut body = header;
+        body.extend_from_slice(&(raw.len() as u32).to_le_bytes());
+        body.extend_from_slice(&2u32.to_le_bytes());
+        body.extend_from_slice(raw);
+        body.extend(std::iter::repeat(0u8).take(pad));
+        std::fs::write(option.path().join("9ba626afa44a3aa3.patch_0"), body).unwrap();
+
+        let (option_mod, option_cfg) = legacy_mod("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", option.path());
+        do_deploy(data.path(), &no_skip_list(), pair_mods_with_configs(&[option_mod], &[option_cfg]))
+            .await
+            .unwrap();
+
+        let mut patches = Vec::new();
+        for entry in std::fs::read_dir(data.path()).unwrap() {
+            let path = entry.unwrap().path();
+            let name = path.file_name().unwrap().to_string_lossy().to_string();
+            if name.ends_with("gpu_resources") || name.ends_with(".stream") || !name.contains(".patch_") {
+                continue;
+            }
+            let index: u32 = name.split(".patch_").nth(1).unwrap().parse().unwrap();
+            patches.push((index, std::fs::read(path).unwrap()));
+        }
+        patches.sort_by_key(|(index, _)| *index);
+        assert!(patches.len() >= 2, "the declaration and the loader should both deploy");
+        let mark = boot_deploy::LOADER_MARK.as_bytes();
+        let loader_at = patches.iter().position(|(_, bytes)| bytes.windows(mark.len()).any(|w| w == mark)).unwrap();
+        let option_at = patches
+            .iter()
+            .position(|(_, bytes)| bytes.windows(b"HD2-Options:".len()).any(|w| w == b"HD2-Options:"))
+            .unwrap();
+        assert!(option_at < loader_at, "the options snippet must not be the boot the game runs");
+        assert_eq!(loader_at, patches.len() - 1, "the Ordnance boot has to be the highest patch");
+        assert!(!patches[loader_at].1.windows(b"kinds = { weapon = true }".len()).any(|w| w == b"kinds = { weapon = true }"));
+    }
+
+    /// A loader mod's other archives (Rat's intro, Chef's core) stay out of
+    /// the game. The manifest is what ties them to the loader patch.
+    #[tokio::test]
+    async fn an_installed_loader_mod_deploys_nothing_of_its_own() {
+        let data = tempfile::tempdir().unwrap();
+        let loader = tempfile::tempdir().unwrap();
+        std::fs::write(loader.path().join("manifest.json"), b"{}").unwrap();
+        write_text_boot_script(loader.path(), "--@@LOADER@@\nChef Shared Loader\n");
+        std::fs::write(loader.path().join("007e093ca718ca1a.patch_0"), b"RAT-NATIVE").unwrap();
+        let (loader_mod, loader_cfg) = legacy_mod("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", loader.path());
+        do_deploy(data.path(), &no_skip_list(), pair_mods_with_configs(&[loader_mod], &[loader_cfg]))
+            .await
+            .unwrap();
+        for entry in std::fs::read_dir(data.path()).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_file() {
+                let bytes = std::fs::read(&path).unwrap_or_default();
+                assert!(!bytes.windows(b"RAT-NATIVE".len()).any(|w| w == b"RAT-NATIVE"), "{}", path.display());
+                assert!(!bytes.windows(b"Chef Shared Loader".len()).any(|w| w == b"Chef Shared Loader"), "{}", path.display());
+            }
+        }
     }
 
     fn legacy_mod(guid: &str, dir: &std::path::Path) -> (Mod, Config) {
@@ -1451,11 +2085,28 @@ mod tests {
         serde_json::from_str(r#"{"Version":"V1","GamePath":"","SkipList":[]}"#).unwrap()
     }
 
-    /// A mod that can't be deployed (here: its selected option's folder is
-    /// missing) must fail the deploy before the game folder is purged, so
-    /// the mods deployed last time stay in the game.
+    fn broken_mod(dir: &Path) -> (Mod, Config) {
+        let guid = Uuid::parse_str("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb").unwrap();
+        let r#mod = Mod {
+            manifest: Manifest::Legacy(legacy::Manifest {
+                guid,
+                name: "broken".into(),
+                description: String::new(),
+                icon_path: None,
+                options: Some(vec!["NotThere".into()]),
+            }),
+            directory: dir.to_path_buf(),
+            sources: Vec::new(),
+            display_name: None,
+        };
+        let config = Config::Legacy { guid, enabled: true, selected: 0 };
+        (r#mod, config)
+    }
+
+    /// One mod whose option folder is missing is left out. The other mod
+    /// still deploys, which replaces the previous deploy.
     #[tokio::test]
-    async fn a_failing_deploy_leaves_the_previous_deploy_in_place() {
+    async fn one_mod_failing_does_not_stop_the_others() {
         let data = tempfile::tempdir().unwrap();
         let previous = data.path().join("fedcba9876543210.patch_0");
         tokio::fs::write(&previous, b"deployed last time").await.unwrap();
@@ -1464,37 +2115,39 @@ mod tests {
         write_patch_file(good.path(), 0).await;
         let (good_mod, good_cfg) = legacy_mod("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", good.path());
         let broken = tempfile::tempdir().unwrap();
-        let guid = Uuid::parse_str("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb").unwrap();
-        let broken_mod = Mod {
-            manifest: Manifest::Legacy(legacy::Manifest {
-                guid,
-                name: "broken".into(),
-                description: String::new(),
-                icon_path: None,
-                options: Some(vec!["NotThere".into()]),
-            }),
-            directory: broken.path().to_path_buf(),
-            sources: Vec::new(),
-            display_name: None,
-        };
-        let broken_cfg = Config::Legacy { guid, enabled: true, selected: 0 };
+        let (broken_mod, broken_cfg) = broken_mod(broken.path());
 
         let mods = vec![good_mod, broken_mod];
         let configs = vec![good_cfg, broken_cfg];
-        let err = do_deploy(data.path(), &no_skip_list(), pair_mods_with_configs(&mods, &configs))
+        let report = do_deploy(data.path(), &no_skip_list(), pair_mods_with_configs(&mods, &configs))
             .await
-            .unwrap_err();
-        assert!(format!("{err:#}").contains("NotThere"), "{err:#}");
-        assert!(previous.exists(), "the previous deploy must not be purged by a deploy that fails");
-        assert!(!data.path().join(patch_file_name(0)).exists());
-
-        // Without the broken mod the deploy goes through, replacing the old files.
-        let ok = do_deploy(data.path(), &no_skip_list(), pair_mods_with_configs(&mods, &configs[..1])).await;
-        ok.unwrap();
-        assert!(!previous.exists());
+            .unwrap();
+        assert!(report.deployed);
+        assert!(report.skipped.iter().any(|skip| skip.name == "broken" && skip.message.contains("NotThere")), "{:?}", report.skipped);
+        assert!(!previous.exists(), "a deploy that lands the good mod replaces the previous one");
         assert_eq!(tokio::fs::read(data.path().join(patch_file_name(0))).await.unwrap(), b"data");
         assert!(data.path().join(format!("{}.gpu_resources", patch_file_name(0))).exists());
         assert!(data.path().join(format!("{}.stream", patch_file_name(0))).exists());
+    }
+
+    /// When every mod is left out, the previous deploy stays where it is.
+    #[tokio::test]
+    async fn a_deploy_that_skips_every_mod_leaves_the_previous_deploy_in_place() {
+        let data = tempfile::tempdir().unwrap();
+        let previous = data.path().join("fedcba9876543210.patch_0");
+        tokio::fs::write(&previous, b"deployed last time").await.unwrap();
+
+        let broken = tempfile::tempdir().unwrap();
+        let (broken_mod, broken_cfg) = broken_mod(broken.path());
+        let mods = vec![broken_mod];
+        let configs = vec![broken_cfg];
+        let report = do_deploy(data.path(), &no_skip_list(), pair_mods_with_configs(&mods, &configs))
+            .await
+            .unwrap();
+        assert!(!report.deployed);
+        assert!(report.skipped.iter().any(|skip| skip.message.contains("NotThere")));
+        assert!(previous.exists(), "skipping every mod must not purge");
+        assert!(!data.path().join(patch_file_name(0)).exists());
     }
 
     /// The deploy index of a file is its position in its group, so this pins
@@ -1582,6 +2235,31 @@ mod tests {
         tokio::fs::write(game.join(name), &game_seal).await.unwrap();
 
         refresh_stat_stock(&game, &stock, &[]).await.unwrap();
+
+        assert_eq!(tokio::fs::read(stock.join(name)).await.unwrap(), game_seal);
+    }
+
+    #[tokio::test]
+    async fn a_different_length_stock_backup_is_replaced_by_the_game_file() {
+        let data = tempfile::tempdir().unwrap();
+        let game = data.path().join("game");
+        let stock = data.path().join("ordnance-stock");
+        tokio::fs::create_dir_all(&game).await.unwrap();
+        tokio::fs::create_dir_all(&stock).await.unwrap();
+        let name = "generated_stratagem_settings.dl_bin";
+        let game_seal = hd2edit::seal(b"official-82424");
+        let stock_seal = hd2edit::seal(b"official-82424-and-more");
+        assert_ne!(b"official-82424".len(), b"official-82424-and-more".len());
+        tokio::fs::write(stock.join(name), &stock_seal).await.unwrap();
+        tokio::fs::write(game.join(name), &game_seal).await.unwrap();
+        // A plan that cannot be applied used to leave the longer backup in
+        // place. The next deploy then wrote that backup over the game.
+        let edit = serde_json::json!({
+            "file": name, "type": "0x30EB6399", "section": 0, "stride": 400,
+            "record": 1, "offset": 368, "kind": "u32", "value": 0, "op": "set"
+        });
+
+        refresh_stat_stock(&game, &stock, &[edit]).await.unwrap();
 
         assert_eq!(tokio::fs::read(stock.join(name)).await.unwrap(), game_seal);
     }
