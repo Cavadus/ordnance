@@ -155,8 +155,14 @@ local function discover()
       if ok2 and type(found) == "table" then
         for _, entry in ipairs(found) do
           entry.patch, entry.path = n, path
-          local key = entry.kind .. ":" .. entry.name
-          by_name[key] = entry
+          -- Several option files share one mod name. Each one is a piece
+          -- the loader merges (ledger, weapons, a range). The last copy
+          -- must not throw the rest away.
+          if entry.kind == "options" then
+            options[#options + 1] = entry
+          else
+            by_name[entry.kind .. ":" .. entry.name] = entry
+          end
         end
       end
       pcall(function() file:close() end)
@@ -164,7 +170,6 @@ local function discover()
   end
   for _, entry in pairs(by_name) do
     if entry.kind == "guest" or entry.kind == "boot" then guests[#guests + 1] = entry
-    elseif entry.kind == "options" then options[#options + 1] = entry
     else addons[#addons + 1] = entry end
   end
   local function order(a, b)
@@ -856,11 +861,19 @@ local menu_api = (function()
     end
   end
 
+  local option_sets = {}
+
   local function chef_for(owner)
-    local chef = { version = "ordnance-loader-1", api = 1 }
+    local chef = { version = "ordnance-loader-1", api = 1, options = option_sets[owner] or {} }
     chef.capabilities = { menu = true, bindings = true }
     function chef.has(name) return chef.capabilities[name] == true end
-    function chef.log(msg) say(owner .. ": " .. tostring(msg)) end
+    function chef.log(msg, ...)
+      if type(msg) == "string" and select("#", ...) > 0 then
+        local ok, formatted = pcall(string.format, msg, ...)
+        if ok then msg = formatted end
+      end
+      say(owner .. ": " .. tostring(msg))
+    end
     function chef.title(t) if type(t) == "string" then group(owner, t) end end
     function chef.menu_open() return open end
     function chef.after_startup(fn)
@@ -934,7 +947,20 @@ local menu_api = (function()
   add_option("ordnance", "menu_key", { type = "key", label = "Menu key", default = "f10", menu = true, _title = "Ordnance" })
   say("options menu: " .. menu_key())
 
-  return { chef_for = chef_for, update = update, render = render }
+  local function use_options(saved)
+    option_sets = type(saved) == "table" and saved or {}
+  end
+
+  local function describe()
+    local parts = {}
+    for i = 1, #groups do
+      parts[#parts + 1] = groups[i].title .. " (" .. #groups[i].rows .. ")"
+    end
+    if #parts == 0 then return "none" end
+    return table.concat(parts, ", ")
+  end
+
+  return { chef_for = chef_for, update = update, render = render, use_options = use_options, describe = describe }
 end)()
 
 -- Mods hook update while init runs, and they keep the function they find.
@@ -979,10 +1005,13 @@ end
 local function skip_reason(source)
   if string.find(source, "@@ORDNANCE@@", 1, true) then return "this loader" end
   local head = string.sub(source, 1, 1600)
-  if string.find(head, "--@@LOADER@@", 1, true)
-    or string.find(head, "Chef Shared Loader", 1, true)
-    or string.find(head, "Boot Mod Loader", 1, true)
-    or string.find(head, "Rat's Shared Loader", 1, true) then
+  if string.find(head, "--@@LOADER@@", 1, true) then return "another loader" end
+  -- The loader's own file names itself on the first line. A mod that
+  -- mentions Chef, Rat, or Boot Mod Loader further down is still a mod.
+  local first = string.match(source, "^([^\r\n]*)") or ""
+  if string.find(first, "Chef Shared Loader", 1, true)
+    or string.find(first, "Boot Mod Loader", 1, true)
+    or string.find(first, "Rat's Shared Loader", 1, true) then
     return "another loader"
   end
   if string.find(source, "require(\"ffi\")", 1, true) or string.find(source, "require('ffi')", 1, true) then
@@ -1115,12 +1144,28 @@ local function run_options(entry)
   end
   if not ran then
     say("options " .. entry.name .. ": FAILED: " .. tostring(result))
-    return
+    return nil
   end
   if type(package) == "table" and type(package.loaded) == "table" then
     package.loaded[entry.name] = (result == nil) and true or result
   end
   say("options " .. entry.name .. " (patch_" .. entry.patch .. "): loaded")
+  return result
+end
+
+-- Option files return tables ({ ledger = true }, { kinds = { weapon = true } }).
+-- Later patches win on the same field. Nested tables combine.
+local function merge_into(dst, src)
+  if type(src) ~= "table" then return dst end
+  if type(dst) ~= "table" then dst = {} end
+  for k, v in pairs(src) do
+    if type(v) == "table" and type(dst[k]) == "table" then
+      merge_into(dst[k], v)
+    else
+      dst[k] = v
+    end
+  end
+  return dst
 end
 
 local function hook_shutdown()
@@ -1161,10 +1206,16 @@ local function start()
     flush()
     return
   end
+  local saved = {}
   for _, entry in ipairs(options or {}) do
-    local ran, problem = pcall(run_options, entry)
-    if not ran then say("options " .. tostring(entry.name) .. ": " .. tostring(problem)) end
+    local ran, result = pcall(run_options, entry)
+    if not ran then
+      say("options " .. tostring(entry.name) .. ": " .. tostring(result))
+    elseif type(result) == "table" then
+      saved[entry.name] = merge_into(saved[entry.name], result)
+    end
   end
+  menu_api.use_options(saved)
   for _, entry in ipairs(addons or {}) do
     local ran, problem = pcall(run_addon, entry)
     if not ran then say(tostring(entry.name) .. ": " .. tostring(problem)) end
@@ -1182,6 +1233,7 @@ local function start()
   hook_shutdown()
   adopt_frame()
   say("menu hook installed")
+  say("options menu rows: " .. menu_api.describe())
   flush()
 end
 

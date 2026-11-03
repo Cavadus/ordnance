@@ -19,6 +19,8 @@
         Mod?: { Manifest: Manifest, Directory: string, Sources?: ResolvedSource[] };
         Warning?: string;
         Message?: string;
+        /** What the install is doing, while status is Installing. */
+        Detail?: string;
         /** A download left alone because it's another Nexus mod's file. */
         Ignored?: { FileName: string; ModId: string };
         /** With "Done": it replaced the installed mod with its ID. */
@@ -55,8 +57,10 @@
             const payload = event.payload;
             switch (payload.Status) {
                 case "Waiting":
+                    update({ status: payload.Status, detail: undefined, ...(payload.Ignored ? { ignored: payload.Ignored } : {}) });
+                    break;
                 case "Installing":
-                    update({ status: payload.Status, ...(payload.Ignored ? { ignored: payload.Ignored } : {}) });
+                    update({ status: payload.Status, detail: payload.Detail, ...(payload.Ignored ? { ignored: payload.Ignored } : {}) });
                     break;
                 case "Error":
                     update({ status: "Error", errorMessage: payload.Message });
@@ -145,8 +149,8 @@
         {/if}
         <div class="flex flex-row gap-1 items-center self-center">
             <div class="w-4 h-4 rounded-full border-2 border-transparent border-b-yellow-300 animate-spin"></div>
-            <span class="text-sm text-zinc-400">
-                {view.status === "Installing" ? t("popup.handoff.status.installing") : t("popup.handoff.status.waiting")}
+            <span class="text-sm text-zinc-400 text-center max-w-md">
+                {view.status === "Installing" ? (view.detail ?? t("popup.handoff.status.installing")) : t("popup.handoff.status.waiting")}
             </span>
         </div>
     {/if}

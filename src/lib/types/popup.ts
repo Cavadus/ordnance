@@ -148,6 +148,8 @@ export type HandoffResult =
 export type HandoffView = {
     status: "Waiting" | "Installing" | "Error";
     errorMessage?: string;
+    /** The install step, while status is Installing. */
+    detail?: string;
     /** A download left alone because it's another Nexus mod's file. */
     ignored?: { FileName: string; ModId: string };
 };

@@ -1111,7 +1111,7 @@ async fn deploy_with_progress(
     let mut accepted: Vec<serde_json::Value> = Vec::new();
     let mut stat_out = None;
     for chunk in plan_chunks(&mods, &plan_edits) {
-        report_progress(progress, &format!("Applying {}", chunk.name));
+        report_progress(progress, &format!("Resealing tables for {}", chunk.name));
         let mut trial = accepted.clone();
         trial.extend(chunk.edits.iter().cloned());
         match apply_stat_plans(data_dir, &trial).await {
@@ -1181,6 +1181,7 @@ async fn deploy_with_progress(
             .unwrap_or_default();
         names.sort();
         for fname in names {
+            report_progress(progress, &format!("Writing {fname}"));
             let src = out.dir.join(&fname);
             let recorded = output_dir.join(&fname);
             let game_path = game_dir.join(&fname);
@@ -1212,6 +1213,7 @@ async fn deploy_with_progress(
         tokio::fs::create_dir_all(&game_dir).await.context("create game dir")?;
         tokio::fs::create_dir_all(&output_dir).await.context("create stock output dir")?;
         for fname in &painted.files {
+            report_progress(progress, &format!("Writing {fname}"));
             let src = painted.dir.join(fname);
             let recorded = output_dir.join(fname);
             let game_path = game_dir.join(fname);
@@ -1260,7 +1262,7 @@ async fn deploy_with_progress(
     written.sort();
 
     report_progress(progress, "Copying mods into the game");
-    let copied = copy_groups(data_dir, settings, &groups).await;
+    let copied = copy_groups(data_dir, settings, &groups, progress).await;
     // Recorded even when copying stopped partway, so the files that did
     // land are known to be Ordnance's.
     record_deployed_files(data_dir, &written).await;
@@ -1274,12 +1276,26 @@ async fn copy_groups(
     data_dir: &Path,
     settings: &Settings,
     groups: &HashMap<String, Vec<PatchFileTriplet>>,
+    progress: Option<&tauri::AppHandle>,
 ) -> anyhow::Result<()> {
+    let total: usize = groups.values().map(|triplets| triplets.len()).sum();
+    let mut done = 0usize;
     for (name, triplets) in groups {
         let offset = if settings.has_skip_entry(name) { 1 } else { 0 };
 
         for (i, triplet) in triplets.iter().enumerate() {
             let index = i + offset;
+            done += 1;
+            let label = [triplet.patch.as_ref(), triplet.stream.as_ref(), triplet.gpu_resources.as_ref()]
+                .into_iter()
+                .flatten()
+                .find_map(|path| {
+                    path.parent()
+                        .and_then(|parent| parent.file_name())
+                        .map(|folder| folder.to_string_lossy().into_owned())
+                })
+                .unwrap_or_else(|| format!("{name}.patch_{index}"));
+            report_progress(progress, &format!("Copying {label} ({done} of {total})"));
 
             let patch_dest = data_dir.join(format!("{}.patch_{}", name, index));
             match &triplet.patch {

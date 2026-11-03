@@ -12,7 +12,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc,
+        Arc, Mutex,
     },
     time::{Duration, SystemTime},
 };
@@ -196,6 +196,9 @@ pub struct HandoffEvent {
     pub warning: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    /// What the install is doing right now. Sent with `Installing`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
     /// A download that turned up but was left alone (see [`IgnoredDownload`]);
     /// sent with `Waiting`, since the handoff keeps waiting.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -241,6 +244,48 @@ fn emit(app: &AppHandle, event: HandoffEvent) {
     if let Err(e) = app.emit(HANDOFF_EVENT, event) {
         log::error!("Failed to emit handoff event: {}", e);
     }
+}
+
+/// The install currently on screen. One handoff runs at a time, so a
+/// single slot is enough for the extract and the file swap to say what
+/// they are doing.
+static INSTALL_SINK: Mutex<Option<AppHandle>> = Mutex::new(None);
+
+pub(crate) struct InstallSession;
+
+impl InstallSession {
+    pub(crate) fn start(app: AppHandle) -> Self {
+        if let Ok(mut guard) = INSTALL_SINK.lock() {
+            *guard = Some(app);
+        }
+        Self
+    }
+}
+
+impl Drop for InstallSession {
+    fn drop(&mut self) {
+        if let Ok(mut guard) = INSTALL_SINK.lock() {
+            *guard = None;
+        }
+    }
+}
+
+pub(crate) fn report_install_step(detail: &str) {
+    log::info!("install: {detail}");
+    let Ok(guard) = INSTALL_SINK.lock() else { return };
+    let Some(app) = guard.as_ref() else { return };
+    emit(
+        app,
+        HandoffEvent {
+            status: HandoffStatus::Installing,
+            r#mod: None,
+            warning: None,
+            message: None,
+            detail: Some(detail.to_string()),
+            ignored: None,
+            replaced: false,
+        },
+    );
 }
 
 /// Sites this manager knows it can never download from directly (they
@@ -381,6 +426,7 @@ pub async fn install_handoff_file(
     existing_guid: Option<Uuid>,
 ) -> TAResult<crate::commands::mods::InstalledMod> {
     let _data_op = state.data_op().into_ta_result()?;
+    let _session = InstallSession::start(app.clone());
     let source = sources::source_from_page_url(&page_url).unwrap_or_else(|| Source {
         provider: sources::provider_from_url(&page_url),
         id: None,
@@ -405,17 +451,8 @@ async fn run_handoff(
 
     match outcome {
         Ok(WaitOutcome::Found(path)) => {
-            emit(
-                &app,
-                HandoffEvent {
-                    status: HandoffStatus::Installing,
-                    r#mod: None,
-                    warning: None,
-                    message: None,
-                    ignored: None,
-                    replaced: false,
-                },
-            );
+            let _session = InstallSession::start(app.clone());
+            report_install_step(&format!("Found {}", file_label(&path)));
 
             let state = app.state::<AppState>();
             match install_holding_data_op(&state, &path, &source, existing_guid, &Asker::in_app(&app)).await {
@@ -427,6 +464,7 @@ async fn run_handoff(
                         r#mod: None,
                         warning: None,
                         message: None,
+                        detail: None,
                         ignored: None,
                         replaced: false,
                     },
@@ -438,6 +476,7 @@ async fn run_handoff(
                         r#mod: Some(installed.r#mod),
                         warning: installed.warning,
                         message: None,
+                        detail: None,
                         ignored: None,
                         replaced: installed.replaced,
                     },
@@ -449,6 +488,7 @@ async fn run_handoff(
                         r#mod: None,
                         warning: None,
                         message: Some(e.to_string()),
+                        detail: None,
                         ignored: None,
                         replaced: false,
                     },
@@ -462,6 +502,7 @@ async fn run_handoff(
                 r#mod: None,
                 warning: None,
                 message: None,
+                detail: None,
                 ignored: None,
                 replaced: false,
             },
@@ -473,6 +514,7 @@ async fn run_handoff(
                 r#mod: None,
                 warning: None,
                 message: None,
+                detail: None,
                 ignored: None,
                 replaced: false,
             },
@@ -486,6 +528,7 @@ async fn run_handoff(
                     r#mod: None,
                     warning: None,
                     message: Some(e.to_string()),
+                    detail: None,
                     ignored: None,
                     replaced: false,
                 },
@@ -561,6 +604,7 @@ async fn install_found_file(
     // Done before taking the mods lock so a slow/failed metadata fetch
     // never holds up anything else touching the mod list. Best-effort:
     // falls back to the plain source (no Version) on any failure.
+    report_install_step(&format!("Asking the site about {}", file_label(archive_path)));
     let (mut sidecar_source, installed_files) =
         crate::commands::updates::enrich_install_source(source, Some(archive_path), None).await;
     // An update the last check found, arriving without a version of its
@@ -642,6 +686,7 @@ async fn wait_for_download(
             r#mod: None,
             warning: None,
             message: None,
+            detail: None,
             ignored: None,
             replaced: false,
         },
@@ -679,6 +724,7 @@ async fn wait_for_download(
                         r#mod: None,
                         warning: None,
                         message: None,
+                        detail: None,
                         ignored: Some(IgnoredDownload { file_name: name, mod_id }),
                         replaced: false,
                     },

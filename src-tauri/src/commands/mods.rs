@@ -843,6 +843,7 @@ async fn install_archive_steps(
     route: AddRoute,
 ) -> Result<(Mod, Option<String>), InstallError> {
     log::debug!("Opening archive...");
+    super::handoff::report_install_step(&format!("Opening {subject}"));
     let mut archive = Archive::open(archive_file).install_step(subject, InstallStep::OpenArchive)?;
 
     log::info!("Preparing mod directory...");
@@ -879,6 +880,7 @@ async fn install_archive_steps(
         check_not_installed(mods, &r#mod, subject, route)?;
 
         log::info!("Extracting archive...");
+        super::handoff::report_install_step(&format!("Extracting {subject}"));
         extract_archive(archive, mod_dir.clone(), root).await.install_step(subject, InstallStep::Extract)?;
 
         log::debug!("Detecting patch file layout...");
@@ -1826,6 +1828,7 @@ async fn install_update_steps(
         return Err(InstallError::new(subject, replace, e));
     }
 
+    super::handoff::report_install_step(&format!("Replacing the installed copy of {}", old_mod.name()));
     log::info!("Swapping in updated content for mod {{{}}}...", final_guid);
     let backup_dir = mods_root.join(format!("{}{}", mod_folder::UPDATE_BACKUP_PREFIX, Uuid::new_v4()));
     // Note where the old version belongs before setting it aside, so that
@@ -2315,6 +2318,7 @@ async fn stage_update(
     archive_path: &Path,
     subject: &str,
 ) -> Result<(Manifest, Option<String>), InstallError> {
+    super::handoff::report_install_step(&format!("Opening {subject}"));
     let archive = Archive::open(archive_path).install_step(subject, InstallStep::OpenArchive)?;
     let manifest_file = staging_dir.join(MANIFEST_FILE);
     let name = archive_path
@@ -2327,8 +2331,10 @@ async fn stage_update(
         .await
         .map_err(|e| manifest_failure(subject, e))?;
 
+    super::handoff::report_install_step(&format!("Extracting {subject}"));
     extract_archive(archive, staging_dir.to_path_buf(), root).await.install_step(subject, InstallStep::Extract)?;
 
+    super::handoff::report_install_step(&format!("Reading the patch files in {subject}"));
     let warning = apply_patch_layout(staging_dir, &mut manifest)
         .await
         .install_step(subject, InstallStep::FindPatchFiles)?;
