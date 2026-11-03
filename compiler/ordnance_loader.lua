@@ -1446,7 +1446,6 @@ end)()
 -- game dies.
 local call_update, call_render
 local menu_update_said = false
-local update_stopped, render_stopped = false, false
 local closing = false
 local function ran_too_long(err)
   return string.find(tostring(err), "ran too long", 1, true) ~= nil
@@ -1460,28 +1459,13 @@ local function on_update(dt)
   end
   local ok, err = pcall(menu_api.update)
   if not ok then say("menu: " .. tostring(err)) end
-  if update_stopped or type(call_update) ~= "function" or call_update == on_update then return end
-  dog_enter("update", 3)
-  local ran, result = pcall(call_update, dt)
-  dog_leave()
-  if ran then return result end
-  say("update: " .. tostring(result))
-  if ran_too_long(result) then
-    update_stopped = true
-    say("update will not be called again this launch")
-  end
+  -- The game's own update lives in this chain. Do not time it out and do not
+  -- drop it: a long frame mid-mission was leaving the mission frozen.
+  if type(call_update) == "function" and call_update ~= on_update then return call_update(dt) end
 end
 local function on_render(...)
   if closing then return end
-  if not render_stopped and type(call_render) == "function" and call_render ~= on_render then
-    dog_enter("render", 3)
-    local ran, result = pcall(call_render, ...)
-    dog_leave()
-    if not ran then
-      say("render: " .. tostring(result))
-      if ran_too_long(result) then render_stopped = true end
-    end
-  end
+  if type(call_render) == "function" and call_render ~= on_render then call_render(...) end
   local ok, err = pcall(menu_api.render)
   if not ok then say("menu draw: " .. tostring(err)) end
 end
@@ -1721,7 +1705,6 @@ local function start()
   if L.started then return end
   L.started = true
   install_input_gate()
-  dog_arm()
   for _, key in ipairs({ "update", "render", "shutdown" }) do
     if type(rawget(_G, key)) ~= "function" then rawset(_G, key, function() end) end
   end
