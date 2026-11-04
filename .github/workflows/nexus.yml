@@ -9,15 +9,36 @@
 #
 # Re-running a successful job uploads every file again and appends the note
 # again. Do not re-run it to "retry" a release that already published.
+#
+# build.yml publishes the release with GITHUB_TOKEN, and that token does not
+# start this workflow. Publish the release with a user token, or run this
+# workflow by hand and pass the tag. Pass file_ids to upload only the slots
+# that failed, so the Windows setup does not post the changelog a second time.
+#
+# Nexus rejects .deb, .rpm, .tar.gz, and .AppImage. Those are zipped first.
 name: Publish to Nexus Mods
 
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to upload
+        required: true
+        default: v0.4.4
+        type: string
+      file_ids:
+        description: Comma-separated Nexus file ids. Empty uploads every file.
+        required: false
+        default: ""
+        type: string
 
 jobs:
   nexus:
-    if: ${{ !github.event.release.prerelease }}
+    if: >-
+      (github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false)
+      && (github.event_name != 'workflow_dispatch' || inputs.file_ids == '' || contains(format(',{0},', inputs.file_ids), format(',{0},', matrix.file_id)))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -84,16 +105,27 @@ jobs:
             update_mod_version: false
             manager_download: false
     steps:
+      - name: Resolve release tag
+        id: rel
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="${{ github.event.release.tag_name }}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
       - name: Download release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release download "${{ github.event.release.tag_name }}" --dir dist --repo "${{ github.repository }}"
+        run: gh release download "${{ steps.rel.outputs.tag }}" --dir dist --repo "${{ github.repository }}"
 
       - name: Select this file
         id: asset
         run: |
           set -euo pipefail
-          tag="${{ github.event.release.tag_name }}"
+          tag="${{ steps.rel.outputs.tag }}"
           version="${tag#v}"
           if [ "$version" = "$tag" ] || [ -z "$version" ]; then
             echo "::error::release tag '$tag' is not a vX.Y.Z tag"
@@ -132,9 +164,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          body=$(gh release view "${{ github.event.release.tag_name }}" --repo "${{ github.repository }}" --json body --jq .body)
+          body=$(gh release view "${{ steps.rel.outputs.tag }}" --repo "${{ github.repository }}" --json body --jq .body)
           if [ -z "$body" ]; then
-            echo "::error::release ${{ github.event.release.tag_name }} has no notes to send to Nexus"
+            echo "::error::release ${{ steps.rel.outputs.tag }} has no notes to send to Nexus"
             exit 1
           fi
           delim="NOTES_$(uuidgen | tr -d '-')"
@@ -144,6 +176,24 @@ jobs:
             echo "$delim"
           } >> "$GITHUB_OUTPUT"
 
+      # Nexus accepts .rar, .zip, .7z, .exe, and .omod. A .deb or .AppImage
+      # is rejected with 422, so those go up as a zip of the original file.
+      - name: Zip file types Nexus will not accept
+        id: wrapped
+        run: |
+          set -euo pipefail
+          path="${{ steps.asset.outputs.path }}"
+          lower=$(printf '%s' "$(basename "$path")" | tr '[:upper:]' '[:lower:]')
+          case "$lower" in
+            *.rar|*.zip|*.7z|*.exe|*.omod)
+              echo "path=$path" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              (cd "$(dirname "$path")" && zip -q "$(basename "$path").zip" "$(basename "$path")")
+              echo "path=${path}.zip" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
       # v1.0.0-beta.10. Do not float @main: Nexus has already renamed these inputs once.
       - name: Upload to Nexus Mods
         uses: Nexus-Mods/upload-action@c96019556046053aa26044b44396cd38929daf23
@@ -151,7 +201,7 @@ jobs:
           api_key: ${{ secrets.NEXUSMODS_API_KEY }}
           mod_id: "26280904902487"
           file_id: ${{ matrix.file_id }}
-          filename: ${{ steps.asset.outputs.path }}
+          filename: ${{ steps.wrapped.outputs.path }}
           display_name: ${{ steps.asset.outputs.display }}
           description: ${{ steps.asset.outputs.display }}
           version: ${{ steps.asset.outputs.version }}
