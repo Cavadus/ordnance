@@ -164,6 +164,50 @@ describe('Nexus adapter', () => {
     expect(again[0].hasAttribute('data-ordnance-adopt')).toBe(true);
   });
 
+  it('brands the files-tab manager button inside the modal shadow root', () => {
+    // The live Files tab draws both buttons in an open shadow root, next to
+    // a header modal that only has Manual. Light-DOM queries miss the file
+    // button, which is why it stayed "Mod manager download".
+    const doc = new JSDOM('<!DOCTYPE html><body></body>', {
+      url: 'https://www.nexusmods.com/helldivers2/mods/16150?tab=files',
+    }).window.document;
+    const header = doc.createElement('ul');
+    header.className = 'modactions';
+    const headerItem = doc.createElement('li');
+    const compact = doc.createElement('mod-download-modal');
+    compact.setAttribute('trigger', 'compact');
+    compact.setAttribute('placement', 'mod_page');
+    compact.setAttribute('file', '{}');
+    const compactShadow = compact.attachShadow({ mode: 'open' });
+    compactShadow.innerHTML = '<button type="button"><span>Manual</span></button>';
+    headerItem.appendChild(compact);
+    header.appendChild(headerItem);
+    doc.body.appendChild(header);
+
+    const list = doc.createElement('ul');
+    list.className = 'accordion-downloads';
+    const item = doc.createElement('li');
+    const modal = doc.createElement('mod-download-modal');
+    modal.setAttribute('placement', 'files_tab');
+    const shadow = modal.attachShadow({ mode: 'open' });
+    shadow.innerHTML = '<div class="flex"><button type="button" class="nxm-button-primary"><span>Mod manager download</span></button><button type="button"><span>Manual download</span></button></div>';
+    item.appendChild(modal);
+    list.appendChild(item);
+    doc.body.appendChild(list);
+
+    const points = globalThis.Ordnance.siteAdapters.nexus.findInsertionPoints(doc);
+    const manager = shadow.querySelector('.nxm-button-primary');
+    expect(manager.hasAttribute('data-ordnance-adopt')).toBe(true);
+    expect(points).toContain(manager);
+    expect(doc.getElementById('action-ordnance')).not.toBeNull();
+    expect(list.querySelectorAll('li').length).toBe(1);
+    expect(shadow.textContent).toContain('Manual download');
+
+    const again = globalThis.Ordnance.siteAdapters.nexus.findInsertionPoints(doc);
+    expect(again).not.toContain(manager);
+    expect(shadow.querySelectorAll('button').length).toBe(2);
+  });
+
   it('takes over the mod manager link inside the compact modal', () => {
     const doc = loadFixture('nexusmods-modal.html');
     const point = globalThis.Ordnance.siteAdapters.nexus.findInsertionPoint(doc);

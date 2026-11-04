@@ -189,6 +189,132 @@
   }
 
   /**
+   * Open shadow roots (Nexus renders its file buttons inside one) do not
+   * inherit the page stylesheet. `instanceof ShadowRoot` is unreliable from
+   * a content script, whose ShadowRoot constructor is a different object.
+   * @param {Node} node
+   * @returns {ShadowRoot|null}
+   */
+  function shadowRootOf(node) {
+    const root = node && node.getRootNode ? node.getRootNode() : null;
+    if (root && root.nodeType === 11 && root.host) return root;
+    return null;
+  }
+
+  /** @param {ShadowRoot} root */
+  function ensureShadowBrand(root) {
+    if (!root || root.__ordnanceBrand) return;
+    root.__ordnanceBrand = true;
+    if (typeof CSSStyleSheet !== 'function' || !root.adoptedStyleSheets) return;
+    try {
+      const sheet = new CSSStyleSheet();
+      if (typeof sheet.replaceSync !== 'function') return;
+      sheet.replaceSync(BRANDED_STYLE);
+      root.adoptedStyleSheets = root.adoptedStyleSheets.concat(sheet);
+    } catch {
+      // The inline paint below still colors the button.
+    }
+  }
+
+  /** @param {HTMLElement} el @param {string} prop @param {string} value */
+  function setImportant(el, prop, value) {
+    if (el.style.getPropertyValue(prop) === value && el.style.getPropertyPriority(prop) === 'important') return;
+    el.style.setProperty(prop, value, 'important');
+  }
+
+  /**
+   * Nexus's React tree repaints the file-row button and will put "Mod
+   * manager download" back. Re-apply our label whenever that happens.
+   * @param {HTMLElement} host
+   * @param {HTMLElement} hint
+   */
+  function holdShadowBrand(host, hint) {
+    const root = shadowRootOf(host);
+    if (!root || host.__ordnanceHold) return;
+    host.__ordnanceHold = true;
+    ensureShadowBrand(root);
+    const watch = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class'] };
+    const observer = new MutationObserver(() => {
+      // Disconnect while we write. Otherwise a style or text fix queues
+      // another callback and the two chase each other.
+      observer.disconnect();
+      try {
+        host.classList.add('ordnance-download-btn');
+        host.setAttribute('data-ordnance-root', '');
+        if (!host.querySelector('.ordnance-emblem')) {
+          host.insertBefore(buildEmblem(18), host.firstChild);
+        }
+        for (const svg of host.querySelectorAll('svg')) {
+          if (!svg.classList.contains('ordnance-emblem')) {
+            setImportant(svg, 'display', 'none');
+          }
+        }
+        const wanted = host.dataset.ordnanceLabel;
+        if (wanted) {
+          const live = Array.from(host.querySelectorAll('span')).find((span) => !span.classList.contains('ordnance-hint'));
+          if (live && live.textContent !== wanted) {
+            live.classList.add('ordnance-label');
+            live.textContent = wanted;
+          }
+        }
+        if (hint && !host.contains(hint)) host.appendChild(hint);
+        paintShadowButton(host);
+      } finally {
+        observer.observe(host, watch);
+      }
+    });
+    observer.observe(host, watch);
+  }
+
+  /** @param {HTMLElement} host */
+  function paintShadowButton(host) {
+    if (!shadowRootOf(host)) return;
+    const state = host.dataset.state || '';
+    const colors = {
+      installed: ['#2ecc71', '#0B0B0C'],
+      update: ['#3ba7ff', '#0B0B0C'],
+      error: ['#ff5555', '#1a0000'],
+      unreachable: ['#0B0B0C', '#FFC61A'],
+    };
+    const pair = colors[state] || ['#FFC61A', '#0B0B0C'];
+    setImportant(host, 'background', pair[0]);
+    setImportant(host, 'color', pair[1]);
+    setImportant(host, 'border', 'none');
+    setImportant(host, 'border-radius', '5px');
+    setImportant(host, 'display', 'inline-flex');
+    setImportant(host, 'align-items', 'center');
+    setImportant(host, 'gap', '6px');
+    setImportant(host, 'padding', '7px 9px');
+    setImportant(host, 'cursor', state === 'installing' || state === 'checking' ? 'progress' : 'pointer');
+    setImportant(host, 'text-decoration', 'none');
+  }
+
+  /**
+   * The file-row manager button has no href. Its React handler starts the
+   * Vortex / nxm handoff. The Manual button beside it is the browser
+   * download, which is the one we capture. Call that handler directly.
+   * @param {HTMLElement} host
+   * @returns {boolean}
+   */
+  function triggerManualDownload(host) {
+    const root = shadowRootOf(host);
+    if (!root) return false;
+    const manual = Array.from(root.querySelectorAll('button, a')).find((el) => {
+      if (el === host) return false;
+      return /manual/i.test(el.textContent || '');
+    });
+    if (!manual) return false;
+    const propKey = Object.keys(manual).find((key) => key.indexOf('__reactProps') === 0);
+    const fn = propKey && manual[propKey] && manual[propKey].onClick;
+    if (typeof fn === 'function') {
+      fn();
+      return true;
+    }
+    manual.click();
+    return true;
+  }
+
+  /**
    * `nmm=1` is Nexus telling the browser to hand the file to whatever app
    * registered the `nxm://` protocol. On this machine that app is Arsenal.
    * Drop the flag so the same popup does a normal browser download, which
@@ -257,6 +383,9 @@
     }
     let label = host.querySelector('.ordnance-label') || host.querySelector('.flex-label');
     if (!label) {
+      label = Array.from(host.querySelectorAll('span')).find((span) => !span.classList.contains('ordnance-hint')) || null;
+    }
+    if (!label) {
       label = document.createElement('span');
       label.className = 'ordnance-label';
       host.appendChild(label);
@@ -270,20 +399,27 @@
       hint.hidden = true;
       host.appendChild(hint);
     }
+    const inShadow = Boolean(shadowRootOf(host));
+    if (inShadow) holdShadowBrand(host, hint);
 
     return {
       host,
       render(state) {
         host.dataset.state = state.state;
-        label.textContent = state.label;
+        host.dataset.ordnanceLabel = state.label;
+        const live = host.querySelector('.ordnance-label') || label;
+        live.classList.add('ordnance-label');
+        live.textContent = state.label;
         host.setAttribute('aria-disabled', state.clickable ? 'false' : 'true');
+        if (inShadow) paintShadowButton(host);
       },
       setHint(text) {
+        const liveHint = host.querySelector('.ordnance-hint') || hint;
         if (text) {
-          hint.textContent = text;
-          hint.hidden = false;
+          liveHint.textContent = text;
+          liveHint.hidden = false;
         } else {
-          hint.hidden = true;
+          liveHint.hidden = true;
         }
       },
       onClick(handler) {
@@ -292,10 +428,15 @@
           // A link we created has nowhere to go. Nexus's own link must keep
           // its click, or the slow/fast page never opens. Rewrite it first:
           // `nmm=1` would hand the file to the registered nxm app.
-          if (adopt) pointAtBrowserDownload(host);
+          // A manager button drawn inside the file row's shadow root has no
+          // href. Leave it to React and it opens the nxm handoff. Stop that
+          // and start the Manual download beside it instead.
+          if (adopt && !inShadow) pointAtBrowserDownload(host);
           else {
             event.preventDefault();
-            event.stopPropagation();
+            if (event.stopPropagation) event.stopPropagation();
+            if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+            if (adopt && inShadow) triggerManualDownload(host);
           }
           handler(event);
         }, true);

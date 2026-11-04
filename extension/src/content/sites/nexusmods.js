@@ -1,11 +1,17 @@
 /**
  * @file Nexus Mods content script.
  *
- * Nexus already draws a "Mod manager download" link (`#action-nmm`, and
+ * Nexus already draws a "Mod manager download" control (`#action-nmm`, and
  * the same label on each file). That is the button we brand: shield,
  * Ordnance yellow, and our label. Adding a second button left the Nexus
  * one reading "Mod manager download". Pages with only "Manual download"
  * still get a new list item after that link.
+ *
+ * The Files tab now draws those two buttons inside the open shadow root of
+ * `<mod-download-modal placement="files_tab">`. They are real `<button>`s
+ * with no href, so a light-DOM query never sees them. The header "Manual"
+ * button is a different modal (`trigger="compact"`) and still gets the
+ * sibling Ordnance button.
  *
  * These selectors were cross-checked against Arsenal's extension and
  * against Nexus's own button markup rather than a live fetch, because
@@ -42,7 +48,33 @@
 
   /** @param {Element} link */
   function inFileList(link) {
-    return Boolean(link.closest('.accordion-downloads'));
+    if (link.closest && link.closest('.accordion-downloads')) return true;
+    // The files-tab buttons live in the modal's shadow root. closest()
+    // stops at that boundary, so check the host element too.
+    const root = link.getRootNode && link.getRootNode();
+    const host = root && root.host;
+    if (!host || !host.closest) return false;
+    if (host.closest('.accordion-downloads')) return true;
+    return host.getAttribute('placement') === 'files_tab';
+  }
+
+  /**
+   * Light-DOM querySelector does not enter an open shadow root. Nexus
+   * paints the per-file buttons there.
+   * @param {ParentNode} root
+   * @returns {Element[]}
+   */
+  function collectControls(root) {
+    const found = [];
+    const visit = (node) => {
+      if (!node || typeof node.querySelectorAll !== 'function') return;
+      for (const el of node.querySelectorAll('a, button')) found.push(el);
+      for (const el of node.querySelectorAll('*')) {
+        if (el.shadowRoot) visit(el.shadowRoot);
+      }
+    };
+    visit(root);
+    return found;
   }
 
   /**
@@ -72,7 +104,7 @@
   function findActionManager(doc) {
     const byId = doc.querySelector('#action-nmm a, #action-nmm button, #action-vortex a, #action-vortex button');
     if (byId && isManagerLink(byId)) return byId;
-    return Array.from(doc.querySelectorAll('a, button')).find((el) => isManagerLink(el) && !inFileList(el)) || null;
+    return collectControls(doc).find((el) => isManagerLink(el) && !inFileList(el)) || null;
   }
 
   function findManualAction(doc) {
@@ -132,7 +164,7 @@
    */
   function findFileRowMounts(doc) {
     const mounts = [];
-    for (const link of doc.querySelectorAll('a, button')) {
+    for (const link of collectControls(doc)) {
       if (!isManagerLink(link) || !inFileList(link)) continue;
       link.setAttribute('data-ordnance-adopt', '');
       mounts.push(link);
@@ -212,6 +244,36 @@
         if (mounts.length) Ordnance.content.addSiteWidgets(adapter, mounts);
       });
       observer.observe(document.documentElement, { childList: true, subtree: true });
+      // File buttons are created inside a shadow root after the modal tag
+      // is already in the page. A document observer does not see that.
+      const pullFiles = () => {
+        const mounts = findFileRowMounts(document);
+        if (mounts.length) Ordnance.content.addSiteWidgets(adapter, mounts);
+      };
+      const watchModal = (modal) => {
+        if (!modal || modal.__ordnanceWatch) return;
+        modal.__ordnanceWatch = true;
+        const arm = () => {
+          if (!modal.shadowRoot || modal.shadowRoot.__ordnanceWatch) return;
+          modal.shadowRoot.__ordnanceWatch = true;
+          const inner = new MutationObserver(pullFiles);
+          inner.observe(modal.shadowRoot, { childList: true, subtree: true });
+          pullFiles();
+        };
+        arm();
+        let tries = 0;
+        const timer = setInterval(() => {
+          tries += 1;
+          arm();
+          if ((modal.shadowRoot && modal.shadowRoot.__ordnanceWatch) || tries > 40) clearInterval(timer);
+        }, 250);
+      };
+      const watchModals = () => {
+        for (const modal of document.querySelectorAll('mod-download-modal')) watchModal(modal);
+      };
+      watchModals();
+      const modalObserver = new MutationObserver(watchModals);
+      modalObserver.observe(document.documentElement, { childList: true, subtree: true });
     };
     if (findManualAction(document)) {
       start();

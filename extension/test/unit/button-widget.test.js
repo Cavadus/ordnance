@@ -83,6 +83,76 @@ describe('Install with Ordnance button emblem', () => {
     }
   });
 
+  it('starts the manual download from a shadow-dom manager button', () => {
+    const modal = document.createElement('mod-download-modal');
+    const shadow = modal.attachShadow({ mode: 'open' });
+    const manager = document.createElement('button');
+    const managerLabel = document.createElement('span');
+    managerLabel.textContent = 'Mod manager download';
+    manager.appendChild(managerLabel);
+    manager.setAttribute('data-ordnance-adopt', '');
+    const manual = document.createElement('button');
+    const manualLabel = document.createElement('span');
+    manualLabel.textContent = 'Manual download';
+    manual.appendChild(manualLabel);
+    let manualClicks = 0;
+    manual.__reactProps$test = { onClick() { manualClicks += 1; } };
+    shadow.append(manager, manual);
+    document.body.appendChild(modal);
+
+    const seen = [];
+    const original = EventTarget.prototype.addEventListener;
+    EventTarget.prototype.addEventListener = function patched(type, fn, opts) {
+      if (type === 'click' && this === manager) seen.push(fn);
+      return original.call(this, type, fn, opts);
+    };
+    try {
+      const widget = globalThis.Ordnance.content.createButtonWidget({ branded: true, adopt: manager });
+      let armed = 0;
+      widget.onClick(() => { armed += 1; });
+      const event = {
+        isTrusted: true,
+        preventDefault() { this.defaultPrevented = true; },
+        stopPropagation() { this.stopped = true; },
+        stopImmediatePropagation() { this.immediate = true; },
+      };
+      seen[0](event);
+      expect(event.defaultPrevented).toBe(true);
+      expect(event.stopped).toBe(true);
+      expect(event.immediate).toBe(true);
+      expect(manualClicks).toBe(1);
+      expect(armed).toBe(1);
+      widget.render({ state: 'install', label: 'Ordnance download', clickable: true });
+      expect(manager.textContent).toContain('Ordnance download');
+      expect(manager.style.getPropertyValue('background')).toMatch(/255,\s*198,\s*26|#FFC61A/i);
+      expect(manager.style.getPropertyPriority('background')).toBe('important');
+    } finally {
+      EventTarget.prototype.addEventListener = original;
+      modal.remove();
+    }
+  });
+
+  it('puts the Ordnance label back when the files-tab button is repainted', async () => {
+    const modal = document.createElement('mod-download-modal');
+    const shadow = modal.attachShadow({ mode: 'open' });
+    const manager = document.createElement('button');
+    const managerLabel = document.createElement('span');
+    managerLabel.textContent = 'Mod manager download';
+    manager.appendChild(managerLabel);
+    manager.setAttribute('data-ordnance-adopt', '');
+    shadow.appendChild(manager);
+    document.body.appendChild(modal);
+    try {
+      const widget = globalThis.Ordnance.content.createButtonWidget({ branded: true, adopt: manager });
+      widget.render({ state: 'install', label: 'Ordnance download', clickable: true });
+      managerLabel.textContent = 'Mod manager download';
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(manager.querySelector('span').textContent).toBe('Ordnance download');
+    } finally {
+      modal.remove();
+    }
+  });
+
   it('nexus button is an in-page anchor with the emblem and Ordnance download', () => {
     const widget = globalThis.Ordnance.content.createButtonWidget({ branded: true });
     expect(widget.host.tagName).toBe('A');
