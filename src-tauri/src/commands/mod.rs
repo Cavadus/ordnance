@@ -1946,7 +1946,10 @@ mod tests {
             .unwrap();
         assert!(option_at < loader_at, "the options snippet must not be the boot the game runs");
         assert_eq!(loader_at, patches.len() - 1, "the Ordnance boot has to be the highest patch");
-        assert!(!patches[loader_at].1.windows(b"kinds = { weapon = true }".len()).any(|w| w == b"kinds = { weapon = true }"));
+        assert!(
+            !patches[loader_at].1.windows(b"mods/chef/treasure_radar".len()).any(|w| w == b"mods/chef/treasure_radar"),
+            "the options file was concatenated into the boot"
+        );
     }
 
     /// A loader mod's other archives (Rat's intro, Chef's core) stay out of

@@ -1649,7 +1649,7 @@ local function run_options(entry)
   return result
 end
 
--- Option files return tables ({ ledger = true }, { kinds = { weapon = true } }).
+-- Option files return tables. One of them names the rows the menu shows.
 -- Later patches win on the same field. Nested tables combine.
 local function merge_into(dst, src)
   if type(src) ~= "table" then return dst end
