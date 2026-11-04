@@ -36,9 +36,7 @@ on:
 
 jobs:
   nexus:
-    if: >-
-      (github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false)
-      && (github.event_name != 'workflow_dispatch' || inputs.file_ids == '' || contains(format(',{0},', inputs.file_ids), format(',{0},', matrix.file_id)))
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -105,8 +103,23 @@ jobs:
             update_mod_version: false
             manager_download: false
     steps:
+      - name: Decide whether this file was requested
+        id: want
+        run: |
+          set -euo pipefail
+          want=true
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.file_ids }}" ]; then
+            ids=",${{ inputs.file_ids }},"
+            case "$ids" in
+              *",${{ matrix.file_id }},"*) ;;
+              *) want=false ;;
+            esac
+          fi
+          echo "want=$want" >> "$GITHUB_OUTPUT"
+
       - name: Resolve release tag
         id: rel
+        if: steps.want.outputs.want == 'true'
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -117,11 +130,13 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Download release assets
+        if: steps.want.outputs.want == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release download "${{ steps.rel.outputs.tag }}" --dir dist --repo "${{ github.repository }}"
 
       - name: Select this file
+        if: steps.want.outputs.want == 'true'
         id: asset
         run: |
           set -euo pipefail
@@ -159,7 +174,7 @@ jobs:
 
       - name: Read release notes
         id: notes
-        if: ${{ matrix.changelog }}
+        if: steps.want.outputs.want == 'true' && matrix.changelog
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -179,6 +194,7 @@ jobs:
       # Nexus accepts .rar, .zip, .7z, .exe, and .omod. A .deb or .AppImage
       # is rejected with 422, so those go up as a zip of the original file.
       - name: Zip file types Nexus will not accept
+        if: steps.want.outputs.want == 'true'
         id: wrapped
         run: |
           set -euo pipefail
@@ -196,6 +212,7 @@ jobs:
 
       # v1.0.0-beta.10. Do not float @main: Nexus has already renamed these inputs once.
       - name: Upload to Nexus Mods
+        if: steps.want.outputs.want == 'true'
         uses: Nexus-Mods/upload-action@c96019556046053aa26044b44396cd38929daf23
         with:
           api_key: ${{ secrets.NEXUSMODS_API_KEY }}
