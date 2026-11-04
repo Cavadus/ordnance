@@ -1,6 +1,6 @@
 [package]
 name = "ordnance"
-version = "0.4.4"
+version = "0.4.5"
 description = "Ordnance Mod Manager — compiles Helldivers 2 stat mods into one sealed .dl_bin swap."
 authors = ["katsyk", "Cavadus"]
 license = "MIT"
@@ -74,6 +74,10 @@ winreg = "0.56.0"
 # Free space on the drive a data folder move goes to (`data_move::available_space`).
 # ...and whether the process named in bridge.json is still running (`bridge::state::process_is_alive`).
 windows-sys = { version = "0.60", features = ["Win32_Storage_FileSystem", "Win32_Foundation", "Win32_System_Threading"] }
+
+[features]
+# Production builds embed the UI. `tauri dev` leaves this off and loads the dev server.
+custom-protocol = ["tauri/custom-protocol"]
 
 [dev-dependencies]
 tempfile = "3.27.0"

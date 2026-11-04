@@ -318,9 +318,9 @@ local function dog_disarm()
   dog.hook = nil
 end
 
--- Options menu. Mods receive their own chef table (local chef = ...). The
--- calls Chef's menu documents are here: option, bind, get, set, save, load.
--- Anything else logs and returns nil, and the mod keeps running.
+-- Options menu. Mods receive their own chef table (local chef = ...).
+-- The menu calls are here, and so are the world and draw calls a mod needs
+-- to put something on screen. Anything else logs and returns nil.
 menu_api = (function()
   local settings, groups, group_of, rows = {}, {}, {}, {}
   local open, selected, scroll, capture = false, 1, 0, nil
@@ -841,9 +841,11 @@ menu_api = (function()
 
   local menu_frame = 0
   local nav_held = {}
-  local function update()
+  local runtime
+  local function update(dt)
     menu_frame = menu_frame + 1
     poll()
+    if runtime then runtime.drive("update", dt) end
     if capture then
       for name in pairs(just) do
         if name == "esc" or name == "escape" then
@@ -956,12 +958,14 @@ menu_api = (function()
   end
 
   local function release()
+    if runtime then runtime.drive("shutdown") end
     open, capture = false, nil
     suppress(false)
     drop_gui()
   end
 
   local function render()
+    if runtime then runtime.drive("render") end
     local S = stingray()
     if not open or draw_failed then
       -- A screen GUI left up while the game quits hangs the renderer. Drop it
@@ -1074,19 +1078,1196 @@ menu_api = (function()
     if hint then text(hint, x + 16 * scale, bottom + 8 * scale, math.floor(16 * scale), dim) end
   end
 
+  -- World, unit watch, and screen drawing for a mod that used to ask Chef.
+  -- One table holds the state so this function stays under Lua's local limit.
+  runtime = (function()
+    local R = {
+      frame = 0, t0 = os.clock(), stopped = false,
+      modules = {}, watches = {}, mission_kinds = {},
+      ui = {}, sizes = {}, ids = {}, names = {}, known = {}, edge = {}, said = {},
+      icons = {}, top_icons = {},
+      world = nil, world_n = 0, mission = false, mission_at = 0,
+      cam_unit = nil, cam_data = nil, cam_frame = -1, cam_list = nil, cam_i = 0, cam_retry = 0,
+      gui = nil, gui_world = nil,
+    }
+    local UI_MAT, UI_SLOT = "e2d6ed90906c1e8b", "3aa8b87e00000000"
+    local BAD_KIND = "46cab355bd8d4d37"
+
+    local function once(key, msg)
+      if R.said[key] then return end
+      R.said[key] = true
+      say(msg)
+      flush()
+    end
+
+    local function main_world()
+      local S = stingray()
+      local A = S and S.Application
+      if type(A) ~= "table" or type(A.main_world) ~= "function" then return nil end
+      local ok, w = pcall(A.main_world)
+      if ok and w ~= nil then return w end
+      return nil
+    end
+
+    local function forget_draw()
+      R.gui, R.gui_world, R.text = nil, nil, nil
+      R.icons = {}
+      R.top_w, R.top_n, R.top_gui, R.top_gui_world = nil, 0, nil, nil
+      R.top_text, R.top_icons, R.top_frame = nil, {}, -1
+      R.icon_ok = nil
+    end
+
+    local world_now
+
+    local function world_clock(world)
+      local S = stingray()
+      if not S or type(S.World) ~= "table" or type(S.World.time) ~= "function" then return nil end
+      local ok, t = pcall(S.World.time, world)
+      if ok and type(t) == "number" then return t end
+      return nil
+    end
+
+    local function id64(hex)
+      if type(hex) ~= "string" then return nil end
+      local hit = R.ids[hex]
+      if hit ~= nil then return hit or nil end
+      local S = stingray()
+      local T = S and S.IdString64
+      if type(T) ~= "table" or type(T.from_hex) ~= "function" then
+        once("id64", "IdString64.from_hex is missing")
+        return nil
+      end
+      local ok, id = pcall(T.from_hex, hex)
+      if not ok or id == nil then return nil end
+      R.ids[hex] = id
+      return id
+    end
+
+    local function units_of(world, hex)
+      local id = id64(hex)
+      if not id then return nil, "no id" end
+      local S = stingray()
+      if type(S.World) ~= "table" or type(S.World.units_by_resource) ~= "function" then
+        return nil, "no units_by_resource"
+      end
+      local ok, list = pcall(S.World.units_by_resource, world, id)
+      if ok and type(list) == "table" then return list end
+      return nil, ok and ("answered " .. type(list)) or list
+    end
+
+    local function alive(unit)
+      local S = stingray()
+      if type(S) ~= "table" or type(S.Unit) ~= "table" or type(S.Unit.alive) ~= "function" then return false end
+      local ok, v = pcall(S.Unit.alive, unit)
+      return ok and v == true
+    end
+
+    local function xyz(v)
+      local S = stingray()
+      local to_elements = S and S.Vector3 and S.Vector3.to_elements
+      if v == nil or type(to_elements) ~= "function" then return nil end
+      local ok, x, y, z = pcall(to_elements, v)
+      if ok and type(x) == "number" then return x, y, z end
+      return nil
+    end
+
+    local function vec3(x, y, z)
+      local S = stingray()
+      if not S or S.Vector3 == nil then return nil end
+      local ok, v = pcall(S.Vector3, x, y, z)
+      if ok then return v end
+      return nil
+    end
+
+    local function vec2(x, y)
+      local S = stingray()
+      if not S or S.Vector2 == nil then return nil end
+      local ok, v = pcall(S.Vector2, x, y)
+      if ok then return v end
+      return nil
+    end
+
+    local function pos_of(unit)
+      local S = stingray()
+      if type(S.Unit) ~= "table" or type(S.Unit.world_position) ~= "function" then return nil end
+      local ok, p = pcall(S.Unit.world_position, unit, 1)
+      if not ok then return nil end
+      return xyz(p)
+    end
+
+    local function list_n(list)
+      if type(list) ~= "table" then return 0 end
+      local n = #list
+      if n > 0 or list[1] == nil then return n end
+      local i = 1
+      while list[i] ~= nil and i < 100000 do i = i + 1 end
+      return i - 1
+    end
+
+    local function scan(kinds)
+      local world = world_now()
+      if not world or type(kinds) ~= "table" then return {} end
+      local out = {}
+      for k in pairs(kinds) do
+        if type(k) == "string" then
+          local hex = string.lower(k)
+          if #hex == 16 and string.match(hex, "^%x+$") and hex ~= BAD_KIND then
+            local list, err = units_of(world, hex)
+            if not list and err ~= "no id" then once("units", "units_by_resource: " .. tostring(err)) end
+            local n = list_n(list)
+            for i = 1, n do
+              local u = list[i]
+              if alive(u) then
+                local x, y, z = pos_of(u)
+                if x then out[#out + 1] = { unit = u, kind = hex, x = x, y = y, z = z } end
+              end
+            end
+          end
+        end
+      end
+      return out
+    end
+
+    -- Chef's split: more than 10 levels, or more than 5000 units when the
+    -- level count is unavailable. The ship sits under that. Three of the
+    -- mod's own loot units also count, once the world is big enough to search.
+    local function measure_world(world)
+      local S = stingray()
+      local units, levels, units_ok = 0, nil, false
+      if S and type(S.World) == "table" then
+        if type(S.World.num_units) == "function" then
+          local ok, n = pcall(S.World.num_units, world)
+          if ok and type(n) == "number" then units, units_ok = n, true
+          else once("num_units", "World.num_units: " .. tostring(n)) end
+        else
+          once("num_units", "World.num_units is missing")
+        end
+        if type(S.World.num_levels) == "function" then
+          local ok, n = pcall(S.World.num_levels, world)
+          if ok and type(n) == "number" then levels = n end
+        end
+      end
+      return units, levels, units_ok
+    end
+
+    local function big_world(units, levels)
+      if levels ~= nil and levels > 10 then return true end
+      return units > 5000
+    end
+
+    -- Unit queries stay on the locked mission world. Screen GUIs follow
+    -- Chef: the main world, and only after that same world has lasted 3
+    -- seconds without its clock running backwards. A GUI is dropped, not
+    -- destroyed, when its world has already left the list.
+    local drop_draw
+
+    local function worlds_now()
+      if R.ws_frame == R.frame then return R.ws end
+      R.ws_frame = R.frame
+      R.ws = nil
+      local S = stingray()
+      local A = S and S.Application
+      if type(A) == "table" and type(A.worlds) == "function" then
+        local ok, ws = pcall(A.worlds)
+        if ok and type(ws) == "table" then R.ws = ws end
+      end
+      return R.ws
+    end
+
+    local function world_listed(world)
+      if world == nil then return false end
+      local ws = worlds_now()
+      if type(ws) ~= "table" then return false end
+      for i = 1, #ws do
+        if ws[i] == world then return true end
+      end
+      return false
+    end
+
+    drop_draw = function()
+      local S = stingray()
+      local kill = S and type(S.World) == "table" and S.World.destroy_gui
+      local function bye(world, g)
+        if g and g ~= false and type(kill) == "function" and world_listed(world) then
+          pcall(kill, world, g)
+        end
+      end
+      bye(R.gui_world, R.gui)
+      if type(R.text) == "table" then bye(R.text.world, R.text.g) end
+      for _, e in pairs(R.icons) do
+        if type(e) == "table" then bye(e.world, e.gui) end
+      end
+      bye(R.top_gui_world, R.top_gui)
+      if type(R.top_text) == "table" then bye(R.top_text.world, R.top_text.g) end
+      for _, e in pairs(R.top_icons) do
+        if type(e) == "table" then bye(e.world, e.gui) end
+      end
+      forget_draw()
+    end
+
+    local function settle(world, now)
+      if world == nil then return end
+      if R.held ~= world then
+        if R.held ~= nil then
+          drop_draw()
+          if now >= (R.moved_log or 0) then
+            R.moved_log = now + 2
+            say("draw world changed, waiting")
+            flush()
+          end
+        end
+        R.held = world
+        R.world_since = now
+        R.stable = false
+        R.world_time = nil
+        R.time_at = 0
+      end
+      if now >= (R.time_at or 0) then
+        R.time_at = now + 0.25
+        local t = world_clock(world)
+        if type(t) == "number" and type(R.world_time) == "number" and t < R.world_time then
+          drop_draw()
+          R.held = world
+          R.stable = false
+          R.world_since = now
+          say("draw world restarted")
+          flush()
+        end
+        if type(t) == "number" then R.world_time = t end
+      end
+      if not R.stable and R.world_since and now - R.world_since >= 3 then
+        R.stable = true
+        once("stable", "draw world settled")
+      end
+    end
+
+    world_now = function()
+      local now = os.clock()
+      -- Once a frame, same as Chef. Sampling main_world() on every draw
+      -- call would see the short-lived world and throw the draw away.
+      if R.settle_frame ~= R.frame then
+        R.settle_frame = R.frame
+        settle(main_world(), now)
+      end
+      if R.mission_world then
+        if now < (R.hold_check or 0) then return R.mission_world end
+        R.hold_check = now + 0.5
+        local units, levels = measure_world(R.mission_world)
+        if big_world(units, levels) or units > 1000 then return R.mission_world end
+        R.mission_world = nil
+        R.mission = false
+        R.sized = false
+        say("left the mission world (" .. units .. " units)")
+        flush()
+      end
+      local main = main_world()
+      if not main then return nil end
+      local units, levels = measure_world(main)
+      if big_world(units, levels) then
+        if R.mission_world ~= main then
+          R.mission_world = main
+          R.world_n = R.world_n + 1
+          R.sized = false
+        end
+        R.hold_check = now + 0.5
+        return main
+      end
+      return main
+    end
+
+    local function in_mission()
+      local world = world_now()
+      if not world then return false end
+      local now = os.clock()
+      if R.sized and now < (R.stats_at or 0) then return R.mission == true end
+      R.stats_at = now + 0.5
+      local units, levels, units_ok = measure_world(world)
+      local mission
+      if levels ~= nil then mission = levels > 10
+      else mission = units > 5000 end
+      if not mission and (not units_ok or units >= 1000) then
+        local found = 0
+        for k in pairs(R.mission_kinds) do
+          local list, err = units_of(world, k)
+          if not list and err ~= nil and err ~= "no id" then
+            once("units", "units_by_resource: " .. tostring(err))
+          end
+          found = found + list_n(list)
+          if found >= 3 then mission = true; break end
+        end
+      end
+      if mission ~= R.mission or not R.sized then
+        R.sized = true
+        R.mission = mission
+        local extra = levels and (", " .. levels .. " levels") or ""
+        say(string.format("world %d: %s (%d units%s)", R.world_n, mission and "mission" or "not a mission", units, extra))
+        flush()
+      end
+      return mission
+    end
+
+    local function cam_from(unit)
+      local S = stingray()
+      if type(S.Unit) ~= "table" or type(S.Camera) ~= "table" then return nil end
+      local ok, c = pcall(S.Unit.camera, unit, 1)
+      if not ok or c == nil then return nil end
+      local okp, p = pcall(S.Camera.world_position, c)
+      if not okp then return nil end
+      local x, y, z = xyz(p)
+      if not x then return nil end
+      local d = { x = x, y = y, z = z, fx = 0, fy = 1, fz = 0, cam = c }
+      local okr, rot = pcall(S.Camera.world_rotation, c)
+      if okr and rot ~= nil and type(S.Quaternion) == "table" and type(S.Quaternion.forward) == "function" then
+        local okf, fwd = pcall(S.Quaternion.forward, rot)
+        local fx, fy, fz = xyz(okf and fwd or nil)
+        if fx then d.fx, d.fy, d.fz = fx, fy, fz end
+      end
+      return d
+    end
+
+    local function camera()
+      if R.cam_frame == R.frame then return R.cam_data end
+      R.cam_frame = R.frame
+      R.cam_data = nil
+      local world = world_now()
+      local S = stingray()
+      if not world or type(S) ~= "table" or type(S.Unit) ~= "table" then return nil end
+      if R.cam_unit and alive(R.cam_unit) then
+        R.cam_data = cam_from(R.cam_unit)
+        if R.cam_data then return R.cam_data end
+      end
+      R.cam_unit = nil
+      if os.clock() < R.cam_retry then return nil end
+      if not R.cam_list then
+        if type(S.World) ~= "table" or type(S.World.units) ~= "function" then return nil end
+        local ok, units = pcall(S.World.units, world)
+        if not ok or type(units) ~= "table" then R.cam_retry = os.clock() + 2 return nil end
+        R.cam_list, R.cam_i = units, 0
+      end
+      local n = list_n(R.cam_list)
+      local last = math.min(n, R.cam_i + 400)
+      for i = R.cam_i + 1, last do
+        local u = R.cam_list[i]
+        if alive(u) then
+          local ok, nc = pcall(S.Unit.num_cameras, u)
+          if ok and type(nc) == "number" and nc > 0 then
+            R.cam_unit, R.cam_list = u, nil
+            R.cam_data = cam_from(u)
+            if R.cam_data then once("cam", "camera found") end
+            return R.cam_data
+          end
+        end
+      end
+      R.cam_i = last
+      if last >= n then
+        R.cam_list = nil
+        R.cam_retry = os.clock() + 2
+      end
+      return nil
+    end
+
+    local function screen_wh()
+      local S = stingray()
+      local A = S and S.Application
+      if type(A) == "table" and type(A.back_buffer_size) == "function" then
+        local ok, a, b = pcall(A.back_buffer_size)
+        if ok and type(a) == "number" and type(b) == "number" and a > 200 and b > 200 then return a, b end
+      end
+      if S and type(S.Gui) == "table" and type(S.Gui.resolution) == "function" then
+        local ok, a, b = pcall(S.Gui.resolution)
+        if ok and type(a) == "number" and type(b) == "number" and a > 200 and b > 200 then return a, b end
+      end
+      return 1920, 1080
+    end
+
+    -- Chef's three screen GUIs. The panel is immediate and names the
+    -- performance-hud font and material. Text is a separate scale GUI.
+    -- Each icon texture gets its own immediate GUI, and only after the
+    -- material and the texture are loaded. Ids are made per call: a kept
+    -- id can be reused by the engine and then the draw hits the wrong slot.
+    local GUI_MAT = "core/performance_hud/gui"
+    local TOP_FROM = 2000
+
+    local function fresh_id(hex)
+      if type(hex) ~= "string" then return nil end
+      local S = stingray()
+      local T = S and S.IdString64
+      if type(T) ~= "table" or type(T.from_hex) ~= "function" then return nil end
+      local ok, id = pcall(T.from_hex, hex)
+      if ok and id ~= nil then return id end
+      return nil
+    end
+
+    local function screen_gui(world, mode, a, b, c, d)
+      local S = stingray()
+      if world == nil or type(S) ~= "table" or type(S.World) ~= "table"
+        or type(S.World.create_screen_gui) ~= "function" then
+        return nil
+      end
+      local ok, g
+      if a == nil then ok, g = pcall(S.World.create_screen_gui, world, mode)
+      else ok, g = pcall(S.World.create_screen_gui, world, mode, a, b, c, d) end
+      if ok and g ~= nil and g ~= false then return g end
+      return nil
+    end
+
+    local function draw_world()
+      if R.stable and R.held ~= nil then return R.held end
+      return nil
+    end
+
+    local function panel_gui(world)
+      if world == nil or R.gui == false then return nil end
+      if R.gui and R.gui_world == world then return R.gui end
+      local g = screen_gui(world, "immediate", "material", FONT, "material", GUI_MAT)
+      if not g then
+        R.gui = false
+        once("gui-fail", "mod draw gui failed")
+        return nil
+      end
+      R.gui, R.gui_world = g, world
+      once("gui", "mod draw gui")
+      return g
+    end
+
+    local function top_world()
+      local main = draw_world()
+      if main == nil then return nil end
+      if R.top_frame == R.frame and R.top_main == main then return R.top_w end
+      R.top_frame, R.top_main = R.frame, main
+      local ws = worlds_now()
+      local found, n = nil, 0
+      if type(ws) == "table" then
+        n = #ws
+        for i = 1, n do
+          if ws[i] ~= main then found = ws[i]; break end
+        end
+      end
+      if R.top_w ~= nil and (found == nil or n ~= R.top_n or found ~= R.top_w) then
+        R.top_w, R.top_n, R.top_gui, R.top_gui_world = nil, 0, nil, nil
+        R.top_text, R.top_icons = nil, {}
+      end
+      if R.top_w == nil and found ~= nil then R.top_w, R.top_n = found, n end
+      return R.top_w
+    end
+
+    local function top_gui()
+      local w = top_world()
+      if w == nil or R.top_gui == false then return nil end
+      if R.top_gui and R.top_gui_world == w then return R.top_gui end
+      local g = screen_gui(w, "immediate", "material", FONT, "material", GUI_MAT)
+      if not g then
+        R.top_gui = false
+        once("top-gui", "top draw gui failed")
+        return nil
+      end
+      R.top_gui, R.top_gui_world = g, w
+      once("top-gui-ok", "top draw gui")
+      return g
+    end
+
+    local function text_bucket(world, paired, which)
+      local t = R[which]
+      if type(t) == "table" and t.world == world and t.paired == paired then return t end
+      if type(t) == "table" and t.g and world_listed(t.world) then
+        local S = stingray()
+        if S and type(S.World) == "table" and type(S.World.destroy_gui) == "function" then
+          pcall(S.World.destroy_gui, t.world, t.g)
+        end
+      end
+      local g = screen_gui(world, "scale", 1, 1)
+      if not g then
+        R[which] = nil
+        once("text-gui", "mod text gui failed")
+        return nil
+      end
+      t = { g = g, world = world, paired = paired, ids = {} }
+      R[which] = t
+      once("text-ok", "mod text gui")
+      return t
+    end
+
+    local function wipe_text(t)
+      if type(t) ~= "table" or type(t.ids) ~= "table" then return end
+      local S = stingray()
+      local fn = S and S.Gui and S.Gui.destroy_text
+      if type(fn) == "function" then
+        for i = 1, #t.ids do pcall(fn, t.g, t.ids[i]) end
+      end
+      t.ids = {}
+    end
+
+    local function rect(x, y, w, h, c, layer)
+      if c == nil or not finite(x) or not finite(y) or not finite(w) or not finite(h) then return end
+      if not R.stable then
+        once("wait", "draw waits until the world has settled")
+        return
+      end
+      layer = finite(layer) and layer or 900
+      local g
+      if layer >= TOP_FROM then
+        g = top_gui()
+        layer = layer - TOP_FROM
+      else
+        g = panel_gui(draw_world())
+      end
+      if not g then return end
+      local S = stingray()
+      if type(S) ~= "table" or type(S.Gui) ~= "table" or type(S.Gui.rect) ~= "function" then return end
+      local p, s = vec3(x, y, layer), vec2(w, h)
+      if not p or not s then return end
+      pcall(S.Gui.rect, g, p, s, c)
+    end
+
+    local function text_width(str, px)
+      return #tostring(str or "") * (tonumber(px) or 16) * 0.55
+    end
+
+    local function text(x, y, str, px, c, layer)
+      if c == nil or not finite(x) or not finite(y) then return 0 end
+      px = tonumber(px) or 16
+      local wide = text_width(str, px)
+      if not R.stable then
+        once("wait", "draw waits until the world has settled")
+        return wide
+      end
+      layer = finite(layer) and layer or 900
+      local on_top = layer >= TOP_FROM
+      local world, paired
+      if on_top then
+        paired = top_gui()
+        world = R.top_w
+        layer = layer - TOP_FROM
+      else
+        world = draw_world()
+        paired = panel_gui(world)
+      end
+      if not paired or world == nil then return wide end
+      local which = on_top and "top_text" or "text"
+      local bucket = text_bucket(world, paired, which)
+      local S = stingray()
+      if not bucket or type(S) ~= "table" or type(S.Gui) ~= "table" or type(S.Gui.text) ~= "function" then
+        return wide
+      end
+      local p = vec3(x, y, layer)
+      if not p then return wide end
+      local ok, id = pcall(S.Gui.text, bucket.g, tostring(str), FONT, px, FONT, p, c)
+      if ok and id ~= nil then bucket.ids[#bucket.ids + 1] = id end
+      return wide
+    end
+
+    local function sized(tex, w)
+      local list = R.sizes[tex]
+      if type(list) ~= "table" then return tex end
+      local pick = nil
+      for i = 1, #list, 2 do
+        local width, id = list[i], list[i + 1]
+        if type(width) == "number" and type(id) == "string" then
+          pick = id
+          if width >= w then return id end
+        end
+      end
+      return pick or tex
+    end
+
+    local function bitmap(tex, x, y, w, h, c, layer)
+      if type(tex) ~= "string" or c == nil or not finite(x) or not finite(y) or not finite(w) or not finite(h) then
+        return false
+      end
+      if not R.stable then
+        once("wait", "draw waits until the world has settled")
+        return false
+      end
+      layer = finite(layer) and layer or 900
+      tex = sized(tex, w)
+      local icons, target = R.icons, draw_world()
+      if layer >= TOP_FROM then
+        target = top_world()
+        icons = R.top_icons
+        layer = layer - TOP_FROM
+      end
+      if target == nil or type(icons) ~= "table" then return false end
+      local e = icons[tex]
+      if e == false then return false end
+      local S = stingray()
+      local A = S and S.Application
+      if e == nil then
+        if R.icon_ok ~= true and os.clock() >= (R.icon_check or 0) then
+          R.icon_check = os.clock() + 1
+          local mid = fresh_id(UI_MAT)
+          local yes = false
+          if mid and type(A) == "table" and type(A.can_get) == "function" then
+            local ok, got = pcall(A.can_get, "material", mid)
+            yes = ok and got == true
+          end
+          R.icon_ok = yes
+        end
+        if R.icon_ok ~= true then
+          once("icon-mat", "icons: the UI material is not loaded; the addon draws its own fallback")
+          return false
+        end
+        local tid = fresh_id(tex)
+        local ready = tid and type(A) == "table" and type(A.can_get) == "function"
+        if ready then
+          local ok, got = pcall(A.can_get, "texture", tid)
+          ready = ok and got == true
+        end
+        if not ready then
+          local alt = R.ui[tex]
+          if type(alt) == "string" then
+            local id2 = fresh_id(alt)
+            if id2 and type(A) == "table" and type(A.can_get) == "function" then
+              local ok2, got2 = pcall(A.can_get, "texture", id2)
+              if ok2 and got2 == true then tex, ready = alt, true end
+            end
+          end
+        end
+        if not ready then
+          once("icon-" .. tex, "icons: texture " .. tex .. " is not loaded; the addon draws its own fallback")
+          return false
+        end
+        local g = screen_gui(target, "immediate")
+        if not g then
+          icons[tex] = false
+          once("icon-gui", "icons: no screen GUI; the addon draws its own fallback")
+          return false
+        end
+        e = { gui = g, world = target, frame = -1 }
+        icons[tex] = e
+        once("icon", "icon gui")
+      end
+      if type(e) ~= "table" then return false end
+      if type(S) ~= "table" or type(S.Gui) ~= "table" then return false end
+      if e.frame ~= R.frame then
+        e.frame = R.frame
+        local mat, slot, texid = fresh_id(UI_MAT), fresh_id(UI_SLOT), fresh_id(tex)
+        local mh = nil
+        if mat and type(S.Gui.material) == "function" then
+          local okm, got = pcall(S.Gui.material, e.gui, mat)
+          if okm then mh = got end
+        end
+        local bound = false
+        if mh and slot and texid and type(S.Material) == "table" and type(S.Material.set_texture) == "function" then
+          local oks, _, err = pcall(S.Material.set_texture, mh, slot, texid)
+          bound = oks and type(err) ~= "string"
+        end
+        if not bound then
+          icons[tex] = false
+          once("icon-bind-" .. tex, "icons: texture " .. tex .. " refused")
+          return false
+        end
+      end
+      if type(S.Gui.bitmap) ~= "function" then return false end
+      local mat = fresh_id(UI_MAT)
+      local p, s = vec3(x, y, layer), vec2(w, h)
+      if not mat or not p or not s then return false end
+      local okb = pcall(S.Gui.bitmap, e.gui, mat, p, s, c)
+      if okb then once("icon-drew", "icon drawn") end
+      return okb
+    end
+
+    local function sprite(x, y, rows, cell, colors, layer)
+      if type(rows) ~= "table" or type(colors) ~= "table" or not finite(x) or not finite(y) then return end
+      cell = tonumber(cell) or 1
+      local h = #rows
+      for row = 1, h do
+        local line = rows[row]
+        if type(line) == "string" then
+          for col = 1, #line do
+            local ch = string.sub(line, col, col)
+            local c = colors[ch]
+            if c then
+              rect(x + (col - 1) * cell, y + (h - row) * cell, cell, cell, c, (layer or 900) + (ch == "o" and 0 or 1))
+            end
+          end
+        end
+      end
+    end
+
+    -- Chef does not trust units_by_resource until a walk of the world agrees
+    -- with it. That call answered 0 here, so the watch walks the world the
+    -- way Chef's own scan does: Unit.debug_name, the #ID[hex] in it, 1500
+    -- units a frame, on the main world once that world has settled.
+    local function name_kind(unit, S)
+      local fn = S.Unit and S.Unit.debug_name
+      if type(fn) ~= "function" then return false end
+      local ok, name = pcall(fn, unit)
+      if not ok or type(name) ~= "string" then return false end
+      R.saw_names = (R.saw_names or 0) + 1
+      local hit = R.names[name]
+      if hit ~= nil then return hit end
+      local hex = string.match(name, "#ID%[(%x+)%]")
+      hex = hex and string.lower(hex) or false
+      if (R.names_n or 0) >= 8192 then R.names, R.names_n = {}, 0 end
+      R.names[name] = hex
+      R.names_n = (R.names_n or 0) + 1
+      return hex
+    end
+
+    local function service_watches()
+      local now = os.clock()
+      for i = 1, #R.watches do
+        local w = R.watches[i]
+        if w.stopped or w.paused then
+          w.job = nil
+        else
+          local job = w.job
+          if job and job.world ~= R.held then w.job = nil; job = nil end
+          if job then
+            local S = stingray()
+            if type(S) == "table" and type(S.Unit) == "table" then
+              local n = list_n(job.units)
+              local last = math.min(n, job.i + 1500)
+              for u = job.i + 1, last do
+                local unit = job.units[u]
+                local hex = name_kind(unit, S)
+                if hex and job.set[hex] and alive(unit) then
+                  local x, y, z = pos_of(unit)
+                  if x then
+                    job.out[#job.out + 1] = { unit = unit, kind = hex, x = x, y = y, z = z }
+                  end
+                end
+              end
+              job.i = last
+              if last >= n then
+                w.job = nil
+                w.next = now + w.every
+                local note = nil
+                if w.last_n ~= #job.out then
+                  w.last_n = #job.out
+                  note = job.where
+                  if (R.saw_names or 0) == job.names_at and n > 100 then
+                    note = note .. ", no unit names"
+                  end
+                end
+                w.pub.items = job.out
+                w.pub.generation = w.pub.generation + 1
+                if note then
+                  say(w.owner .. " watch: " .. #job.out .. " units (" .. note .. ")")
+                  flush()
+                end
+              end
+            end
+          elseif now >= w.next and R.stable and R.held ~= nil then
+            local S = stingray()
+            local units = nil
+            if type(S) == "table" and type(S.World) == "table" and type(S.World.units) == "function" then
+              local ok, list = pcall(S.World.units, R.held)
+              if ok and type(list) == "table" then units = list
+              else once("units-list", "World.units: " .. tostring(list)) end
+            else
+              once("units-list", "World.units is missing")
+            end
+            if units then
+              local set = {}
+              for k in pairs(w.kinds) do
+                if type(k) == "string" then
+                  local hex = string.lower(k)
+                  if #hex == 16 and string.match(hex, "^%x+$") and hex ~= BAD_KIND then set[hex] = true end
+                end
+              end
+              local count = measure_world(R.held)
+                w.job = {
+                units = units, i = 0, set = set, out = {}, world = R.held,
+                names_at = R.saw_names or 0, where = count .. " in the world",
+              }
+            else
+              w.next = now + 1
+            end
+          end
+        end
+      end
+    end
+
+    local function lookup_key(name)
+      if type(name) ~= "string" or name == "" then return nil end
+      local hit = R.known[name]
+      if hit ~= nil then return hit or nil end
+      local S = stingray()
+      local K = S and S.Keyboard
+      if type(K) ~= "table" or type(K.button_index) ~= "function" then return nil end
+      local tries = { name }
+      local titled = string.upper(string.sub(name, 1, 1)) .. string.sub(name, 2)
+      if titled ~= name then tries[#tries + 1] = titled end
+      for i = 1, #tries do
+        local ok, found = pcall(K.button_index, tries[i])
+        if ok and found ~= nil and found ~= false then
+          R.known[name] = found
+          return found
+        end
+      end
+      return nil
+    end
+
+    local function key_is_down(name)
+      local i = lookup_key(name)
+      if i == nil then return false end
+      return read_button(i)
+    end
+
+    local function engine_fn(name)
+      local S = stingray()
+      if type(S) ~= "table" or type(name) ~= "string" then return nil end
+      local obj, meth = string.match(name, "^([%w_]+)%.([%w_]+)$")
+      if not obj then return nil end
+      local t = S[obj]
+      if type(t) ~= "table" then return nil end
+      local fn = t[meth]
+      if type(fn) ~= "function" then return nil end
+      return fn
+    end
+
+    local function call_engine(name, ...)
+      local fn = engine_fn(name)
+      if not fn then return nil, "missing" end
+      local packed = { pcall(fn, ...) }
+      if not packed[1] then return nil, packed[2] end
+      return unpack(packed, 2, #packed)
+    end
+
+    local function watch(owner, kinds, every)
+      if type(kinds) ~= "table" then return nil end
+      local pub = { items = {}, generation = 0, active = true }
+      local w = {
+        owner = owner, kinds = kinds, every = math.max(0.5, tonumber(every) or 5),
+        next = os.clock(), paused = false, stopped = false, pub = pub,
+      }
+      R.watches[#R.watches + 1] = w
+      w.next = 0
+      say(owner .. " watch: scanning the world")
+      flush()
+      function pub.pause()
+        w.paused = true
+        pub.active = false
+      end
+      function pub.resume()
+        if w.paused and not w.stopped then
+          w.paused = false
+          pub.active = true
+          w.next = 0
+        end
+      end
+      function pub.refresh() w.next = 0 end
+      function pub.stop()
+        w.stopped, w.paused = true, true
+        pub.active = false
+        pub.items = {}
+      end
+      return pub
+    end
+
+    local function clamp255(n)
+      n = math.floor(tonumber(n) or 0)
+      if n < 0 then return 0 end
+      if n > 255 then return 255 end
+      return n
+    end
+
+    -- The game's user_settings.config. Same shape Chef's chef.setting reads:
+    -- bare keys, =, { } objects, [ ] arrays, no commas.
+    local function parse_sjson(text)
+      local i, n = 1, #text
+      local function peek() return string.sub(text, i, i) end
+      local function skip()
+        while true do
+          local c = peek()
+          if c == "" then return end
+          if c == " " or c == "\t" or c == "\r" or c == "\n" then i = i + 1
+          elseif c == "/" and string.sub(text, i, i + 1) == "//" then
+            local nl = string.find(text, "\n", i, true)
+            i = (nl or n) + 1
+          else return end
+        end
+      end
+      local function parse_value()
+        skip()
+        local c = peek()
+        if c == "{" then
+          i = i + 1
+          local t = {}
+          while true do
+            skip()
+            local d = peek()
+            if d == "}" or d == "" then if d == "}" then i = i + 1 end return t end
+            local key = parse_value()
+            skip()
+            if peek() == "=" then i = i + 1 end
+            local val = parse_value()
+            if type(key) == "string" then t[key] = val end
+          end
+        end
+        if c == "[" then
+          i = i + 1
+          local t = {}
+          while true do
+            skip()
+            local d = peek()
+            if d == "]" or d == "" then if d == "]" then i = i + 1 end return t end
+            t[#t + 1] = parse_value()
+          end
+        end
+        if c == "\"" then
+          i = i + 1
+          local out = {}
+          while i <= n do
+            local ch = peek()
+            if ch == "\"" then i = i + 1; break end
+            if ch == "\\" then
+              out[#out + 1] = string.sub(text, i + 1, i + 1)
+              i = i + 2
+            else
+              out[#out + 1] = ch
+              i = i + 1
+            end
+          end
+          return table.concat(out)
+        end
+        local j = i
+        while j <= n do
+          local ch = string.sub(text, j, j)
+          if ch == "" or string.find(" \t\r\n{}[]=", ch, 1, true) then break end
+          j = j + 1
+        end
+        local tok = string.sub(text, i, j - 1)
+        i = j
+        if tok == "" then i = i + 1; return nil end
+        if tok == "true" then return true end
+        if tok == "false" then return false end
+        if tok == "null" then return nil end
+        return tonumber(tok) or tok
+      end
+      local root = {}
+      while true do
+        skip()
+        if peek() == "" then return root end
+        local key = parse_value()
+        skip()
+        if peek() == "=" then i = i + 1 end
+        local val = parse_value()
+        if type(key) == "string" then root[key] = val end
+      end
+    end
+
+    local function copy_setting(v)
+      if type(v) ~= "table" then return v end
+      local c = {}
+      for k, x in pairs(v) do c[k] = copy_setting(x) end
+      return c
+    end
+
+    local function game_setting(path)
+      if type(path) ~= "string" then return nil end
+      local now = os.clock()
+      if not (R.settings_at and now < R.settings_at) then
+        R.settings_at = now + 30
+        R.settings = nil
+        local base = settings_path()
+        local dir = type(base) == "string" and string.match(base, "^(.*)[\\/][^\\/]+$") or nil
+        if dir ~= nil then
+          local ok, file = pcall(io.open, dir .. "\\user_settings.config", "r")
+          if ok and file ~= nil then
+            local text = file:read("*a")
+            pcall(function() file:close() end)
+            if type(text) == "string" then
+              local okp, parsed = pcall(parse_sjson, text)
+              if okp and type(parsed) == "table" then R.settings = parsed
+              else once("settings", "game settings file could not be read") end
+            end
+          end
+        end
+      end
+      local t = R.settings
+      if type(t) ~= "table" then return nil end
+      for part in string.gmatch(path, "[^%.]+") do
+        if type(t) ~= "table" then return nil end
+        t = t[tonumber(part) or part]
+      end
+      return copy_setting(t)
+    end
+
+    local function attach(chef, owner)
+      local dir = nil
+      local settings = settings_path()
+      if type(settings) == "string" then dir = string.match(settings, "^(.*)[\\/][^\\/]+$") end
+      chef.log_directory = dir
+      -- Chef's TOP_FROM. Layers at this value and up are drawn on the HUD
+      -- world. Below native, Treasure keeps its own layers and stays here.
+      chef.TOP = 2000
+      local file = nil
+      function chef.log(msg, ...)
+        if type(msg) == "string" and select("#", ...) > 0 then
+          local ok, formatted = pcall(string.format, msg, ...)
+          if ok then msg = formatted end
+        end
+        say(owner .. ": " .. tostring(msg))
+        if file then
+          local line = os.date("%H:%M:%S ") .. tostring(msg) .. "\n"
+          pcall(function() file:write(line) file:flush() end)
+        end
+      end
+      function chef.own_log(name)
+        if file then return true end
+        if type(name) ~= "string" or not string.match(name, "^[%w_%-]+$") or #name > 48 or dir == nil then
+          return false, "no log"
+        end
+        local ok, f = pcall(io.open, dir .. "\\" .. name .. ".log", "a")
+        if not ok or f == nil then return false, "cannot open" end
+        file = f
+        pcall(function()
+          f:write("==== " .. owner .. " " .. os.date("%Y-%m-%d %H:%M:%S") .. "\n")
+          f:flush()
+        end)
+        say(owner .. " logs to " .. name .. ".log")
+        return true
+      end
+      function chef.key_down(name)
+        local down = key_is_down(string.lower(tostring(name or "")))
+        if open or capture then return false end
+        return down
+      end
+      function chef.key_pressed(name)
+        name = string.lower(tostring(name or ""))
+        local down = key_is_down(name)
+        local was = R.edge[name]
+        R.edge[name] = down and true or nil
+        if open or capture then return false end
+        return down and not was
+      end
+      function chef.key_known(name) return lookup_key(string.lower(tostring(name or ""))) ~= nil end
+      function chef.time() return os.clock() - R.t0 end
+      function chef.setting(path) return game_setting(path) end
+      function chef.world_id()
+        if not world_now() then return 0 end
+        return R.world_n
+      end
+      function chef.in_mission() return in_mission() end
+      function chef.mission_kinds(kinds)
+        if type(kinds) ~= "table" then return end
+        for k in pairs(kinds) do
+          if type(k) == "string" and string.match(k, "^%x+$") then R.mission_kinds[string.lower(k)] = true end
+        end
+        local n = 0
+        for _ in pairs(R.mission_kinds) do n = n + 1 end
+        once("kinds-" .. owner, owner .. " named " .. n .. " mission kinds")
+      end
+      function chef.ui_textures(map)
+        if type(map) ~= "table" then return end
+        for k, v in pairs(map) do
+          if type(k) == "string" and type(v) == "string" then R.ui[k] = v end
+        end
+      end
+      function chef.texture_sizes(map)
+        if type(map) ~= "table" then return end
+        for k, list in pairs(map) do
+          if type(k) == "string" and type(list) == "table" then R.sizes[k] = list end
+        end
+      end
+      function chef.camera() return camera() end
+      function chef.screen() return screen_wh() end
+      function chef.world_to_screen(x, y, z)
+        if not finite(x) or not finite(y) or not finite(z) then return nil end
+        local d = camera()
+        if not d or d.cam == nil then return nil end
+        local ax, ay, az = x - d.x, y - d.y, z - d.z
+        if ax * d.fx + ay * d.fy + az * d.fz <= 0.5 then return nil end
+        local S = stingray()
+        if type(S.Camera) ~= "table" or type(S.Camera.world_to_screen) ~= "function" then return nil end
+        local v = vec3(x, y, z)
+        if not v then return nil end
+        local ok, r = pcall(S.Camera.world_to_screen, d.cam, v)
+        if not ok then return nil end
+        local sx, sy = xyz(r)
+        if not sx then return nil end
+        return sx, sy
+      end
+      function chef.color(r, g, b, a)
+        local S = stingray()
+        if not S then return nil end
+        return color(S, clamp255(a or 255), clamp255(r), clamp255(g), clamp255(b))
+      end
+      function chef.text_width(str, px) return text_width(str, px) end
+      function chef.rect(x, y, w, h, c, layer) rect(x, y, w, h, c, layer) end
+      function chef.text(x, y, s, px, c, layer) return text(x, y, s, px, c, layer) end
+      function chef.bitmap(tex, x, y, w, h, c, layer) return bitmap(tex, x, y, w, h, c, layer) end
+      function chef.sprite(x, y, rows, cell, colors, layer) sprite(x, y, rows, cell, colors, layer) end
+      function chef.watch(kinds, every) return watch(owner, kinds, every) end
+      function chef.call(name, ...) return call_engine(name, ...) end
+      function chef.call_kind(name, kind, ...) return call_engine(name, ...) end
+    end
+
+    local function adopt(name, result)
+      if type(result) ~= "table" then return end
+      local hooks = {}
+      for _, key in ipairs({ "update", "render", "shutdown" }) do
+        local fn = rawget(result, key)
+        -- A function already installed as the global callback runs from that
+        -- chain. Calling it again here would run the mod twice a frame.
+        if type(fn) == "function" and rawget(_G, key) ~= fn then hooks[key] = fn end
+      end
+      local stop = rawget(result, "on_stop")
+      if next(hooks) == nil and type(stop) ~= "function" then return end
+      R.modules[#R.modules + 1] = {
+        name = name, hooks = hooks, stop = type(stop) == "function" and stop or nil, n = 0,
+      }
+      local names = {}
+      for k in pairs(hooks) do names[#names + 1] = k end
+      table.sort(names)
+      say(name .. ": module runs " .. (#names > 0 and table.concat(names, ", ") or "on_stop"))
+      flush()
+    end
+
+    local function drive(kind, dt)
+      if R.stopped then return end
+      if kind == "shutdown" then
+        R.stopped = true
+        for i = 1, #R.modules do
+          local m = R.modules[i]
+          if m.stop then
+            local ok, err = pcall(m.stop)
+            if not ok then say(m.name .. " on_stop: " .. tostring(err)) end
+          end
+          if m.hooks.shutdown then
+            local ok, err = pcall(m.hooks.shutdown)
+            if not ok then say(m.name .. " shutdown: " .. tostring(err)) end
+          end
+        end
+        drop_draw()
+        flush()
+        return
+      end
+      if kind == "update" then
+        R.frame = R.frame + 1
+        wipe_text(R.text)
+        wipe_text(R.top_text)
+        settle(main_world(), os.clock())
+        R.settle_frame = R.frame
+        service_watches()
+      end
+      for i = 1, #R.modules do
+        local m = R.modules[i]
+        local fn = m.hooks[kind]
+        if fn then
+          local ok, err = pcall(fn, dt)
+          if not ok then
+            m.n = m.n + 1
+            if m.n <= 3 or m.n % 300 == 0 then
+              say(m.name .. " " .. kind .. ": " .. tostring(err))
+              flush()
+            end
+          end
+        end
+      end
+    end
+
+    return { drive = drive, adopt = adopt, attach = attach }
+  end)()
+
   local option_sets = {}
 
   local function chef_for(owner)
     local chef = { version = "ordnance-loader-1", api = 1, options = option_sets[owner] or {} }
     chef.capabilities = { menu = true, bindings = true, option_headings = true }
     function chef.has(name) return chef.capabilities[name] == true end
-    function chef.log(msg, ...)
-      if type(msg) == "string" and select("#", ...) > 0 then
-        local ok, formatted = pcall(string.format, msg, ...)
-        if ok then msg = formatted end
-      end
-      say(owner .. ": " .. tostring(msg))
-    end
     function chef.title(t) if type(t) == "string" then group(owner, t) end end
     function chef.menu_open() return open end
     function chef.after_startup(fn)
@@ -1096,8 +2277,6 @@ menu_api = (function()
       if type(key) == "string" then store(owner, key, value) end
     end
     function chef.load(key, default) return stored(owner, key, default) end
-    function chef.key_down(name) return key_down(string.lower(tostring(name or ""))) end
-    function chef.key_pressed(name) return just[string.lower(tostring(name or ""))] == true end
     function chef.option(id, spec)
       local row, err = add_option(owner, id, spec)
       if not row then
@@ -1146,6 +2325,7 @@ menu_api = (function()
       h = string.upper(h)
       return tonumber(string.sub(h, 1, 2), 16), tonumber(string.sub(h, 3, 4), 16), tonumber(string.sub(h, 5, 6), 16)
     end
+    runtime.attach(chef, owner)
     setmetatable(chef, {
       __index = function(_, key)
         return function()
@@ -1437,7 +2617,7 @@ menu_api = (function()
 
   local function blocking() return open or capture ~= nil end
 
-  return { chef_for = chef_for, update = update, render = render, use_options = use_options, describe = describe, release = release, blocking = blocking }
+  return { chef_for = chef_for, adopt = runtime.adopt, update = update, render = render, use_options = use_options, describe = describe, release = release, blocking = blocking }
 end)()
 
 -- Mods hook update while init runs, and they keep the function they find.
@@ -1457,7 +2637,7 @@ local function on_update(dt)
     say("menu update live")
     flush()
   end
-  local ok, err = pcall(menu_api.update)
+  local ok, err = pcall(menu_api.update, dt)
   if not ok then say("menu: " .. tostring(err)) end
   -- The game's own update lives in this chain. Do not time it out and do not
   -- drop it: a long frame mid-mission was leaving the mission frozen.
@@ -1553,6 +2733,9 @@ local function run_addon(entry)
     end
     local rat = string.find(source, "@loader rat", 1, true) and ", @loader rat" or ""
     say(string.format("%s (patch_%d, %d bytes%s): loaded in %.0f ms", entry.name, entry.patch, #source, rat, took))
+    if type(result) == "table" then
+      menu_api.adopt(entry.name, result)
+    end
   else
     say(entry.name .. " (patch_" .. entry.patch .. "): FAILED: " .. tostring(result))
   end
@@ -1616,6 +2799,7 @@ local function run_guest(entry)
   end
   say(string.format("%s %s (patch_%d): runs %s", entry.kind, entry.name, entry.patch,
     #names > 0 and table.concat(names, ", ") or "no callback"))
+  if type(result) == "table" then menu_api.adopt(entry.name, result) end
 end
 
 local function run_options(entry)
@@ -1701,6 +2885,61 @@ local function hook_shutdown()
   rawset(_G, "shutdown", shutdown_fn)
 end
 
+-- `-- @requires` and `-- @after` are how a Rat mod names what has to start
+-- first. Patch order is the tiebreak. A missing requirement is logged and
+-- the mod still starts, so its own error is the one in the log.
+local function header_needs(source)
+  local needs, lines = {}, 0
+  for line in string.gmatch(string.sub(source or "", 1, 2000), "[^\r\n]+") do
+    lines = lines + 1
+    if lines > 30 then break end
+    if string.sub(line, 1, 2) ~= "--" then break end
+    local dep = string.match(line, "^%-%- @requires%s+(%S+)")
+      or string.match(line, "^%-%- @after%s+(%S+)")
+    if dep ~= nil then needs[#needs + 1] = dep end
+  end
+  return needs
+end
+
+local function order_addons(entries)
+  local list = {}
+  for i, entry in ipairs(entries) do list[i] = entry end
+  table.sort(list, function(a, b)
+    if a.patch ~= b.patch then return a.patch < b.patch end
+    return tostring(a.name) < tostring(b.name)
+  end)
+  local index, needs, said = {}, {}, false
+  for i, entry in ipairs(list) do index[entry.name] = i end
+  for _, entry in ipairs(list) do
+    local source = read_entry(entry)
+    local deps = {}
+    for _, dep in ipairs(header_needs(source)) do
+      if index[dep] then deps[#deps + 1] = dep
+      else
+        say(entry.name .. " requires " .. dep .. ", which is not deployed")
+        said = true
+      end
+    end
+    needs[entry.name] = deps
+  end
+  local ordered, state = {}, {}
+  local function visit(name)
+    if state[name] == "done" then return end
+    if state[name] == "busy" then
+      say(name .. ": requirement cycle, patch order kept")
+      said = true
+      return
+    end
+    state[name] = "busy"
+    for _, dep in ipairs(needs[name] or {}) do visit(dep) end
+    state[name] = "done"
+    ordered[#ordered + 1] = list[index[name]]
+  end
+  for _, entry in ipairs(list) do visit(entry.name) end
+  if said then flush() end
+  return ordered
+end
+
 local function start()
   if L.started then return end
   L.started = true
@@ -1724,7 +2963,8 @@ local function start()
     end
   end
   menu_api.use_options(saved)
-  for _, entry in ipairs(addons or {}) do
+  addons = order_addons(addons or {})
+  for _, entry in ipairs(addons) do
     local ran, problem = pcall(run_addon, entry)
     if not ran then say(tostring(entry.name) .. ": " .. tostring(problem)) end
     flush()

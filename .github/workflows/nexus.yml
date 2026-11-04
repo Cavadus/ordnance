@@ -26,7 +26,7 @@ on:
       tag:
         description: Release tag to upload
         required: true
-        default: v0.4.4
+        default: v0.4.5
         type: string
       file_ids:
         description: Comma-separated Nexus file ids. Empty uploads every file.
