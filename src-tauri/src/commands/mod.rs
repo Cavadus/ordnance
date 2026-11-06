@@ -1894,6 +1894,32 @@ mod tests {
         assert!(!patches[loader_at].1.windows(b"marker_lamp".len()).any(|w| w == b"marker_lamp"));
     }
 
+    /// Mentioning Chef in a comment is how these mods say what they need.
+    /// The mod itself still has to deploy.
+    #[tokio::test]
+    async fn a_mod_that_mentions_chef_still_deploys() {
+        let data = tempfile::tempdir().unwrap();
+        let addon = tempfile::tempdir().unwrap();
+        write_text_boot_script(
+            addon.path(),
+            "-- HD2-Addon: mods/levi/side_holster\n-- Needs Chef Shared Loader 1.3.0\nmarker_holster = true\n",
+        );
+        let (addon_mod, addon_cfg) = legacy_mod("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", addon.path());
+        do_deploy(data.path(), &no_skip_list(), pair_mods_with_configs(&[addon_mod], &[addon_cfg]))
+            .await
+            .unwrap();
+
+        let mut found = false;
+        for entry in std::fs::read_dir(data.path()).unwrap() {
+            let path = entry.unwrap().path();
+            let bytes = std::fs::read(&path).unwrap_or_default();
+            if bytes.windows(b"marker_holster".len()).any(|w| w == b"marker_holster") {
+                found = true;
+            }
+        }
+        assert!(found, "the mod that mentions Chef was dropped");
+    }
+
     /// Treasure Radar's option files are named like a boot patch but carry a
     /// different resource. They must stay below the Ordnance boot, or the
     /// game runs `return { kinds = ... }` and dies on startup.

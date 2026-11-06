@@ -99,10 +99,13 @@ pub fn is_text_boot_script(path: &Path) -> bool {
 }
 
 fn loader_kind(text: &str) -> bool {
-    text.contains("--@@LOADER@@")
-        || text.contains("Chef Shared Loader")
-        || text.contains("Boot Mod Loader")
-        || (text.contains("HD2-Addon") && text.contains(BOOT_NAME))
+    // The loader marks itself. A mod that only says it needs Chef Shared
+    // Loader is not Chef, and treating it as one drops the whole mod.
+    if text.contains("--@@LOADER@@") {
+        return true;
+    }
+    let first = text.lines().next().unwrap_or("").trim_end_matches('\r').trim();
+    first.starts_with("-- Boot Mod Loader")
 }
 
 /// A boot that is itself a mod loader. It has to deploy last: a higher boot
@@ -460,6 +463,31 @@ mod tests {
         fs::write(&path, &data).unwrap();
         assert!(is_text_boot_script(&path));
         assert!(is_loader_boot(&path));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Side Holster, Night Vision, and Impatient Diver name Chef in a comment.
+    /// That is a requirement, not the loader's own patch.
+    #[test]
+    fn a_mod_that_mentions_chef_is_not_a_loader() {
+        let source = b"-- HD2-Addon: mods/levi/side_holster\n-- Needs Chef Shared Loader 1.3.0\nlocal chef = ...\n";
+        let payload = (source.len() + 8) as u32;
+        let mut data = vec![0u8; 184];
+        data[0..4].copy_from_slice(&0xF000_0011u32.to_le_bytes());
+        data[4..8].copy_from_slice(&1u32.to_le_bytes());
+        data[8..12].copy_from_slice(&1u32.to_le_bytes());
+        data[0x50..0x58].copy_from_slice(&LUA_TYPE);
+        data[0x68..0x70].copy_from_slice(&BOOT_RESOURCE);
+        data[0xA0..0xA4].copy_from_slice(&payload.to_le_bytes());
+        data.extend_from_slice(&(source.len() as u32).to_le_bytes());
+        data.extend_from_slice(&2u32.to_le_bytes());
+        data.extend_from_slice(source);
+        let dir = std::env::temp_dir().join(format!("ordnance-boot-mention-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(format!("{BOOT_NAME}.patch_0"));
+        fs::write(&path, &data).unwrap();
+        assert!(!is_loader_boot(&path));
         let _ = fs::remove_dir_all(&dir);
     }
 }
