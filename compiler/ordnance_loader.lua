@@ -964,10 +964,13 @@ menu_api = (function()
   end
 
   local function release()
+    -- This is the options menu's own GUI. A copy left allocated hangs the
+    -- renderer on quit, so it goes while the world is still here. Mods' GUIs
+    -- are not this one and are left for the game.
+    drop_gui()
     if runtime then runtime.drive("shutdown") end
     open, capture = false, nil
     suppress(false)
-    drop_gui()
   end
 
   local function render()
@@ -1293,6 +1296,13 @@ menu_api = (function()
     end
 
     drop_draw = function()
+      -- The game is closing these worlds. Destroying a screen GUI from the
+      -- shutdown callback stalls the renderer, so the handles are forgotten
+      -- and the game takes the GUI with the world.
+      if L.closing then
+        forget_draw()
+        return
+      end
       local S = stingray()
       local kill = S and type(S.World) == "table" and S.World.destroy_gui
       local function bye(world, g)
@@ -2951,10 +2961,14 @@ menu_api = (function()
           if m.stop then
             local ok, err = pcall(m.stop)
             if not ok then say(m.name .. " on_stop: " .. tostring(err)) end
+            flush()
           end
           if m.hooks.shutdown then
+            say(m.name .. " shutdown")
+            flush()
             local ok, err = pcall(m.hooks.shutdown)
             if not ok then say(m.name .. " shutdown: " .. tostring(err)) end
+            flush()
           end
         end
         drop_draw()
@@ -3551,12 +3565,11 @@ end)()
 -- game dies.
 local call_update, call_render
 local menu_update_said = false
-local closing = false
 local function ran_too_long(err)
   return string.find(tostring(err), "ran too long", 1, true) ~= nil
 end
 local function on_update(dt)
-  if closing then return end
+  if L.closing then return end
   if not menu_update_said then
     menu_update_said = true
     say("menu update live")
@@ -3569,7 +3582,7 @@ local function on_update(dt)
   if type(call_update) == "function" and call_update ~= on_update then return call_update(dt) end
 end
 local function on_render(...)
-  if closing then return end
+  if L.closing then return end
   if type(call_render) == "function" and call_render ~= on_render then call_render(...) end
   local ok, err = pcall(menu_api.render)
   if not ok then say("menu draw: " .. tostring(err)) end
@@ -3796,16 +3809,20 @@ local function hook_shutdown()
   local previous = rawget(_G, "shutdown")
   if type(previous) ~= "function" then previous = nil end
   local function shutdown_fn(...)
-    if closing then
+    if L.closing then
       if previous ~= nil then return previous(...) end
       return
     end
-    closing = true
-    -- The count hook and a live screen GUI both stall the engine while it
-    -- tears the world down. Let go of them before any mod's own shutdown.
+    L.closing = true
+    -- The count hook stalls the engine while it tears the world down.
+    -- The options menu's GUI is dropped inside release, before mod shutdown.
+    -- Units, materials, and every other GUI stay: destroying them here is
+    -- what froze quit from a mission.
     dog_disarm()
-    if type(menu_api.release) == "function" then pcall(menu_api.release) end
     say("shutdown")
+    flush()
+    if type(menu_api.release) == "function" then pcall(menu_api.release) end
+    say("shutdown done")
     flush()
     local results, failed = { n = 0 }, nil
     if previous ~= nil then
@@ -5979,6 +5996,12 @@ local function install_hd2rt()
       if handle.phase ~= "active" then return end
       handle.phase = "off"
       handle.reason = tostring(reason or "switched off")
+      -- Application exit. Rat only delivers the shutdown callback here. Putting
+      -- materials back and destroying units or GUIs stalls the game's teardown.
+      if L.closing then
+        handle.owned, handle.hidden, handle.guis, handle.zones = {}, {}, {}, {}
+        return
+      end
       if type(handle.rat_release) == "function" then pcall(handle.rat_release) end
       local S = rawget(_G, "stingray")
       for unit, world in pairs(handle.owned) do

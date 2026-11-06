@@ -376,4 +376,7 @@ jobs:
           body_path: .github/release-notes/${{ steps.version.outputs.tag }}.md
           draft: false
           prerelease: ${{ contains(github.ref, '-rc') }}
+          # A rebuilt tag uploads the same filenames. Replace those assets
+          # instead of failing because the release already has them.
+          overwrite_files: true
           files: release/*

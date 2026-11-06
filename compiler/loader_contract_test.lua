@@ -190,7 +190,7 @@ _G.stingray = {
       local u = ud("Unit", "spawned")
       return u
     end,
-    destroy_unit = function() end,
+    destroy_unit = function() calls.units = (calls.units or 0) + 1 end,
     link_unit = function() calls.link = calls.link + 1 end,
     unlink_unit = function() end,
   },
@@ -568,5 +568,37 @@ check("zone restored", zones[0].size == 0)
 local off, off_why = eng.Unit.alive(cape)
 check("disabled", off == nil and off_why == "mod is disabled")
 check("quit not called", quit == false)
+
+local exit_mod = rt.mod({ id = "exit_probe", bones = { "0011223344556677" } })
+local exit_eng = exit_mod.engine
+local exit_cape = ud("Unit", "cape")
+check("exit aliases", exit_eng.Material.private_aliases({
+  { id = "aabbccddeeff0011", slots = { "material_lut", "cape_lut", "cape_gradient", "decal_sheet", "cape_scalar_fields" } },
+}) == true)
+bound_hex = "7531dea9b2a2b888"
+check("exit shift", exit_eng.Unit.shift_native_cape(exit_cape, { chest = { 0.0625, 0, 0 } }) == true)
+local exit_painted, exit_paint_why = exit_eng.Unit.paint_private_cape(exit_cape, "aabbccddeeff0011", fields)
+if exit_painted ~= true then io.stderr:write("EXIT PAINT " .. tostring(exit_paint_why) .. "\n") end
+check("exit paint", exit_painted == true)
+local exit_unit = exit_eng.World.spawn_unit("world", "0011223344556677", pos)
+check("exit spawn", exit_unit ~= nil)
+local exit_gui = exit_eng.World.create_screen_gui("world")
+check("exit gui", exit_gui ~= nil)
+local exit_heard = false
+check("exit listen", exit_mod.on("shutdown", function() exit_heard = true end) == true)
+local units_at = calls.units or 0
+local mats_at = #calls.set_material
+local locals_at = #calls.set_local
+local tex_at = calls.destroyed or 0
+gui_calls.destroyed = false
+local shutdown_fn = rawget(_G, "shutdown")
+check("shutdown installed", type(shutdown_fn) == "function")
+if type(shutdown_fn) == "function" then shutdown_fn() end
+check("exit heard", exit_heard == true)
+check("exit left units", (calls.units or 0) == units_at)
+check("exit left gui", gui_calls.destroyed ~= true)
+check("exit left materials", #calls.set_material == mats_at)
+check("exit left bones", #calls.set_local == locals_at)
+check("exit left textures", (calls.destroyed or 0) == tex_at)
 
 if fails == 0 then print("CONTRACT_OK") else print("FAILS " .. fails) os.exit(1) end
