@@ -68,6 +68,14 @@ pub struct Mod {
     /// (mod_names.json), so renames survive updates and never touch mod files.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
+    /// When the mod was first installed, Unix seconds. Filled by
+    /// [`Mod::resolve_sources`]. Absent when that time is unknown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub installed_at: Option<i64>,
+    /// When the mod's files were last replaced, Unix seconds. When it has
+    /// never been updated this is the same as `installed_at`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<i64>,
 }
 
 impl Mod {
@@ -117,9 +125,10 @@ impl Mod {
                 ),
             };
 
-        let install_sources = sources::load_origin_sidecar(&self.directory)
-            .await
-            .map(|sidecar| sidecar.sources)
+        let sidecar = sources::load_origin_sidecar(&self.directory).await;
+        let install_sources = sidecar
+            .as_ref()
+            .map(|sidecar| sidecar.sources.clone())
             .unwrap_or_default();
 
         self.sources = sources::merge_sources(
@@ -127,6 +136,13 @@ impl Mod {
             legacy_nexus,
             &install_sources,
         );
+
+        let meta = tokio::fs::metadata(&self.directory).await.ok();
+        let created = meta.as_ref().and_then(|m| system_time_secs(m.created()));
+        let modified = meta.as_ref().and_then(|m| system_time_secs(m.modified()));
+        let (installed_at, updated_at) = sources::library_dates(sidecar.as_ref(), created, modified);
+        self.installed_at = installed_at;
+        self.updated_at = updated_at;
     }
 
     pub async fn normalize_paths(&mut self) -> anyhow::Result<()> {
@@ -182,4 +198,10 @@ impl Mod {
 
         Ok(())
     }
+}
+
+fn system_time_secs(time: std::io::Result<std::time::SystemTime>) -> Option<i64> {
+    let time = time.ok()?;
+    let secs = time.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs();
+    i64::try_from(secs).ok()
 }

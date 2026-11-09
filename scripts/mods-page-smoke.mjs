@@ -491,6 +491,79 @@ const scenarios = {
             r.expect(!r.calls.some(c => c.cmd === "deploy"), "nothing is deployed");
         },
     },
+    // An in-place browser update is not a fresh install. The handoff is
+    // answered before any redeploy, so the browser is not left waiting on
+    // the mods lock.
+    bridgeupdate: {
+        data: (d) => {
+            d.deploy = { Deployed: true, Skipped: [] };
+            d.is_game_running = false;
+        },
+        async check(page, r) {
+            await page.evaluate((g) => {
+                window.__smokeEmit("bridge://mod-installed", {
+                    requestId: "u1",
+                    mod: { guid: g, name: "V1 mod" },
+                    afterInstall: "deploy",
+                    updated: true,
+                    replaced: false,
+                });
+            }, G(1));
+            await page.waitForTimeout(800);
+            const doneAt = r.calls.findIndex(c => c.cmd === "resolve_bridge_install_completion");
+            const deployAt = r.calls.findIndex(c => c.cmd === "deploy");
+            r.expect(doneAt !== -1, "the handoff is answered");
+            r.expect(deployAt === -1 || doneAt < deployAt, "the handoff is answered before any redeploy");
+            r.expect(r.calls[doneAt]?.args?.deployed === false, "an update is not reported as a fresh deploy");
+            r.expect(r.calls[doneAt]?.args?.addedToProfile == null, "an update is not added to the profile again");
+            r.expect(await page.getByText("V1 mod updated.").count() >= 1, "the toast says the mod was updated");
+        },
+    },
+    // A mod that was not installed yet still deploys before the handoff
+    // is answered, when the after-install setting says to deploy.
+    bridgefresh: {
+        data: (d) => {
+            d.deploy = { Deployed: true, Skipped: [] };
+            d.is_game_running = false;
+        },
+        async check(page, r) {
+            await page.evaluate((g) => {
+                window.__smokeResponses.get_mods.push({
+                    Manifest: { Version: 1, Guid: g, Name: "Fresh mod", Description: "", Options: [] },
+                    Directory: "/data/mods/fresh",
+                });
+                window.__smokeEmit("bridge://mod-installed", {
+                    requestId: "f1",
+                    mod: { guid: g, name: "Fresh mod" },
+                    afterInstall: "deploy",
+                });
+            }, G(8));
+            await page.waitForTimeout(800);
+            const doneAt = r.calls.findIndex(c => c.cmd === "resolve_bridge_install_completion");
+            const deployAt = r.calls.findIndex(c => c.cmd === "deploy");
+            r.expect(deployAt !== -1 && doneAt > deployAt, "a new mod still deploys before the handoff is answered");
+            r.expect(r.calls[doneAt]?.args?.deployed === true, "the handoff reports the deploy");
+            r.expect(r.calls[doneAt]?.args?.addedToProfile === "Default", "a new mod is added to the active profile");
+        },
+    },
+    // Reordering a mod already in the profile draws the same yellow line
+    // the library drop uses.
+    reorderline: {
+        async check(page, r) {
+            const handle = page.getByLabel("Drag to change load order. Mods lower in the list override mods above them.").first();
+            const box = await handle.boundingBox();
+            r.expect(!!box, "the drag handle is on screen");
+            if (!box) return;
+            await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+            await page.mouse.down();
+            await page.mouse.move(box.x + box.width / 2, box.y + 140, { steps: 12 });
+            await page.waitForTimeout(250);
+            r.expect(await page.getByTestId("reorder-drop-line").count() >= 1, "a line marks the landing slot");
+            await page.mouse.up();
+            await page.waitForTimeout(400);
+            r.expect(await page.getByTestId("reorder-drop-line").count() === 0, "the line goes away when the drag ends");
+        },
+    },
     // Init itself fails.
     initfail: {
         data: (d) => { d.load_profiles.Profiles = null; },

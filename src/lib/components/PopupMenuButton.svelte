@@ -9,7 +9,7 @@
     let button = $state<HTMLElement | null>(null);
     let popup = $state<HTMLElement | null>(null);
 
-    let { children, insertTarget }: { children: Snippet, insertTarget?: string | HTMLElement } = $props();
+    let { children, insertTarget, compact = false }: { children: Snippet, insertTarget?: string | HTMLElement, compact?: boolean } = $props();
 
     $effect(() => {
         if (!isOpen) return;
@@ -48,8 +48,9 @@
 
 <button
     bind:this={button}
-    class="ordnance-button-nop p-2"
+    class="ordnance-button-nop {compact ? 'p-1' : 'p-2'}"
     class:border-yellow-300={isOpen}
+    draggable="false"
     onclick={toggle}
 >
     <ThreeDotsVertical class="block mx-auto" />

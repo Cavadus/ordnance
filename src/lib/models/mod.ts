@@ -19,7 +19,9 @@ export class Mod {
         public readonly Manifest: Manifest,
         public readonly Directory: string,
         public readonly Sources: ResolvedSource[] = [],
-        public readonly DisplayName?: string
+        public readonly DisplayName?: string,
+        public readonly InstalledAt?: number | null,
+        public readonly UpdatedAt?: number | null,
     ) {}
 
     get guid(): UUID {
@@ -32,6 +34,16 @@ export class Mod {
 
     get description(): string {
         return this.Manifest.Description;
+    }
+
+    /** Unix seconds, or null when the install time is unknown. */
+    get installedAt(): number | null {
+        return this.InstalledAt != null && this.InstalledAt > 0 ? this.InstalledAt : null;
+    }
+
+    /** Unix seconds. A mod that has never been updated uses its install time. */
+    get updatedAt(): number | null {
+        return this.UpdatedAt != null && this.UpdatedAt > 0 ? this.UpdatedAt : null;
     }
 
     /**

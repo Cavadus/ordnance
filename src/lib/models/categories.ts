@@ -2,6 +2,8 @@
 export type Category = {
     Guid: string;
     Name: string;
+    /** `#rrggbb`. Missing or empty on files written before colors existed. */
+    Color?: string;
 };
 
 /** The whole categories store, mirroring categories.json on disk. */

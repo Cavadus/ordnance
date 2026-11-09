@@ -60,6 +60,16 @@ pub struct OriginSidecar {
     #[serde(default)]
     pub sources: Vec<Source>,
     pub installed_at: u64,
+    /// The first time Ordnance recorded this mod. `0` on sidecars written
+    /// before this existed; the install date is then `installed_at`.
+    /// Later updates keep this and move `installed_at` (the update check
+    /// compares a site's "last updated" against that).
+    #[serde(default, skip_serializing_if = "is_zero_u64")]
+    pub first_installed_at: u64,
+    /// When the mod's files were last replaced. `0` means it has not been
+    /// updated since it was installed.
+    #[serde(default, skip_serializing_if = "is_zero_u64")]
+    pub updated_at: u64,
     /// Which exact file (of possibly several on the mod page) was installed,
     /// per provider, when Ordnance knows -- lets update checks follow that file
     /// rather than guessing, and lets a one-click update pick the matching
@@ -78,6 +88,41 @@ pub struct OriginSidecar {
     /// when the mod is updated, since the sidecar is rewritten then.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub imported_archive: Option<ArchiveFingerprint>,
+}
+
+fn is_zero_u64(n: &u64) -> bool {
+    *n == 0
+}
+
+/// Install time and update time for the library tray, in Unix seconds.
+/// A missing update time is the install time. A mod with no sidecar uses
+/// the folder's created and modified times.
+pub fn library_dates(
+    sidecar: Option<&OriginSidecar>,
+    created: Option<i64>,
+    modified: Option<i64>,
+) -> (Option<i64>, Option<i64>) {
+    let Some(sidecar) = sidecar else {
+        let installed = created.or(modified).filter(|t| *t > 0);
+        let updated = modified.or(created).filter(|t| *t > 0);
+        return (installed, updated);
+    };
+    let installed_raw = if sidecar.first_installed_at > 0 {
+        sidecar.first_installed_at
+    } else {
+        sidecar.installed_at
+    };
+    let installed = if installed_raw > 0 {
+        Some(installed_raw as i64)
+    } else {
+        created.or(modified).filter(|t| *t > 0)
+    };
+    let updated = if sidecar.updated_at > 0 {
+        Some(sidecar.updated_at as i64)
+    } else {
+        installed
+    };
+    (installed, updated)
 }
 
 /// Size and SHA-256 of an archive file (see
@@ -396,15 +441,63 @@ pub async fn write_origin_sidecar_with_files(
     let installed_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
         .as_secs();
+    let previous = load_origin_sidecar(mod_dir).await;
+    let first_installed_at = kept_first_install(previous.as_ref(), installed_at);
+    // A rewrite while installing (a download URL replacing a file-name
+    // guess) is not an update. The update path sets `updated_at` itself.
+    let updated_at = previous.as_ref().map(|s| s.updated_at).unwrap_or(0);
 
     let sidecar = OriginSidecar {
         sources,
         installed_at,
+        first_installed_at,
+        updated_at,
         installed_files,
         skipped_versions: Vec::new(),
         imported_archive: None,
     };
     save_origin_sidecar(mod_dir, &sidecar).await
+}
+
+/// Record that the mod's files were just replaced. `previous` is the sidecar
+/// from before the new files were moved in (that folder is already gone).
+pub async fn write_origin_sidecar_after_update(
+    mod_dir: &Path,
+    sources: Vec<Source>,
+    installed_files: Vec<InstalledFile>,
+    previous: Option<&OriginSidecar>,
+) -> anyhow::Result<()> {
+    let installed_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs();
+    let first_installed_at = kept_first_install(previous, installed_at);
+    let sidecar = OriginSidecar {
+        sources,
+        installed_at,
+        first_installed_at,
+        updated_at: installed_at,
+        installed_files,
+        skipped_versions: Vec::new(),
+        imported_archive: None,
+    };
+    save_origin_sidecar(mod_dir, &sidecar).await
+}
+
+fn first_recorded_at(sidecar: &OriginSidecar) -> u64 {
+    if sidecar.first_installed_at > 0 {
+        sidecar.first_installed_at
+    } else if sidecar.installed_at > 0 {
+        sidecar.installed_at
+    } else {
+        0
+    }
+}
+
+fn kept_first_install(previous: Option<&OriginSidecar>, now: u64) -> u64 {
+    previous
+        .map(first_recorded_at)
+        .filter(|t| *t > 0)
+        .unwrap_or(now)
 }
 
 /// Write `sidecar` as-is (used to update skip lists without touching the
@@ -428,15 +521,20 @@ pub async fn set_skipped_version(
 ) -> anyhow::Result<()> {
     let mut sidecar = match load_origin_sidecar(mod_dir).await {
         Some(s) => s,
-        None => OriginSidecar {
-            sources: Vec::new(),
-            installed_at: std::time::SystemTime::now()
+        None => {
+            let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)?
-                .as_secs(),
-            installed_files: Vec::new(),
-            skipped_versions: Vec::new(),
-            imported_archive: None,
-        },
+                .as_secs();
+            OriginSidecar {
+                sources: Vec::new(),
+                installed_at: now,
+                first_installed_at: now,
+                updated_at: 0,
+                installed_files: Vec::new(),
+                skipped_versions: Vec::new(),
+                imported_archive: None,
+            }
+        }
     };
     sidecar
         .skipped_versions
@@ -792,6 +890,97 @@ mod tests {
         let loaded = loaded.unwrap();
         assert_eq!(loaded.sources.len(), 1);
         assert!(loaded.installed_at > 0);
+        assert_eq!(loaded.first_installed_at, loaded.installed_at);
+        assert_eq!(loaded.updated_at, 0);
+    }
+
+    #[test]
+    fn library_dates_keep_the_first_install_and_fall_back_when_there_is_no_update() {
+        let old = OriginSidecar {
+            sources: Vec::new(),
+            installed_at: 100,
+            first_installed_at: 0,
+            updated_at: 0,
+            installed_files: Vec::new(),
+            skipped_versions: Vec::new(),
+            imported_archive: None,
+        };
+        assert_eq!(library_dates(Some(&old), Some(1), Some(2)), (Some(100), Some(100)));
+
+        let updated = OriginSidecar {
+            first_installed_at: 100,
+            installed_at: 500,
+            updated_at: 500,
+            ..old
+        };
+        assert_eq!(library_dates(Some(&updated), None, None), (Some(100), Some(500)));
+        assert_eq!(library_dates(None, Some(7), Some(9)), (Some(7), Some(9)));
+        assert_eq!(library_dates(None, None, Some(9)), (Some(9), Some(9)));
+        assert_eq!(library_dates(None, None, None), (None, None));
+    }
+
+    #[tokio::test]
+    async fn an_old_sidecar_without_the_new_dates_still_loads() {
+        let dir = tempfile::tempdir().unwrap();
+        tokio::fs::write(
+            dir.path().join(ORIGIN_SIDECAR_FILE),
+            br#"{"Sources":[],"InstalledAt":1700000000}"#,
+        )
+        .await
+        .unwrap();
+        let loaded = load_origin_sidecar(dir.path()).await.unwrap();
+        assert_eq!(loaded.installed_at, 1_700_000_000);
+        assert_eq!(loaded.first_installed_at, 0);
+        assert_eq!(loaded.updated_at, 0);
+        assert_eq!(
+            library_dates(Some(&loaded), None, None),
+            (Some(1_700_000_000), Some(1_700_000_000))
+        );
+    }
+
+    #[tokio::test]
+    async fn rewriting_the_sidecar_is_not_an_update_and_keeps_the_first_install() {
+        let dir = tempfile::tempdir().unwrap();
+        let original = OriginSidecar {
+            sources: vec![source("url", None, Some("https://example.com/x.zip"))],
+            installed_at: 1_700_000_000,
+            first_installed_at: 0,
+            updated_at: 0,
+            installed_files: Vec::new(),
+            skipped_versions: Vec::new(),
+            imported_archive: None,
+        };
+        save_origin_sidecar(dir.path(), &original).await.unwrap();
+        write_origin_sidecar(dir.path(), original.sources.clone()).await.unwrap();
+        let loaded = load_origin_sidecar(dir.path()).await.unwrap();
+        assert_eq!(loaded.first_installed_at, 1_700_000_000);
+        assert_eq!(loaded.updated_at, 0);
+        assert!(loaded.installed_at > 1_700_000_000);
+    }
+
+    #[tokio::test]
+    async fn an_update_keeps_the_original_install_time() {
+        let dir = tempfile::tempdir().unwrap();
+        let previous = OriginSidecar {
+            sources: vec![source("ayakamods", Some("4101"), None)],
+            installed_at: 1_700_000_000,
+            first_installed_at: 0,
+            updated_at: 0,
+            installed_files: Vec::new(),
+            skipped_versions: Vec::new(),
+            imported_archive: None,
+        };
+        write_origin_sidecar_after_update(dir.path(), previous.sources.clone(), Vec::new(), Some(&previous))
+            .await
+            .unwrap();
+        let loaded = load_origin_sidecar(dir.path()).await.unwrap();
+        assert_eq!(loaded.first_installed_at, 1_700_000_000);
+        assert!(loaded.installed_at > 1_700_000_000);
+        assert_eq!(loaded.updated_at, loaded.installed_at);
+        assert_eq!(
+            library_dates(Some(&loaded), None, None),
+            (Some(1_700_000_000), Some(loaded.updated_at as i64))
+        );
     }
 
     #[tokio::test]

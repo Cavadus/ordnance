@@ -1,7 +1,7 @@
 <script lang="ts">
     import { withUniqueKeys } from "$lib/utils/eachKeys";
     import { SvelteMap } from "svelte/reactivity";
-    import { Plus, Dash, Backspace, ArrowBarRight, ArrowBarLeft, Arrow90degLeft, ArrowReturnLeft, PencilSquare, Download, ThreeDotsVertical, CaretUpFill, CaretDownFill, Trash3, ArrowBarUp, ArrowBarDown, CaretUp, CaretDown, Eraser, FolderPlus, Link45deg, BoxArrowUpRight, ArrowRepeat, CloudArrowDownFill, GripVertical, InfoCircle, SkipForward, ArrowCounterclockwise, Key, BoxArrowInDown } from "svelte-bootstrap-icons";
+    import { Plus, Dash, Backspace, ArrowBarRight, ArrowBarLeft, Arrow90degLeft, ArrowReturnLeft, PencilSquare, Download, Trash3, ArrowBarUp, ArrowBarDown, CaretUp, CaretDown, Eraser, FolderPlus, Link45deg, BoxArrowUpRight, ArrowRepeat, CloudArrowDownFill, GripVertical, InfoCircle, SkipForward, ArrowCounterclockwise, Key, BoxArrowInDown } from "svelte-bootstrap-icons";
     import { getCurrentWindow } from "@tauri-apps/api/window";
     import { getCurrentWebview } from "@tauri-apps/api/webview";
     import { listen } from "@tauri-apps/api/event";
@@ -14,10 +14,14 @@
     import type { Category, Categories } from "$lib/models/categories";
     import type {Config, Profile, ProfilesConfig} from "$lib/models/profile";
     import { defaultConfigFor, deployableEntries, fitConfig, removeDuplicateEntries, removeEntriesOf, renameEntries } from "$lib/utils/profileEntries";
+    import { assignedCategory, categoryColor, gatherConfigs, moveBlock, runBounds } from "$lib/utils/categoryGroups";
+    import { filterLibrary, sortLibrary, type LibrarySortKey, type SortDir } from "$lib/utils/librarySort";
+    import { dropOnList, dropOnRow, dropOnRun, insertLibraryMod, type LibraryDropTarget } from "$lib/utils/libraryDrop";
+    import { reorderLineSide } from "$lib/utils/reorderDrop";
     import {
         addMod, addMods, addModFolder, addPaths, addModFromUrl, deleteMod, renameMod, getMods, loadProfiles,
         loadSettings, deploy, purge, checkSettings, classifyDownloadUrl, checkUpdates, autoDetectAndSaveGamePath,
-        getCategories, createCategory, renameCategory, deleteCategory, setModCategory,
+        getCategories, createCategory, renameCategory, deleteCategory, setCategoryColor, setModCategory,
         resolveBridgeConsent, resolveBridgeInstallCompletion, isGameRunning, forceExit, ackCloseRequested,
         setBridgeFrontendReady, getLastUpdateReport, skipUpdateVersion, browserExtensionActive,
         detectImportSources, takePendingDeepLinks, getGuidRenames, resolveReplaceRequest, pickDirectory, modConflicts, type ImportSource,
@@ -79,10 +83,54 @@
     let iconPaths = new SvelteMap<UUID, string | null>();
     let libraryExtended = $state<boolean>(false);
     let libraryVisible = $state<boolean>(false);
+    const LIBRARY_SORT_KEY = "ordnance.librarySort";
+    const LIBRARY_SORT_DIR_KEY = "ordnance.librarySortDir";
+
+    function readLibrarySort(): LibrarySortKey {
+        if (typeof localStorage === "undefined") return "name";
+        const raw = localStorage.getItem(LIBRARY_SORT_KEY);
+        if (raw === "installed" || raw === "updated" || raw === "name") return raw;
+        return "name";
+    }
+
+    function readLibrarySortDir(): SortDir {
+        if (typeof localStorage === "undefined") return "asc";
+        return localStorage.getItem(LIBRARY_SORT_DIR_KEY) === "desc" ? "desc" : "asc";
+    }
+
+    let librarySort = $state<LibrarySortKey>(readLibrarySort());
+    let librarySortDir = $state<SortDir>(readLibrarySortDir());
+    let librarySearch = $state("");
+
+    $effect(() => {
+        if (typeof localStorage === "undefined") return;
+        localStorage.setItem(LIBRARY_SORT_KEY, librarySort);
+        localStorage.setItem(LIBRARY_SORT_DIR_KEY, librarySortDir);
+    });
+    const COLLAPSED_CATEGORIES_KEY = "ordnance.collapsedCategories";
+
+    function readCollapsedCategories(): Record<string, boolean> {
+        if (typeof localStorage === "undefined") return {};
+        try {
+            const raw = localStorage.getItem(COLLAPSED_CATEGORIES_KEY);
+            if (!raw) return {};
+            const parsed = JSON.parse(raw) as unknown;
+            if (!parsed || typeof parsed !== "object") return {};
+            const out: Record<string, boolean> = {};
+            for (const [key, value] of Object.entries(parsed)) {
+                if (value === true) out[key] = true;
+            }
+            return out;
+        } catch {
+            return {};
+        }
+    }
+
     let categories = $state<Category[]>([]);
     let categoryAssignments = $state<Record<string, string>>({});
-    let collapsedCategories = $state<Record<string, boolean>>({});
-    let groupByCategory = $state<boolean>(false);
+    /** Which section headers are folded. Category GUID, or an uncategorized
+     * run id. Kept in localStorage so a reload doesn't spring them open. */
+    let collapsedCategories = $state<Record<string, boolean>>(readCollapsedCategories());
     let newCategoryName = $state<string>("");
     let isDragging = $state<boolean>(false);
     let initPromise = $state<Promise<void>>();
@@ -136,6 +184,11 @@
     let libraryMods = $derived<Mod[]>(
         mods.filter((m) => !profileConfigs.some(config => config.Guid === m.guid)),
     );
+    /** The tray's own search and sort. The collapsed badge still counts
+     * every mod that is not in the profile. */
+    let shownLibraryMods = $derived<Mod[]>(
+        sortLibrary(filterLibrary(libraryMods, librarySearch), librarySort, librarySortDir),
+    );
     let libraryEnabled = $derived<boolean>(searchText.length === 0);
     let conflictByGuid = $state<Record<string, string>>({});
 
@@ -164,11 +217,19 @@
     $effect(() => {
         if (!currentProfile) return;
 
+        // Read categories here so assigning, renaming, or recoloring regroups
+        // the list. The regroup writes back through the cleanup below, which
+        // is also what deploy reads.
+        const categoryIds = categories.map((category) => category.Guid);
+        void categoryAssignments;
+
         switch (currentProfile.Version) {
             case "V1":
                 profileConfigs = currentProfile.Configs;
                 break;
         }
+
+        gatherConfigs(profileConfigs, categoryIds, categoryAssignments);
 
         return applyCurrentConfigChanges;
     });
@@ -864,7 +925,9 @@
         requestId: string;
         mod: { guid: UUID; name: string };
         afterInstall: "library" | "profile" | "deploy";
-        /** It replaced the installed mod with its ID (the user said so). */
+        /** The files landed on a mod that was already installed. */
+        updated?: boolean;
+        /** The user agreed to replace the installed mod that had this file's ID. */
         replaced?: boolean;
     };
 
@@ -909,15 +972,15 @@
         await refreshUpdateStatuses();
         await applyGuidRenames();
         const mod = mods.find(m => m.guid === payload.mod.guid);
-        if (mod && payload.replaced) {
+        // `updated` is an in-place update. `replaced` is a file that carried
+        // an installed mod's ID and the user said to replace it. Neither is
+        // a new mod. Answer the browser before any redeploy: a deploy holds
+        // the mods lock, and the handoff gives up and installs the zip again
+        // if it is still waiting when that lock is taken.
+        const isUpdate = payload.updated === true || payload.replaced === true;
+        if (mod && isUpdate) {
             if (currentProfile) applyCurrentConfigChanges();
             fitProfilesToMods(profilesStore.profiles, [mod]);
-            // An update never changes profile membership: leave the mod in
-            // whichever profiles already list it, and only redeploy when it
-            // is enabled in the active profile (the same rule a direct
-            // update uses). The fresh-install `afterInstall` handling below
-            // must not run for an update.
-            await afterUpdates([mod.guid]);
         }
 
         let addedToProfile: string | undefined;
@@ -925,7 +988,7 @@
         let softError: BridgeSoftError | undefined;
         const warnings: string[] = [];
 
-        if (mod && !payload.replaced && payload.afterInstall !== "library" && currentProfile) {
+        if (mod && !isUpdate && payload.afterInstall !== "library" && currentProfile) {
             if (!profileConfigs.some(c => c.Guid === mod.guid)) {
                 profileConfigs.push(makeConfigForMod(mod));
             }
@@ -970,11 +1033,15 @@
             showToast("info", t("toast.bridge_install.deployed", { name }));
         } else if (payload.replaced) {
             showToast("info", t("toast.bridge_install.replaced", { name }));
+        } else if (isUpdate) {
+            showToast("info", t("toast.updates.updated", { name }));
         } else if (addedToProfile) {
             showToast("info", t("toast.bridge_install.added_to_profile", { name, profile: addedToProfile }));
         } else {
             showToast("info", t("toast.bridge_install.added_to_library", { name }));
         }
+
+        if (mod && isUpdate) await afterUpdates([mod.guid]);
     }
 
     /** Show the confirmation for every queued `ordnance://install` link, once
@@ -1269,13 +1336,40 @@
         await closeWindow();
     }
 
-    function onDragEnd(e: SortableList.RootEvents["ondragend"]) {
+    let reorderDrop = $state<{ origin: number; from: number; to: number } | null>(null);
+
+    function onReorderDrag(e: SortableList.RootEvents["ondrag"], origin = 0) {
+        if (!allowReorder) return;
+        const { draggedItemIndex, targetItemIndex } = e;
+        if (typeof targetItemIndex !== "number" || draggedItemIndex === targetItemIndex) {
+            reorderDrop = null;
+            return;
+        }
+        reorderDrop = { origin, from: draggedItemIndex, to: targetItemIndex };
+    }
+
+    /** The yellow line for a reorder. Dragging down lands after the row
+     * under the pointer; dragging up lands before it. Same rule as the
+     * splice in `onDragEnd`. */
+    function reorderLine(ci: number, floor: number): "above" | "below" | null {
+        const mark = reorderDrop;
+        if (!mark || mark.origin !== floor) return null;
+        return reorderLineSide(ci - floor, mark.from, mark.to);
+    }
+
+    function onDragEnd(e: SortableList.RootEvents["ondragend"], origin = 0) {
+        reorderDrop = null;
+        if (!allowReorder) return;
         const { draggedItemIndex, targetItemIndex, isCanceled } = e;
 
         if (isCanceled || typeof targetItemIndex !== "number" || draggedItemIndex === targetItemIndex) return;
 
-        const [elm] = profileConfigs.splice(draggedItemIndex, 1);
-        profileConfigs.splice(targetItemIndex, 0, elm);
+        const from = origin + draggedItemIndex;
+        const to = origin + targetItemIndex;
+        if (from < 0 || to < 0 || from >= profileConfigs.length || to >= profileConfigs.length) return;
+
+        const [elm] = profileConfigs.splice(from, 1);
+        profileConfigs.splice(to, 0, elm);
     }
 
     async function onEditConfig(i: number) {
@@ -1320,32 +1414,32 @@
         if (!saved.ok) log.warn(`Failed to save profiles after removing a missing entry: ${saved.error}`);
     }
 
-    function onMoveUp(i: number) {
-        if (i === 0) return;
+    function onMoveUp(i: number, floor = 0) {
+        if (i <= floor) return;
 
         const [elm] = profileConfigs.splice(i, 1);
         profileConfigs.splice(i - 1, 0, elm);
     }
 
-    function onMoveDown(i: number) {
-        if (i === profileConfigs.length - 1) return;
+    function onMoveDown(i: number, ceiling = profileConfigs.length - 1) {
+        if (i >= ceiling) return;
 
         const [elm] = profileConfigs.splice(i, 1);
         profileConfigs.splice(i + 1, 0, elm);
     }
 
-    function onToTop(i: number) {
-        if (i === 0) return;
+    function onToTop(i: number, floor = 0) {
+        if (i <= floor) return;
 
         const [elm] = profileConfigs.splice(i, 1);
-        profileConfigs.splice(0, 0, elm);
+        profileConfigs.splice(floor, 0, elm);
     }
 
-    function onToBottom(i: number) {
-        if (i === profileConfigs.length - 1) return;
+    function onToBottom(i: number, ceiling = profileConfigs.length - 1) {
+        if (i >= ceiling) return;
 
         const [elm] = profileConfigs.splice(i, 1);
-        profileConfigs.push(elm);
+        profileConfigs.splice(ceiling, 0, elm);
     }
 
     async function onToggleLibrary() {
@@ -1359,14 +1453,108 @@
         }
     }
 
+    const LIBRARY_DRAG_TYPE = "application/x-ordnance-guid";
+    let libraryDragGuid = $state<string | null>(null);
+    let libraryDrop = $state<LibraryDropTarget | null>(null);
+
+    function profileRowStyle(accent: string | null): string | undefined {
+        return accent ? `inset 4px 0 0 ${accent}` : undefined;
+    }
+
+    function runDropMarked(start: number, categoryGuid: string | null): boolean {
+        const mark = libraryDrop?.mark;
+        return mark?.type === "run" && mark.start === start && mark.categoryGuid === categoryGuid;
+    }
+
+    function onLibraryDragStart(event: DragEvent, mod: Mod) {
+        const origin = event.target as HTMLElement | null;
+        if (origin?.closest("button, input, select, a")) {
+            event.preventDefault();
+            return;
+        }
+        libraryDragGuid = mod.guid;
+        event.dataTransfer?.setData(LIBRARY_DRAG_TYPE, mod.guid);
+        event.dataTransfer?.setData("text/plain", mod.name);
+        if (event.dataTransfer) event.dataTransfer.effectAllowed = "copy";
+    }
+
+    function onLibraryDragEnd() {
+        libraryDragGuid = null;
+        libraryDrop = null;
+    }
+
+    function onProfileDragOver(event: DragEvent) {
+        if (!allowReorder || !libraryDragGuid) return;
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+        const hit = (event.target as HTMLElement | null)?.closest("[data-library-drop]") as HTMLElement | null;
+        if (!hit) {
+            libraryDrop = dropOnList(profileConfigs.length);
+            return;
+        }
+        const categoryGuid = hit.dataset.dropCategory ? hit.dataset.dropCategory : null;
+        if (hit.dataset.libraryDrop === "row") {
+            const profileIndex = Number(hit.dataset.profileIndex);
+            // The gap padding lives on the wrapper. Measure the card so the
+            // open space stays "before" this row instead of flipping the slot.
+            const card = (hit.querySelector("[data-library-drop-card]") as HTMLElement | null) ?? hit;
+            const rect = card.getBoundingClientRect();
+            const before = event.clientY < rect.top + rect.height / 2;
+            libraryDrop = dropOnRow(profileIndex, categoryGuid, before, profileConfigs.length);
+            return;
+        }
+        libraryDrop = dropOnRun(Number(hit.dataset.start), Number(hit.dataset.end), categoryGuid, profileConfigs.length);
+    }
+
+    function onProfileDragLeave(event: DragEvent) {
+        const next = event.relatedTarget;
+        const current = event.currentTarget as HTMLElement;
+        if (next instanceof Node && current.contains(next)) return;
+        libraryDrop = null;
+    }
+
+    async function onProfileDrop(event: DragEvent) {
+        event.preventDefault();
+        const guid = event.dataTransfer?.getData(LIBRARY_DRAG_TYPE) || libraryDragGuid;
+        const target = libraryDrop;
+        libraryDragGuid = null;
+        libraryDrop = null;
+        if (!guid || !target || !allowReorder) return;
+        const mod = mods.find((item) => item.guid === guid);
+        if (!mod) return;
+        await placeDroppedMod(mod, target);
+    }
+
+    async function placeDroppedMod(mod: Mod, target: LibraryDropTarget) {
+        const config = makeConfigForMod(mod);
+        const next = insertLibraryMod(profileConfigs, config, categoryAssignments, target);
+        if (!next) return;
+        if (!target.categoryGuid) return;
+        categoryAssignments = next;
+        try {
+            const fresh = await setModCategory(mod.guid, target.categoryGuid);
+            categories = fresh.Categories;
+            categoryAssignments = fresh.Assignments;
+        } catch (ex: unknown) {
+            const at = profileConfigs.findIndex((item) => item.Guid === mod.guid);
+            if (at !== -1) profileConfigs.splice(at, 1);
+            const reverted = { ...categoryAssignments };
+            delete reverted[mod.guid];
+            categoryAssignments = reverted;
+            showToast("error", errorMessage(ex));
+        }
+    }
+
     function onInsertTop(i: number) {
-        const mod = libraryMods[i];
+        const mod = shownLibraryMods[i];
+        if (!mod) return;
         const config = makeConfigForMod(mod);
         profileConfigs.splice(0, 0, config);
     }
 
     function onInsertBottom(i: number) {
-        const mod = libraryMods[i];
+        const mod = shownLibraryMods[i];
+        if (!mod) return;
         const config = makeConfigForMod(mod);
         profileConfigs.push(config);
     }
@@ -1375,7 +1563,7 @@
         // The mod clicked, taken before asking: the library can change
         // while the question is shown (a browser install, an import), and
         // `i` may then be another mod's place.
-        const mod = libraryMods[i];
+        const mod = shownLibraryMods[i];
         if (!mod) return;
         const confirm = new ConfirmPopup(
             t("pages.mods.popup.confirm.delete.title"),
@@ -1623,7 +1811,34 @@
     }
 
     function onUpdate(i: number) {
-        onUpdateMod(libraryMods[i]);
+        const mod = shownLibraryMods[i];
+        if (!mod) return;
+        onUpdateMod(mod);
+    }
+
+    function libraryDateLabel(mod: Mod): string {
+        const unix = librarySort === "installed" ? mod.installedAt : mod.updatedAt;
+        const which = librarySort === "installed"
+            ? t("pages.mods.library.sort.installed")
+            : t("pages.mods.library.sort.updated");
+        if (unix == null) return `${which}: ${t("pages.mods.library.sort.unknown")}`;
+        const formatted = new Date(unix * 1000).toLocaleDateString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+        });
+        return `${which} ${formatted}`;
+    }
+
+    function librarySortTip(): string {
+        if (librarySort === "name") {
+            return librarySortDir === "asc"
+                ? t("pages.mods.library.sort.name_asc")
+                : t("pages.mods.library.sort.name_desc");
+        }
+        return librarySortDir === "asc"
+            ? t("pages.mods.library.sort.date_asc")
+            : t("pages.mods.library.sort.date_desc");
     }
 
     async function onCheckUpdates() {
@@ -1803,10 +2018,78 @@
         return categories.find((c) => c.Guid === guid)?.Name ?? "";
     }
 
-    function categoryOf(guid: string): Category | undefined {
-        const assigned = categoryAssignments[guid];
-        return assigned ? categories.find((c) => c.Guid === assigned) : undefined;
+    function categoryIds(): string[] {
+        return categories.map((category) => category.Guid);
     }
+
+    function categoryKey(guid: string): string | null {
+        return assignedCategory(guid, categoryAssignments, new Set(categoryIds()));
+    }
+
+    function configKeys(): (string | null)[] {
+        return profileConfigs.map((config) => categoryKey(config.Guid));
+    }
+
+    type ModSection = {
+        id: string;
+        collapseId: string;
+        name: string;
+        color: string | null;
+        entries: [Config, Mod | undefined, number][];
+        start: number;
+        end: number;
+        category: Category | null;
+    };
+
+    /** The mod list, split into contiguous runs. Empty categories are
+     * appended so they can be colored and renamed before a mod is filed. */
+    let listSections = $derived.by(() => {
+        const sections: ModSection[] = [];
+        const seen = new Set<string>();
+        let index = 0;
+        while (index < profileEntries.length) {
+            const guid = profileEntries[index][0].Guid;
+            const key = categoryKey(guid);
+            let next = index + 1;
+            while (
+                next < profileEntries.length
+                && categoryKey(profileEntries[next][0].Guid) === key
+                && profileEntries[next][2] === profileEntries[next - 1][2] + 1
+            ) next++;
+            const entries = profileEntries.slice(index, next);
+            const anchor = entries[0][2];
+            const bounds = runBounds(configKeys(), anchor);
+            const category = key ? categories.find((item) => item.Guid === key) ?? null : null;
+            const color = category ? categoryColor(category.Color, categories.indexOf(category)) : null;
+            sections.push({
+                id: `${key ?? "uncategorized"}@${bounds.start}`,
+                collapseId: category ? category.Guid : `uncategorized@${bounds.start}`,
+                name: category ? category.Name : t("pages.mods.categories.uncategorized"),
+                color,
+                entries,
+                start: bounds.start,
+                end: bounds.end,
+                category,
+            });
+            if (key) seen.add(key);
+            index = next;
+        }
+        categories.forEach((category, catIndex) => {
+            if (seen.has(category.Guid)) return;
+            if (profileConfigs.some((config) => categoryKey(config.Guid) === category.Guid)) return;
+            sections.push({
+                id: category.Guid,
+                collapseId: category.Guid,
+                name: category.Name,
+                color: categoryColor(category.Color, catIndex),
+                entries: [],
+                start: -1,
+                end: -1,
+                category,
+            });
+        });
+        return sections;
+    });
 
     async function onCreateCategory() {
         const name = newCategoryName.trim();
@@ -1844,6 +2127,25 @@
         }
     }
 
+    async function onSetCategoryColor(guid: string, color: string) {
+        const next = color.trim();
+        if (!/^#[0-9a-fA-F]{6}$/.test(next)) return;
+        const current = categories.find((category) => category.Guid === guid)?.Color ?? "";
+        if (current.toLowerCase() === next.toLowerCase()) return;
+        try {
+            const fresh = await setCategoryColor(guid, next);
+            categories = fresh.Categories;
+            categoryAssignments = fresh.Assignments;
+        } catch (ex: unknown) {
+            showToast("error", errorMessage(ex));
+        }
+    }
+
+    function onMoveCategoryBlock(indexInBlock: number, direction: -1 | 1) {
+        if (!allowReorder || indexInBlock < 0) return;
+        moveBlock(profileConfigs, configKeys(), indexInBlock, direction);
+    }
+
     async function onSetModCategory(modGuid: string, categoryGuid: string | null) {
         try {
             const fresh = await setModCategory(modGuid, categoryGuid);
@@ -1857,6 +2159,11 @@
     function toggleCategoryCollapse(guid: string) {
         collapsedCategories[guid] = !collapsedCategories[guid];
         collapsedCategories = collapsedCategories;
+        try {
+            localStorage.setItem(COLLAPSED_CATEGORIES_KEY, JSON.stringify(collapsedCategories));
+        } catch (ex: unknown) {
+            log.warn(`Couldn't remember which categories are collapsed: ${errorMessage(ex)}`);
+        }
     }
 </script>
 
@@ -1898,18 +2205,15 @@
         <!-- Center -->
         <div class="flex-1 flex flex-row relative min-h-0">
             <!-- Mod List -->
-            <div class="flex-1 pr-1 overflow-y-scroll h-full min-w-0">
+            <div
+                class="flex-1 pr-1 overflow-y-scroll h-full min-w-0"
+                role="region"
+                aria-label={t("pages.mods.load_order.hint")}
+                ondragover={onProfileDragOver}
+                ondrop={onProfileDrop}
+                ondragleave={onProfileDragLeave}
+            >
                 <div class="flex flex-row flex-wrap items-center gap-1 px-1 pb-1">
-                    <button
-                        class="ordnance-button flex flex-row gap-1 items-center px-2 py-1 text-xs"
-                        class:border-yellow-300={groupByCategory}
-                        class:text-yellow-300={groupByCategory}
-                        onclick={() => groupByCategory = !groupByCategory}
-                        title={t("pages.mods.categories.group_tip")}
-                    >
-                        <FolderPlus width="14" height="14" />
-                        <span>{t("pages.mods.categories.group")}</span>
-                    </button>
                     <input
                         class="ordnance-input flex-1 min-w-28"
                         placeholder={t("pages.mods.categories.new_placeholder")}
@@ -1925,21 +2229,6 @@
                         <Plus width="14" height="14" />
                     </button>
                 </div>
-                {#if categories.length > 0}
-                    <div class="flex flex-row flex-wrap items-center gap-1 px-1 pb-1">
-                        {#each categories as category (category.Guid)}
-                            <span class="flex flex-row items-center gap-1 text-xs rounded-md px-2 py-0.5 bg-zinc-800 text-zinc-300 border border-zinc-700">
-                                <span class="truncate max-w-40">{category.Name}</span>
-                                <button class="text-zinc-500 hover:text-yellow-300" onclick={() => onRenameCategory(category.Guid)} title={t("pages.mods.categories.rename_tip")}>
-                                    <PencilSquare width="12" height="12" />
-                                </button>
-                                <button class="text-zinc-500 hover:text-red-400" onclick={() => onDeleteCategory(category.Guid)} title={t("pages.mods.categories.delete_tip")}>
-                                    <Trash3 width="12" height="12" />
-                                </button>
-                            </span>
-                        {/each}
-                    </div>
-                {/if}
                 {#if mods.length === 0}
                     <div class="h-full flex flex-col items-center justify-center gap-1 text-center px-4">
                         <span class="text-zinc-400 text-lg">{t("pages.mods.empty_state.title")}</span>
@@ -1959,102 +2248,36 @@
                     </div>
                 {/if}
                 {#if profileEntries.length > 0}
-                    <div class="flex flex-row items-center gap-1 px-1 pb-1 text-xs text-zinc-400" data-testid="load-order-hint">
+                    <div class="flex flex-row items-center gap-1 px-1 pb-1 text-xs text-zinc-500" data-testid="load-order-hint">
                         <InfoCircle class="shrink-0" width="12" height="12" />
                         <span>{t("pages.mods.load_order.hint")}</span>
                     </div>
                 {/if}
-                {#if profileEntries.length > 1}
-                    <div class="flex flex-row items-center gap-1 px-1 pb-1 text-xs text-zinc-500">
-                        <CaretUpFill class="shrink-0" width="10" height="10" />
-                        <span>{t("pages.mods.load_order.lowest")}</span>
-                    </div>
-                {/if}
-                {#snippet groupedEntry(entry: [Config, Mod | undefined, number])}
-                    {@const [config, mod, ci] = entry}
-                    {#if mod}
-                        <div class="p-2 text-zinc-300 bg-zinc-800/60 rounded flex flex-row gap-1 items-center">
-                            <img class="w-10 h-10 object-contain" src={iconPaths.get(config.Guid) ?? FALLBACK_MOD_IMAGE} alt="Mod icon" />
-                            <div class="flex-1 flex flex-col gap-0.5 justify-between min-w-0">
-                                <span class="text-lg truncate flex flex-row items-center gap-1">
-                                    {mod.name}
-                                    <ModVersionTag {mod} />
-                                </span>
-                                <span class="text-xs truncate text-zinc-500">{mod.description}</span>
-                            </div>
-                            <PopupMenuButton insertTarget="main">
-                                {#each categories as cat (cat.Guid)}
-                                    <button
-                                        class={categoryAssignments[mod.guid] === cat.Guid ? "bg-amber-400/10" : ""}
-                                        onclick={() => onSetModCategory(mod.guid, cat.Guid)}
-                                    >
-                                        <span>{cat.Name}</span>
-                                    </button>
-                                {/each}
-                                {#if categoryAssignments[mod.guid]}
-                                    <hr>
-                                    <button onclick={() => onSetModCategory(mod.guid, null)}>
-                                        <Eraser />
-                                        <span>{t("pages.mods.categories.none")}</span>
-                                    </button>
-                                {/if}
-                            </PopupMenuButton>
-                        </div>
+                {#snippet profileRow(config: Config, mod: Mod | undefined, ci: number, floor: number, ceiling: number, accent: string | null, categoryGuid: string | null)}
+                    {@const iconPath = iconPaths.get(config.Guid)}
+                    {@const rowStyle = profileRowStyle(accent)}
+                    {@const slot = libraryDrop?.index}
+                    {@const gapAbove = slot === ci}
+                    {@const gapBelow = slot === ci + 1}
+                    <div
+                        class="relative flex flex-col transition-[padding] duration-200 ease-out {gapAbove ? 'pt-4' : ''} {gapBelow ? 'pb-4' : ''}"
+                        data-library-drop="row"
+                        data-profile-index={ci}
+                        data-drop-category={categoryGuid ?? ""}
+                    >
+                    {#if gapAbove}
+                        <div
+                            class="absolute left-2 right-2 h-0.5 bg-yellow-300 pointer-events-none {ci === 0 ? 'top-1.5' : 'top-0 -translate-y-1/2'}"
+                            data-testid="library-drop-line"
+                        ></div>
                     {/if}
-                {/snippet}
-                {#if groupByCategory}
-                    {@const uncatEntries = profileEntries.filter(([, m]) => m !== undefined && !categoryAssignments[m.guid])}
-                    <div class="flex flex-col gap-1">
-                        {#each categories as category (category.Guid)}
-                            {@const catEntries = profileEntries.filter(([, m]) => m !== undefined && categoryAssignments[m.guid] === category.Guid)}
-                            <div class="flex flex-col">
-                                <button
-                                    class="flex flex-row items-center gap-1 px-2 py-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-yellow-300 text-sm"
-                                    onclick={() => toggleCategoryCollapse(category.Guid)}
-                                >
-                                    {#if collapsedCategories[category.Guid]}<Plus width="14" height="14" />{:else}<Dash width="14" height="14" />{/if}
-                                    <span class="flex-1 text-left truncate">{category.Name}</span>
-                                    <span class="text-xs text-zinc-400">{catEntries.length}</span>
-                                </button>
-                                {#if !collapsedCategories[category.Guid]}
-                                    {#each catEntries as [config, mod, ci], i (config.Guid)}
-                                        {@render groupedEntry([config, mod, ci])}
-                                    {/each}
-                                {/if}
-                            </div>
-                        {/each}
-                        {#if uncatEntries.length > 0}
-                            <div class="flex flex-col">
-                                <button
-                                    class="flex flex-row items-center gap-1 px-2 py-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-sm"
-                                    onclick={() => toggleCategoryCollapse("__uncategorized__")}
-                                >
-                                    {#if collapsedCategories["__uncategorized__"]}<Plus width="14" height="14" />{:else}<Dash width="14" height="14" />{/if}
-                                    <span class="flex-1 text-left truncate">{t("pages.mods.categories.uncategorized")}</span>
-                                    <span class="text-xs text-zinc-400">{uncatEntries.length}</span>
-                                </button>
-                                {#if !collapsedCategories["__uncategorized__"]}
-                                    {#each uncatEntries as [config, mod, ci], i (config.Guid)}
-                                        {@render groupedEntry([config, mod, ci])}
-                                    {/each}
-                                {/if}
-                            </div>
-                        {/if}
-                    </div>
-                {:else}
-                <SortableList.Root
-                    ondragend={onDragEnd}
-                    isLocked={!allowReorder}
-                    gap={4}
-                >
-                    {#each profileEntries as [config, mod, ci], i (config.Guid)}
-                        {@const iconPath = iconPaths.get(config.Guid)}
-                        <SortableList.Item
-                            id={config.Guid}
-                            index={i}
-                        >
-                            {#if !mod}
-                            <div class="p-2 text-zinc-400 bg-zinc-800/60 border border-dashed border-zinc-600 rounded flex flex-row gap-1 items-center" data-testid="missing-mod-entry">
+{#if !mod}
+                            <div
+                                class="p-2 text-zinc-400 bg-zinc-800/60 border border-dashed border-zinc-600 rounded flex flex-row gap-1 items-center"
+                                data-testid="missing-mod-entry"
+                                data-library-drop-card
+                                style={rowStyle}
+                            >
                                 <span
                                     class="shrink-0 text-zinc-500 {allowReorder ? 'cursor-grab' : 'opacity-40'}"
                                     title={t("pages.mods.load_order.drag_handle")}
@@ -2073,18 +2296,22 @@
                                         <span>{t("pages.mods.entry_menu.remove")}</span>
                                     </button>
                                     <hr>
-                                    <button disabled={ci === 0} onclick={() => onMoveUp(ci)}>
+                                    <button disabled={ci <= floor} onclick={() => onMoveUp(ci, floor)}>
                                         <CaretUp />
                                         <span>{t("pages.mods.entry_menu.move_up")}</span>
                                     </button>
-                                    <button disabled={ci === profileConfigs.length - 1} onclick={() => onMoveDown(ci)}>
+                                    <button disabled={ci >= ceiling} onclick={() => onMoveDown(ci, ceiling)}>
                                         <CaretDown />
                                         <span>{t("pages.mods.entry_menu.move_down")}</span>
                                     </button>
                                 </PopupMenuButton>
                             </div>
                             {:else}
-                            <div class="p-2 text-zinc-300 bg-zinc-800 rounded flex flex-row gap-1 items-center">
+                            <div
+                                class="p-2 text-zinc-300 bg-zinc-800 rounded flex flex-row gap-1 items-center"
+                                data-library-drop-card
+                                style={rowStyle}
+                            >
                                 <span
                                     class="shrink-0 text-zinc-500 {allowReorder ? 'cursor-grab' : 'opacity-40'}"
                                     title={t("pages.mods.load_order.drag_handle")}
@@ -2102,9 +2329,6 @@
                                     <span class="text-2xl truncate flex flex-row items-center gap-1">
                                         {mod.name}
                                         <ModVersionTag {mod} />
-                                        {#if categoryOf(mod.guid)}
-                                            <span class="text-xs rounded px-1.5 py-0.5 bg-amber-400/15 text-amber-300 shrink-0">{categoryOf(mod.guid)!.Name}</span>
-                                        {/if}
                                         {#if hasUpdateAvailable(mod.guid)}
                                             <span title={t("pages.mods.update_available_badge.tip")}><CloudArrowDownFill class="text-yellow-300 shrink-0" width="16" height="16" /></span>
                                         {/if}
@@ -2157,11 +2381,12 @@
                                 <PopupMenuButton insertTarget="main">
                                     {#if categories.length > 0}
                                         <span class="px-2 pt-1 text-xs text-zinc-500">{t("pages.mods.categories.assign")}</span>
-                                        {#each categories as category (category.Guid)}
+                                        {#each categories as category, catIndex (category.Guid)}
                                             <button
                                                 class={categoryAssignments[mod.guid] === category.Guid ? "bg-amber-400/10" : ""}
                                                 onclick={() => onSetModCategory(mod.guid, category.Guid)}
                                             >
+                                                <span class="w-2.5 h-2.5 rounded-sm shrink-0" style="background-color: {categoryColor(category.Color, catIndex)}"></span>
                                                 <span>{category.Name}</span>
                                             </button>
                                         {/each}
@@ -2185,29 +2410,29 @@
                                     {/if}
                                     <hr>
                                     <button
-                                        disabled={ci === 0}
-                                        onclick={() => onMoveUp(ci)}
+                                        disabled={ci <= floor}
+                                        onclick={() => onMoveUp(ci, floor)}
                                     >
                                         <CaretUp />
                                         <span>{t("pages.mods.entry_menu.move_up")}</span>
                                     </button>
                                     <button
-                                        disabled={ci === profileConfigs.length - 1}
-                                        onclick={() => onMoveDown(ci)}
+                                        disabled={ci >= ceiling}
+                                        onclick={() => onMoveDown(ci, ceiling)}
                                     >
                                         <CaretDown />
                                         <span>{t("pages.mods.entry_menu.move_down")}</span>
                                     </button>
                                     <button
-                                        disabled={ci === 0}
-                                        onclick={() => onToTop(ci)}
+                                        disabled={ci <= floor}
+                                        onclick={() => onToTop(ci, floor)}
                                     >
                                         <ArrowBarUp />
                                         <span>{t("pages.mods.entry_menu.to_top")}</span>
                                     </button>
                                     <button
-                                        disabled={ci === profileConfigs.length - 1}
-                                        onclick={() => onToBottom(ci)}
+                                        disabled={ci >= ceiling}
+                                        onclick={() => onToBottom(ci, ceiling)}
                                     >
                                         <ArrowBarDown />
                                         <span>{t("pages.mods.entry_menu.to_bottom")}</span>
@@ -2255,15 +2480,118 @@
                                 </PopupMenuButton>
                             </div>
                             {/if}
-                        </SortableList.Item>
-                    {/each}
-                </SortableList.Root>
-                {/if}
-                {#if profileEntries.length > 1}
-                    <div class="flex flex-row items-center gap-1 px-1 pt-1 text-xs text-yellow-300/80">
-                        <CaretDownFill class="shrink-0" width="10" height="10" />
-                        <span>{t("pages.mods.load_order.highest")}</span>
+                    {#if gapBelow && ci === profileConfigs.length - 1}
+                        <div class="absolute left-2 right-2 bottom-1.5 h-0.5 bg-yellow-300 pointer-events-none" data-testid="library-drop-line"></div>
+                    {/if}
+                    {#if reorderLine(ci, floor) === "above"}
+                        <div class="absolute left-2 right-2 top-0 -translate-y-1/2 h-0.5 bg-yellow-300 pointer-events-none z-10" data-testid="reorder-drop-line"></div>
+                    {/if}
+                    {#if reorderLine(ci, floor) === "below"}
+                        <div class="absolute left-2 right-2 bottom-0 translate-y-1/2 h-0.5 bg-yellow-300 pointer-events-none z-10" data-testid="reorder-drop-line"></div>
+                    {/if}
                     </div>
+                {/snippet}
+                {#if categories.length > 0}
+                    <div class="flex flex-col gap-2">
+                        {#each listSections as section (section.id)}
+                            <div
+                                class="flex flex-col gap-1"
+                                data-testid="category-section"
+                                data-category={section.name}
+                                data-library-drop="run"
+                                data-start={section.start}
+                                data-end={section.end}
+                                data-drop-category={section.category?.Guid ?? ""}
+                            >
+                                <div
+                                    class="group flex flex-row items-center gap-1 px-2 py-1.5 rounded-md bg-zinc-800 text-sm"
+                                    style="{section.color ? `box-shadow: inset 4px 0 0 ${section.color}; background-color: color-mix(in srgb, ${section.color} 14%, #27272a)` : ''};{runDropMarked(section.start, section.category?.Guid ?? null) ? 'outline: 2px solid #fde047; outline-offset: -2px;' : ''}"
+                                >
+                                    <button
+                                        class="flex flex-row items-center gap-1 flex-1 min-w-0 text-left"
+                                        onclick={() => toggleCategoryCollapse(section.collapseId)}
+                                        title={t("pages.mods.categories.collapse_tip")}
+                                    >
+                                        {#if collapsedCategories[section.collapseId]}<Plus width="14" height="14" />{:else}<Dash width="14" height="14" />{/if}
+                                        {#if section.color}
+                                            <span class="w-2.5 h-2.5 rounded-sm shrink-0" style="background-color: {section.color}"></span>
+                                        {/if}
+                                        <span class="flex-1 truncate" style:color={section.color ?? undefined}>{section.name}</span>
+                                        <span class="text-xs text-zinc-400">{section.entries.length}</span>
+                                    </button>
+                                    {#if section.category}
+                                        {@const category = section.category}
+                                        <div class="flex flex-row items-center gap-1 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto transition-opacity">
+                                        <label class="relative w-4 h-4 rounded-sm border border-zinc-600 shrink-0 cursor-pointer" style="background-color: {section.color}" title={t("pages.mods.categories.color_tip")}>
+                                            <input
+                                                type="color"
+                                                class="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                                                value={section.color ?? categoryColor(category.Color, 0)}
+                                                aria-label={t("pages.mods.categories.color_tip")}
+                                                onchange={(e) => {
+                                                    const input = e.currentTarget as HTMLInputElement;
+                                                    onSetCategoryColor(category.Guid, input.value);
+                                                }}
+                                            />
+                                        </label>
+                                        <button
+                                            class="text-zinc-500 hover:text-yellow-300 disabled:opacity-30 disabled:hover:text-zinc-500"
+                                            disabled={!allowReorder || section.start <= 0}
+                                            onclick={() => onMoveCategoryBlock(section.start, -1)}
+                                            title={t("pages.mods.categories.move_up_tip")}
+                                        >
+                                            <CaretUp width="14" height="14" />
+                                        </button>
+                                        <button
+                                            class="text-zinc-500 hover:text-yellow-300 disabled:opacity-30 disabled:hover:text-zinc-500"
+                                            disabled={!allowReorder || section.end < 0 || section.end >= profileConfigs.length - 1}
+                                            onclick={() => onMoveCategoryBlock(section.start, 1)}
+                                            title={t("pages.mods.categories.move_down_tip")}
+                                        >
+                                            <CaretDown width="14" height="14" />
+                                        </button>
+                                        <button class="text-zinc-500 hover:text-yellow-300" onclick={() => onRenameCategory(category.Guid)} title={t("pages.mods.categories.rename_tip")}>
+                                            <PencilSquare width="12" height="12" />
+                                        </button>
+                                        <button class="text-zinc-500 hover:text-red-400" onclick={() => onDeleteCategory(category.Guid)} title={t("pages.mods.categories.delete_tip")}>
+                                            <Trash3 width="12" height="12" />
+                                        </button>
+                                        </div>
+                                    {/if}
+                                </div>
+                                {#if !collapsedCategories[section.collapseId] && section.entries.length > 0}
+                                    <SortableList.Root
+                                        ondrag={(e) => onReorderDrag(e, section.start)}
+                                        ondragend={(e) => onDragEnd(e, section.start)}
+                                        isLocked={!allowReorder}
+                                        gap={4}
+                                    >
+                                        {#each section.entries as [config, mod, ci], i (config.Guid)}
+                                            <SortableList.Item id={config.Guid} index={i}>
+                                                {@render profileRow(config, mod, ci, section.start, section.end, section.color, section.category?.Guid ?? null)}
+                                            </SortableList.Item>
+                                        {/each}
+                                    </SortableList.Root>
+                                {/if}
+                            </div>
+                        {/each}
+                    </div>
+                {:else}
+                    <SortableList.Root
+                        ondrag={(e) => onReorderDrag(e, 0)}
+                        ondragend={(e) => onDragEnd(e)}
+                        isLocked={!allowReorder}
+                        gap={4}
+                    >
+                        {#each profileEntries as [config, mod, ci], i (config.Guid)}
+                            <SortableList.Item id={config.Guid} index={i}>
+                                {@render profileRow(config, mod, ci, 0, Math.max(profileConfigs.length - 1, 0), null, null)}
+                            </SortableList.Item>
+                        {/each}
+                    </SortableList.Root>
+                {/if}
+                {#if libraryDrop && profileEntries.length === 0}
+                    <div class="h-0.5 mx-2 my-2 bg-yellow-300" data-testid="library-drop-line"></div>
                 {/if}
             </div>
             <!-- Library -->
@@ -2302,48 +2630,98 @@
                     {/if}
                 </button>
                 {#if libraryVisible}
-                    <ul class="py-1 flex-1 border-y border-zinc-500 overflow-y-auto">
-                        {#each libraryMods as mod, i}
-                            <li class="grid grid-cols-[min-content_1fr_min-content] gap-1 text-zinc-300 bg-zinc-800 rounded mb-1 p-1">
-                                <button
-                                    class="ordnance-button-nop p-1"
-                                    title={t("pages.mods.library.insert_top_button.tip")}
-                                    onclick={() => onInsertTop(i)}
+                    <div class="flex flex-col flex-1 min-w-0 min-h-0">
+                        <div class="flex flex-row gap-1 p-1">
+                            <input
+                                class="ordnance-input flex-1 min-w-0 text-sm"
+                                type="text"
+                                placeholder={t("pages.mods.library.search_input.placeholder")}
+                                autocomplete="off"
+                                autocorrect="off"
+                                autocapitalize="off"
+                                spellcheck="false"
+                                bind:value={librarySearch}
+                            />
+                        </div>
+                        <div class="flex flex-row gap-1 items-center px-1 pb-1">
+                            <select
+                                class="ordnance-select flex-1 min-w-0 text-sm px-2 py-1"
+                                bind:value={librarySort}
+                                aria-label={t("pages.mods.library.sort.label")}
+                            >
+                                <option value="name">{t("pages.mods.library.sort.name")}</option>
+                                <option value="installed">{t("pages.mods.library.sort.installed")}</option>
+                                <option value="updated">{t("pages.mods.library.sort.updated")}</option>
+                            </select>
+                            <button
+                                class="ordnance-button-nop p-1"
+                                title={librarySortTip()}
+                                onclick={() => { librarySortDir = librarySortDir === "asc" ? "desc" : "asc"; }}
+                            >
+                                {#if librarySortDir === "asc"}
+                                    <CaretUp class="block m-auto" width="16" height="16" />
+                                {:else}
+                                    <CaretDown class="block m-auto" width="16" height="16" />
+                                {/if}
+                            </button>
+                        </div>
+                        <ul class="py-1 flex-1 border-y border-zinc-500 overflow-y-auto">
+                            {#each shownLibraryMods as mod, i (mod.guid)}
+                                <li
+                                    class="flex flex-row gap-1 items-center text-zinc-300 bg-zinc-800 rounded mb-1 p-1 cursor-grab active:cursor-grabbing"
+                                    draggable="true"
+                                    title={t("pages.mods.library.drag.tip")}
+                                    ondragstart={(event) => onLibraryDragStart(event, mod)}
+                                    ondragend={onLibraryDragEnd}
                                 >
-                                    <Arrow90degLeft class="block m-auto" width="16" height="16" />
-                                </button>
-                                <span class="text-2xl truncate flex flex-row items-center gap-1">
-                                    {mod.name}
+                                    <div class="flex-1 min-w-0">
+                                        <span class="text-2xl truncate flex flex-row items-center gap-1">
+                                            {mod.name}
+                                            {#if hasUpdateAvailable(mod.guid)}
+                                                <span title={t("pages.mods.update_available_badge.tip")}><CloudArrowDownFill class="text-yellow-300 shrink-0" width="16" height="16" /></span>
+                                            {/if}
+                                        </span>
+                                        <div class="text-sm truncate">{mod.description}</div>
+                                        {#if librarySort !== "name"}
+                                            <div class="text-xs text-zinc-500 truncate">{libraryDateLabel(mod)}</div>
+                                        {/if}
+                                    </div>
                                     {#if hasUpdateAvailable(mod.guid)}
-                                        <span title={t("pages.mods.update_available_badge.tip")}><CloudArrowDownFill class="text-yellow-300 shrink-0" width="16" height="16" /></span>
+                                        <button
+                                            class="ordnance-button-nop p-1 shrink-0"
+                                            draggable="false"
+                                            title={t("pages.mods.library.update_button.tip")}
+                                            onclick={() => onUpdate(i)}
+                                        >
+                                            <Download class="block m-auto" width="16" height="16" />
+                                        </button>
                                     {/if}
-                                </span>
-                                <button
-                                    class="ordnance-button-nop p-1"
-                                    title={t("pages.mods.library.delete_button.tip")}
-                                    onclick={() => onDelete(i)}
-                                >
-                                    <Trash3 class="block m-auto" width="16" height="16" />
-                                </button>
-                                <button
-                                    class="ordnance-button-nop p-1"
-                                    title={t("pages.mods.library.insert_bottom_button.tip")}
-                                    onclick={() => onInsertBottom(i)}
-                                >
-                                    <ArrowReturnLeft class="block m-auto" width="16" height="16" />
-                                </button>
-                                <span class="text-sm truncate">{mod.description}</span>
-                                <button
-                                    class="ordnance-button-nop p-1"
-                                    title={t("pages.mods.library.update_button.tip")}
-                                    onclick={() => onUpdate(i)}
-                                    disabled={!hasUpdateAvailable(mod.guid)}
-                                >
-                                    <Download class="block m-auto" width="16" height="16" />
-                                </button>
-                            </li>
-                        {/each}
-                    </ul>
+                                    <button
+                                        class="ordnance-button-nop p-1 shrink-0"
+                                        draggable="false"
+                                        title={t("pages.mods.library.delete_button.tip")}
+                                        onclick={() => onDelete(i)}
+                                    >
+                                        <Trash3 class="block m-auto" width="16" height="16" />
+                                    </button>
+                                    <PopupMenuButton compact insertTarget="main">
+                                        <button title={t("pages.mods.library.insert_top_button.tip")} onclick={() => onInsertTop(i)}>
+                                            <Arrow90degLeft />
+                                            <span>{t("pages.mods.library.insert_top_button.text")}</span>
+                                        </button>
+                                        <button title={t("pages.mods.library.insert_bottom_button.tip")} onclick={() => onInsertBottom(i)}>
+                                            <ArrowReturnLeft />
+                                            <span>{t("pages.mods.library.insert_bottom_button.text")}</span>
+                                        </button>
+                                    </PopupMenuButton>
+                                </li>
+                            {:else}
+                                {#if librarySearch.trim().length > 0}
+                                    <li class="px-2 py-1 text-sm text-zinc-500">{t("pages.mods.library.empty_search")}</li>
+                                {/if}
+                            {/each}
+                        </ul>
+                    </div>
                 {/if}
             </div>
         </div>

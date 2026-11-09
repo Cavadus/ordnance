@@ -49,7 +49,14 @@ export async function pickDirectory(): Promise<string | null> {
     }
 }
 
-type RawMod = { Manifest: Manifest, Directory: string, Sources?: ResolvedSource[], DisplayName?: string };
+type RawMod = {
+    Manifest: Manifest,
+    Directory: string,
+    Sources?: ResolvedSource[],
+    DisplayName?: string,
+    InstalledAt?: number | null,
+    UpdatedAt?: number | null,
+};
 type RawInstalledMod = RawMod & { Warning?: string, Replaced?: boolean, Kept?: boolean };
 
 /** What an install did. When the file had the ID of an installed mod and
@@ -59,7 +66,14 @@ type RawInstalledMod = RawMod & { Warning?: string, Replaced?: boolean, Kept?: b
 export type InstalledMod = { mod: Mod, warning?: string, replaced?: boolean, kept?: boolean };
 
 export function rawModToMod(raw: RawMod): Mod {
-    return new Mod(raw.Manifest, raw.Directory, raw.Sources ?? [], raw.DisplayName);
+    return new Mod(
+        raw.Manifest,
+        raw.Directory,
+        raw.Sources ?? [],
+        raw.DisplayName,
+        raw.InstalledAt,
+        raw.UpdatedAt,
+    );
 }
 
 function toInstalledMod(raw: RawInstalledMod): InstalledMod {
@@ -383,6 +397,11 @@ export async function renameCategory(guid: string, name: string): Promise<Catego
 export async function deleteCategory(guid: string): Promise<Categories> {
     log.debug("Invoking `delete_category`.");
     return await invoke<Categories>("delete_category", { guid });
+}
+
+export async function setCategoryColor(guid: string, color: string): Promise<Categories> {
+    log.debug("Invoking `set_category_color`.");
+    return await invoke<Categories>("set_category_color", { guid, color });
 }
 
 export async function setModCategory(modGuid: string, categoryGuid: string | null): Promise<Categories> {

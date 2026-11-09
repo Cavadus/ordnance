@@ -279,6 +279,8 @@ pub(crate) async fn ensure_mods_loaded<'a>(
                 directory: mod_dir,
                 sources: Vec::new(),
                 display_name: None,
+            installed_at: None,
+            updated_at: None,
             };
             if let Err(e) = r#mod.normalize_paths().await {
                 log::error!("Path normalization failed for {:?}: {:#}", r#mod.directory, e);
@@ -790,9 +792,12 @@ async fn record_nexus_from_file_name(mods: &mut [Mod], r#mod: &mut Mod, file_nam
     if other_page || sources::load_origin_sidecar(&r#mod.directory).await.is_some() {
         return;
     }
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     let mut sidecar = sources::OriginSidecar {
         sources: Vec::new(),
-        installed_at: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0),
+        installed_at: now,
+        first_installed_at: now,
+        updated_at: 0,
         installed_files: Vec::new(),
         skipped_versions: Vec::new(),
         imported_archive: None,
@@ -874,6 +879,8 @@ async fn install_archive_steps(
             directory: mod_dir.clone(),
             sources: Vec::new(),
             display_name: None,
+            installed_at: None,
+            updated_at: None,
         };
 
         log::info!("Checking for duplicate...");
@@ -1433,6 +1440,8 @@ async fn adopt_folder_in_place(
             directory: mod_dir.to_path_buf(),
             sources: Vec::new(),
             display_name: None,
+            installed_at: None,
+            updated_at: None,
         };
 
         check_not_installed(mods, &r#mod, subject, AddRoute::Folder)?;
@@ -1483,6 +1492,8 @@ async fn install_from_folder_inner(
         directory: mod_dir.to_path_buf(),
         sources: Vec::new(),
         display_name: None,
+        installed_at: None,
+        updated_at: None,
     };
 
     log::info!("Checking for duplicate...");
@@ -1878,6 +1889,8 @@ async fn install_update_steps(
         directory: old_dir,
         sources: Vec::new(),
         display_name: None,
+        installed_at: None,
+        updated_at: None,
     };
 
     if let Err(e) = new_mod.normalize_paths().await {
@@ -2783,6 +2796,8 @@ mod tests {
             directory: old_dir.clone(),
             sources: Vec::new(),
             display_name: None,
+            installed_at: None,
+            updated_at: None,
         }];
 
         let update_zip = base.path().join("update.zip");
@@ -2822,6 +2837,8 @@ mod tests {
             directory: base.path().join(MODS_DIRECTORY).join("CoolMod"),
             sources: Vec::new(),
             display_name: None,
+            installed_at: None,
+            updated_at: None,
         }];
 
         let new_manifest = serde_json::json!({
@@ -2868,6 +2885,8 @@ mod tests {
             directory: old_dir.clone(),
             sources: Vec::new(),
             display_name: None,
+            installed_at: None,
+            updated_at: None,
         }];
 
         // Not a real archive: Archive::open will fail on the unsupported/invalid content.
@@ -4109,6 +4128,8 @@ mod tests {
             directory: outside.path().to_path_buf(),
             sources: Vec::new(),
             display_name: None,
+            installed_at: None,
+            updated_at: None,
         });
         write_profiles(base.path(), &[("Default", &[GUID_A])]);
 

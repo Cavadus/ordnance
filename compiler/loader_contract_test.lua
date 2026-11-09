@@ -289,12 +289,63 @@ local patch = u32(0xF0000011) .. u32(1) .. u32(1) .. string.rep("\0", 0x48 - 12)
 local out = io.open("/tmp/contractgame/data/9ba626afa44a3aa3.patch_0", "wb")
 out:write(patch)
 out:close()
+
+local LUA_BYTES = string.char(0xe2, 0x17, 0xd1, 0x2c, 0xfa, 0x8d, 0x4e, 0xa1)
+local BOOT_ID = string.char(0xfa, 0x95, 0x18, 0x69, 0x93, 0xdf, 0x76, 0xf4)
+local OTHER_ID = string.char(0x18, 0x50, 0x8c, 0x4d, 0x34, 0x4d, 0xdd, 0xfd)
+local function pack_archive(resources)
+  local count = #resources
+  local cursor = 0x48 + 32 + 80 * count
+  local rows, blobs = {}, {}
+  for i = 1, count do
+    local src = resources[i].source
+    local blob = u32(#src) .. u32(2) .. src
+    local pad = (16 - (#blob % 16)) % 16
+    blob = blob .. string.rep("\0", pad)
+    rows[i] = resources[i].name .. LUA_BYTES .. u64(cursor) .. string.rep("\0", 32) .. u32(#blob) .. string.rep("\0", 20)
+    blobs[i] = blob
+    cursor = cursor + #blob
+  end
+  return u32(0xF0000011) .. u32(1) .. u32(count) .. string.rep("\0", 0x48 - 12) .. string.rep("\0", 32) .. table.concat(rows) .. table.concat(blobs)
+end
+local function write_patch(n, bytes)
+  local f = io.open("/tmp/contractgame/data/9ba626afa44a3aa3.patch_" .. n, "wb")
+  f:write(bytes)
+  f:close()
+end
+write_patch(1, pack_archive({
+  { name = BOOT_ID, source = "function init() end\n_G.PLAIN_BOOT_LOADED = true\nfunction update(dt) _G.PLAIN_BOOT_TICKS = (_G.PLAIN_BOOT_TICKS or 0) + 1 end\n" },
+  { name = OTHER_ID, source = "local OT_ADDON='mods/example/tracker'\n_G.DECOY_RAN = true\n" },
+}))
+write_patch(2, pack_archive({
+  { name = BOOT_ID, source = "function init() end\n-- HD2FM1\nshutdown = finish\n_G.SWAP_RAN = true\n" },
+}))
+write_patch(3, pack_archive({
+  { name = BOOT_ID, source = "-- @@ORDNANCE@@\n_G.SELF_RAN = true\n" },
+}))
+write_patch(4, pack_archive({
+  { name = BOOT_ID, source = "function init() end\n_G.SECOND_PLAIN = true\n" },
+}))
+write_patch(5, pack_archive({
+  { name = BOOT_ID, source = "function init() end\nrequire(\"ffi\")\n_G.FFI_RAN = true\n" },
+}))
 package.path = "/tmp/contractgame/bin/lua/?.lua"
 
+rawset(_G, "ORDNANCE_MENU_TEST", true)
 dofile("/home/lkavadas/clawd/ordnance/compiler/ordnance_loader.lua")
 local init = rawget(_G, "init")
 check("init installed", type(init) == "function")
 init()
+check("plain boot loaded", rawget(_G, "PLAIN_BOOT_LOADED") == true)
+check("second plain boot loaded", rawget(_G, "SECOND_PLAIN") == true)
+check("decoy addon left alone", rawget(_G, "DECOY_RAN") ~= true)
+check("swap installer left alone", rawget(_G, "SWAP_RAN") ~= true)
+check("loader boot left alone", rawget(_G, "SELF_RAN") ~= true)
+check("ffi boot left alone", rawget(_G, "FFI_RAN") ~= true)
+local frame = rawget(_G, "update")
+check("update installed", type(frame) == "function")
+if type(frame) == "function" then frame(0.016) end
+check("plain boot update", rawget(_G, "PLAIN_BOOT_TICKS") == 1)
 
 local chef = rawget(_G, "CONTRACT_CHEF")
 check("probe ran", type(chef) == "table")
@@ -591,6 +642,70 @@ local mats_at = #calls.set_material
 local locals_at = #calls.set_local
 local tex_at = calls.destroyed or 0
 gui_calls.destroyed = false
+local function layout_kinds(owner)
+  local list = ORDNANCE_MENU.layout(owner)
+  local out = {}
+  for i = 1, #list do
+    local it = list[i]
+    if it.kind == "fold" then out[#out + 1] = "fold:" .. it.title .. ":" .. (it.shut and "shut" or "open") .. ":" .. it.n
+    elseif it.kind == "head" then out[#out + 1] = "head:" .. it.title .. (it.sub and ":sub" or "")
+    else out[#out + 1] = "row:" .. it.id end
+  end
+  return table.concat(out, "|")
+end
+local big = ORDNANCE_MENU.chef_for("menu_big")
+big.option("lead", { type = "toggle", label = "Lead", default = false })
+for i = 1, 8 do
+  local spec = { type = "toggle", label = "W" .. i, default = false }
+  if i == 1 then spec.heading = "Weapons" end
+  big.option("w" .. i, spec)
+end
+for i = 1, 8 do
+  local spec = { type = "toggle", label = "A" .. i, default = false }
+  if i == 1 then spec.heading = "Armor" end
+  big.option("a" .. i, spec)
+end
+big.option("m1", { type = "toggle", label = "M1", default = false, heading = "Misc" })
+big.option("m2", { type = "toggle", label = "M2", default = false, heading = "Detail", sub = true })
+big.option("m3", { type = "slider", label = "M3", default = 1, min = 0, max = 10, step = 1 })
+big.option("m4", { type = "choice", label = "M4", default = 1, choices = { "a", "b", "c" } })
+check("long mod starts folded", layout_kinds("menu_big") == "row:lead|fold:Weapons:shut:8|fold:Armor:shut:8|fold:Misc:shut:4")
+ORDNANCE_MENU.set_fold("menu_big", "Weapons", false)
+check("one category opens", layout_kinds("menu_big") == "row:lead|fold:Weapons:open:8|row:w1|row:w2|row:w3|row:w4|row:w5|row:w6|row:w7|row:w8|fold:Armor:shut:8|fold:Misc:shut:4")
+ORDNANCE_MENU.set_fold("menu_big", "Misc", false)
+check("subheading stays inside", string.find(layout_kinds("menu_big"), "fold:Misc:open:4|row:m1|head:Detail:sub|row:m2|row:m3|row:m4", 1, true) ~= nil)
+local tiny = ORDNANCE_MENU.chef_for("menu_tiny")
+tiny.option("t1", { type = "toggle", label = "T1", default = false, heading = "Only" })
+tiny.option("t2", { type = "toggle", label = "T2", default = false })
+check("short mod starts open", layout_kinds("menu_tiny") == "fold:Only:open:2|row:t1|row:t2")
+local plain = ORDNANCE_MENU.chef_for("menu_plain")
+plain.option("p1", { type = "toggle", label = "P1", default = false, heading = "Shown", fold = false })
+plain.option("p2", { type = "toggle", label = "P2", default = false })
+check("unfolded heading stays a heading", layout_kinds("menu_plain") == "head:Shown|row:p1|row:p2")
+local stamped = ORDNANCE_MENU.chef_for("menu_stamped")
+for i = 1, 20 do
+  stamped.option("s" .. i, { type = "toggle", label = "S" .. i, default = false, heading = "Same" })
+end
+check("repeated category is one fold", layout_kinds("menu_stamped") == "fold:Same:shut:20")
+local keys = ORDNANCE_MENU.key_state()
+check("arrow press", ORDNANCE_MENU.key_fire(keys, "down", true, 1000) == "press")
+check("arrow waits", ORDNANCE_MENU.key_fire(keys, "down", true, 1000.2) == false)
+check("arrow repeats", ORDNANCE_MENU.key_fire(keys, "down", true, 1000.4) == "rep")
+check("arrow gap", ORDNANCE_MENU.key_fire(keys, "down", true, 1000.45) == false)
+check("arrow again", ORDNANCE_MENU.key_fire(keys, "down", true, 1000.49) == "rep")
+check("arrow release", ORDNANCE_MENU.key_fire(keys, "down", false, 1001) == false)
+check("arrow fresh", ORDNANCE_MENU.key_fire(keys, "down", true, 1002) == "press")
+ORDNANCE_MENU.key_block(keys, "right")
+check("held open does not repeat", ORDNANCE_MENU.key_fire(keys, "right", true, 1002) == false)
+check("held open stays blocked", ORDNANCE_MENU.key_fire(keys, "right", true, 1003) == false)
+check("let go", ORDNANCE_MENU.key_fire(keys, "right", false, 1003) == false)
+check("press after let go", ORDNANCE_MENU.key_fire(keys, "right", true, 1003.1) == "press")
+check("toggle does not run", ORDNANCE_MENU.should_nudge("toggle", 0, "rep") == false)
+check("toggle accepts a press", ORDNANCE_MENU.should_nudge("toggle", 0, "press") == true)
+check("two choices do not run", ORDNANCE_MENU.should_nudge("choice", 2, "rep") == false)
+check("a slider runs", ORDNANCE_MENU.should_nudge("slider", 0, "rep") == true)
+check("a long choice runs", ORDNANCE_MENU.should_nudge("choice", 3, "rep") == true)
+
 local shutdown_fn = rawget(_G, "shutdown")
 check("shutdown installed", type(shutdown_fn) == "function")
 if type(shutdown_fn) == "function" then shutdown_fn() end

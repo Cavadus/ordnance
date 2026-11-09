@@ -21,6 +21,9 @@
             "delete": {
                 "tip": "Delete this profile."
             },
+            "color": {
+                "tip": "Profile color."
+            },
             "export": {
                 "tip": "Export this profile. The file has the mod list and option choices, not the mod files.",
                 "empty": "This profile has no installed mods to share.",
@@ -246,9 +249,11 @@
                     "tip": "{count} mods in the library."
                 },
                 "insert_top_button": {
+                    "text": "Add to top",
                     "tip": "Add this mod to the top of the profile. Mods lower in the list override it."
                 },
                 "insert_bottom_button": {
+                    "text": "Add to bottom",
                     "tip": "Add this mod to the bottom of the profile. It wins when two mods change the same file."
                 },
                 "delete_button": {
@@ -256,6 +261,24 @@
                 },
                 "update_button": {
                     "tip": "Install the available update for this mod."
+                },
+                "search_input": {
+                    "placeholder": "Search the library"
+                },
+                "drag": {
+                    "tip": "Drag into the profile. Drop it on a row to choose its place, or on a category to file it there."
+                },
+                "empty_search": "No mods match.",
+                "sort": {
+                    "label": "Sort the library",
+                    "name": "Name",
+                    "installed": "Installed",
+                    "updated": "Updated",
+                    "name_asc": "A to Z. Click for Z to A.",
+                    "name_desc": "Z to A. Click for A to Z.",
+                    "date_asc": "Oldest first. Click for newest first.",
+                    "date_desc": "Newest first. Click for oldest first.",
+                    "unknown": "Unknown date"
                 }
             },
             "drop_message": "Drop archives or folders to add",
@@ -272,9 +295,7 @@
                 "message": "This mod isn't in your library right now (its folder was removed, or its manifest.json can't be read). It keeps its place here and is skipped when deploying; remove it if it's gone for good."
             },
             "load_order": {
-                "hint": "Load order: when two mods change the same game file, the one lower in the list wins.",
-                "lowest": "Lowest priority (loaded first)",
-                "highest": "Highest priority (wins conflicts)",
+                "hint": "Lower in the list wins when two mods change the same file.",
                 "drag_handle": "Drag to change load order. Mods lower in the list override mods above them."
             },
             "update_mod_button": {
@@ -297,15 +318,17 @@
                 "to_bottom": "To Bottom"
             },
             "categories": {
-                "group": "Group",
-                "group_tip": "Group mods by category.",
                 "new_placeholder": "New category...",
                 "create_tip": "Create a category.",
                 "rename_tip": "Rename this category.",
                 "delete_tip": "Delete this category.",
                 "assign": "Category",
                 "none": "No category",
-                "uncategorized": "Uncategorized"
+                "uncategorized": "Uncategorized",
+                "color_tip": "Category color. Every mod in this category uses it.",
+                "move_up_tip": "Move this category up. It loads before the group it swaps with.",
+                "move_down_tip": "Move this category down. It overrides the group it swaps with.",
+                "collapse_tip": "Collapse or expand this category."
             }
         },
         "settings": {

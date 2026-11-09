@@ -1336,6 +1336,8 @@ fn sidecar_for(item: &ScanItem, installed: &Mod, fingerprint: Option<ArchiveFing
     let mut sidecar = item.carried_sidecar.clone().unwrap_or(OriginSidecar {
         sources: Vec::new(),
         installed_at: 0,
+        first_installed_at: 0,
+        updated_at: 0,
         installed_files: Vec::new(),
         skipped_versions: Vec::new(),
         imported_archive: None,
@@ -1346,6 +1348,9 @@ fn sidecar_for(item: &ScanItem, installed: &Mod, fingerprint: Option<ArchiveFing
     if sidecar.installed_at == 0 {
         sidecar.installed_at =
             std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    }
+    if sidecar.first_installed_at == 0 {
+        sidecar.first_installed_at = sidecar.installed_at;
     }
     if let Some(nexus) = &item.nexus {
         add_nexus_to_sidecar(&mut sidecar, nexus, installed);
@@ -1579,12 +1584,17 @@ async fn link_existing(state: &AppState, item: &ScanItem, target: Uuid) -> anyho
         // Linked in the meantime (e.g. a browser update): leave it alone.
         return Ok(name);
     }
-    let mut sidecar = sources::load_origin_sidecar(&installed.directory).await.unwrap_or(OriginSidecar {
-        sources: Vec::new(),
-        installed_at: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0),
-        installed_files: Vec::new(),
-        skipped_versions: Vec::new(),
-        imported_archive: None,
+    let mut sidecar = sources::load_origin_sidecar(&installed.directory).await.unwrap_or_else(|| {
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        OriginSidecar {
+            sources: Vec::new(),
+            installed_at: now,
+            first_installed_at: now,
+            updated_at: 0,
+            installed_files: Vec::new(),
+            skipped_versions: Vec::new(),
+            imported_archive: None,
+        }
     });
     sidecar.sources.retain(|s| !s.provider.eq_ignore_ascii_case("nexus"));
     sidecar.sources.push(Source {

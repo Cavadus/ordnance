@@ -64,6 +64,10 @@ pub enum Profile {
     #[serde(rename_all = "PascalCase")]
     V1 {
         name: String,
+        /// `#rrggbb`. Empty on files written before profile colors existed;
+        /// the sidebar paints those from the same palette as categories.
+        #[serde(default)]
+        color: String,
         configs: Vec<Config>,
     }
 }
@@ -72,6 +76,7 @@ impl Profile {
     pub fn new(name: &str) -> Self {
         Profile::V1 {
             name: name.to_string(),
+            color: String::new(),
             configs: Vec::new()
         }
     }
@@ -94,4 +99,21 @@ impl Profile {
 pub struct ProfilesConfig {
     pub profiles: Vec<Profile>,
     pub active: u64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_profile_file_from_before_colors_still_loads() {
+        let raw = r#"{"Profiles":[{"Version":"V1","Name":"Default","Configs":[]}],"Active":0}"#;
+        let parsed: ProfilesConfig = serde_json::from_str(raw).unwrap();
+        match &parsed.profiles[0] {
+            Profile::V1 { name, color, .. } => {
+                assert_eq!(name, "Default");
+                assert_eq!(color, "");
+            }
+        }
+    }
 }

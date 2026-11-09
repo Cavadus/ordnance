@@ -24,6 +24,7 @@ pub async fn do_load_profiles(base_path: &std::path::Path) -> anyhow::Result<Pro
             profiles: vec![
                 Profile::V1 {
                     name: "Default".to_string(),
+                    color: String::new(),
                     configs: Vec::new()
                 }
             ],
@@ -363,6 +364,8 @@ mod tests {
             directory: dir.path().join("A"),
             sources: Vec::new(),
             display_name: None,
+            installed_at: None,
+            updated_at: None,
         }]);
         save_profiles_mapped(&state, profiles_with(&[A])).await.unwrap();
         let loaded = do_load_profiles(dir.path()).await.unwrap();

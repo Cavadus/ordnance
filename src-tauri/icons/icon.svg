@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Ordnance">
+  <defs>
+    <radialGradient id="plate" cx="50%" cy="32%" r="72%">
+      <stop offset="0" stop-color="#2a2a2e"/>
+      <stop offset="1" stop-color="#09090b"/>
+    </radialGradient>
+    <linearGradient id="brass" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4a340c"/>
+      <stop offset="0.16" stop-color="#f8e7a2"/>
+      <stop offset="0.4" stop-color="#e2b340"/>
+      <stop offset="0.68" stop-color="#a67c1c"/>
+      <stop offset="1" stop-color="#2c1e08"/>
+    </linearGradient>
+    <linearGradient id="copper" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5c2a22"/>
+      <stop offset="0.3" stop-color="#f2bba6"/>
+      <stop offset="0.62" stop-color="#c86b4c"/>
+      <stop offset="1" stop-color="#3f1e18"/>
+    </linearGradient>
+    <linearGradient id="steel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d5dee6"/>
+      <stop offset="0.22" stop-color="#8b969f"/>
+      <stop offset="0.55" stop-color="#3e464d"/>
+      <stop offset="1" stop-color="#15191c"/>
+    </linearGradient>
+    <linearGradient id="steelBack" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5c656d"/>
+      <stop offset="1" stop-color="#121518"/>
+    </linearGradient>
+    <!-- One belt link, centered on the case. The slot is the hook toward the next round. -->
+    <g id="link">
+      <rect x="-108" y="-34" width="268" height="68" rx="14" fill="url(#steel)" stroke="#101316" stroke-width="7"/>
+      <rect x="-96" y="-26" width="244" height="12" rx="6" fill="#fff" opacity="0.4"/>
+      <rect x="112" y="-14" width="36" height="28" rx="6" fill="#14181c"/>
+    </g>
+    <!-- Case center is 0,0. Tip up, rim on the ground. -->
+    <g id="round">
+      <ellipse cx="22" cy="176" rx="86" ry="20" fill="#000" opacity="0.45"/>
+      <rect x="-104" y="118" width="208" height="62" rx="14" fill="url(#brass)" stroke="#2a1c06" stroke-width="8"/>
+      <rect x="-104" y="118" width="208" height="16" rx="7" fill="#fff6d0" opacity="0.5"/>
+      <rect x="-84" y="-124" width="168" height="250" rx="8" fill="url(#brass)" stroke="#2a1c06" stroke-width="8"/>
+      <rect x="46" y="-116" width="38" height="234" fill="#000" opacity="0.2"/>
+      <rect x="-84" y="102" width="168" height="20" fill="#3a2a0c"/>
+      <path d="M-84 -118 L-44 -206 H44 L84 -118 Z" fill="url(#brass)" stroke="#2a1c06" stroke-width="8" stroke-linejoin="round"/>
+      <path d="M-44 -198 H44 L0 -332 Z" fill="url(#copper)" stroke="#4a2218" stroke-width="8" stroke-linejoin="round"/>
+      <rect x="-62" y="-102" width="26" height="200" rx="13" fill="#fff8dc" opacity="0.7"/>
+      <path d="M-8 -314 L6 -314 L2 -250 Z" fill="#fff" opacity="0.55"/>
+    </g>
+  </defs>
+
+  <rect width="1024" height="1024" rx="228" fill="#09090b"/>
+  <rect x="40" y="40" width="944" height="944" rx="200" fill="url(#plate)"/>
+  <rect x="40" y="40" width="944" height="944" rx="200" fill="none" stroke="#fbbf24" stroke-width="26"/>
+
+  <use href="#link" transform="translate(714 404) rotate(-36) scale(0.84)" fill="url(#steelBack)"/>
+  <use href="#link" transform="translate(520 560) rotate(-36) scale(0.93)" fill="url(#steelBack)"/>
+  <use href="#link" transform="translate(326 720) rotate(-36) scale(1)" fill="url(#steelBack)"/>
+
+  <use href="#round" transform="translate(706 392) scale(0.84)"/>
+  <use href="#round" transform="translate(512 548) scale(0.93)"/>
+  <use href="#round" transform="translate(318 708) scale(1)"/>
+
+  <use href="#link" transform="translate(706 392) rotate(-36) scale(0.84)"/>
+  <use href="#link" transform="translate(512 548) rotate(-36) scale(0.93)"/>
+  <use href="#link" transform="translate(318 708) rotate(-36) scale(1)"/>
+</svg>

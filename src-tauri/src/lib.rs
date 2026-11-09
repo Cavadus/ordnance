@@ -482,6 +482,7 @@ pub fn run() {
             commands::categories::create_category,
             commands::categories::rename_category,
             commands::categories::delete_category,
+            commands::categories::set_category_color,
             commands::categories::set_mod_category,
             commands::mods::get_mods,
             commands::mods::resolve_mod_image,

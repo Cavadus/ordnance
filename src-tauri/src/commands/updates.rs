@@ -1270,6 +1270,7 @@ async fn install_direct_update(
     let mut recorded_sources: Vec<Source> = old_sidecar.as_ref().map(|s| s.sources.clone()).unwrap_or_default();
     recorded_sources.retain(|s| !s.provider.eq_ignore_ascii_case(provider));
     recorded_sources.push(Source { provider: provider.to_string(), id: Some(source_id), url: None, version });
+    let previous = old_sidecar.clone();
     let mut installed_files: Vec<InstalledFile> = old_sidecar.map(|s| s.installed_files).unwrap_or_default();
     installed_files.retain(|f| !f.provider.eq_ignore_ascii_case(provider));
     installed_files.push(InstalledFile {
@@ -1279,7 +1280,7 @@ async fn install_direct_update(
         label: file.label.clone(),
         uploaded_at: file.uploaded_at,
     });
-    if let Err(e) = sources::write_origin_sidecar_with_files(&r#mod.directory, recorded_sources, installed_files).await {
+    if let Err(e) = sources::write_origin_sidecar_after_update(&r#mod.directory, recorded_sources, installed_files, previous.as_ref()).await {
         log::error!("Failed to write origin sidecar after update: {e}");
     }
     r#mod.resolve_sources().await;
@@ -1557,6 +1558,8 @@ mod tests {
         let sidecar = sources::OriginSidecar {
             sources: vec![Source { provider: "ayakamods".into(), id: Some(id.into()), url: None, version: Some("2026-10-01".into()) }],
             installed_at,
+            first_installed_at: installed_at,
+            updated_at: 0,
             installed_files: vec![InstalledFile { provider: "ayakamods".into(), file_name: Some("m.zip".into()), ..Default::default() }],
             skipped_versions: Vec::new(),
             imported_archive: None,
@@ -1988,7 +1991,9 @@ mod tests {
             }),
             directory: dir.to_path_buf(),
             sources,
-        display_name: None,
+            display_name: None,
+            installed_at: None,
+            updated_at: None,
         }
     }
 

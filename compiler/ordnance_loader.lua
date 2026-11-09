@@ -5,6 +5,10 @@
 --   -- HD2-Boot: mods/<author>/<name>
 --   -- HD2-Guest-Boot: <name>
 --   -- HD2-Options: mods/<author>/<name>
+-- A mod that replaces the boot script and carries none of those lines is
+-- started too. The game runs only the highest boot, which is this file, so
+-- that script would otherwise sit in a lower patch and never run. This
+-- loader, another loader, and a file-swap installer are not started that way.
 -- A line `-- @loader rat` does not change that. The mod still starts.
 -- File swaps are already on disk. This script does not copy .dl_bin files.
 -- F10 opens the options menu: each mod's toggles, choices, sliders, and key
@@ -58,6 +62,8 @@ end
 
 
 local LUA_TYPE = "a14e8dfa2cd117e2"
+-- murmur64("boot"), printed the same reversed way as LUA_TYPE.
+local BOOT_RESOURCE = "f476df93691895fa"
 local ARCHIVE = "9ba626afa44a3aa3"
 local MAX_PATCH = 512
 local GAP = 64
@@ -110,6 +116,27 @@ local function declared_name(source)
   return nil, nil
 end
 
+-- A boot script with no declaration. Loaders and file-swap installers are
+-- not mods, and this file is already running.
+local function foreign_boot(source)
+  if string.find(source, "@@ORDNANCE@@", 1, true) then return false end
+  if string.find(source, "--@@LOADER@@", 1, true) then return false end
+  local first = string.match(source, "^([^\r\n]*)") or ""
+  if string.find(first, "Chef Shared Loader", 1, true)
+    or string.find(first, "Boot Mod Loader", 1, true)
+    or string.find(first, "Rat's Shared Loader", 1, true) then
+    return false
+  end
+  if string.find(source, "HD2FM1", 1, true) and string.find(source, "shutdown = finish", 1, true) then
+    return false
+  end
+  if string.find(source, "require(\"ffi\")", 1, true) or string.find(source, "require('ffi')", 1, true) then
+    return false
+  end
+  if string.find(source, "\0", 1, true) then return false end
+  return true
+end
+
 local function declared_in(file)
   local head = file:read(0x48)
   if head == nil or #head < 0x48 or u32(head, 0) ~= 0xF0000011 then return nil end
@@ -127,9 +154,24 @@ local function declared_in(file)
         file:seek("set", at)
         local first = file:read(math.min(size, 8 + 400))
         if first ~= nil and #first > 8 and u32(first, 4) == 2 then
+          local length = u32(first, 0)
           local kind, name = declared_name(string.sub(first, 9))
           if kind ~= nil then
-            found[#found + 1] = { kind = kind, name = name, at = at + 8, size = u32(first, 0) }
+            found[#found + 1] = { kind = kind, name = name, at = at + 8, size = length }
+          elseif length ~= nil and length > 0 and length <= size - 8 and length <= 16 * 1024 * 1024
+            and hex64(rows, row) == BOOT_RESOURCE then
+            local source
+            if length <= #first - 8 then
+              source = string.sub(first, 9, 8 + length)
+            else
+              file:seek("set", at + 8)
+              source = file:read(length)
+            end
+            if source ~= nil and #source == length and foreign_boot(source) then
+              found[#found + 1] = {
+                kind = "guest", plain_boot = true, at = at + 8, size = length,
+              }
+            end
           end
         end
       end
@@ -144,7 +186,7 @@ local function discover()
     say("no game folder in package.path")
     return {}, {}, {}
   end
-  local addons, guests, options = {}, {}, {}
+  local addons, guests, options, plain = {}, {}, {}, {}
   local by_name, last_found, opened = {}, -1, 0
   for n = 0, MAX_PATCH do
     if n - last_found > GAP then break end
@@ -154,12 +196,19 @@ local function discover()
       last_found, opened = n, opened + 1
       local ok2, found = pcall(declared_in, file)
       if ok2 and type(found) == "table" then
+        local plain_n = 0
         for _, entry in ipairs(found) do
           entry.patch, entry.path = n, path
           -- Several option files share one mod name. Each one is a piece
           -- the loader merges (ledger, weapons, a range). The last copy
-          -- must not throw the rest away.
-          if entry.kind == "options" then
+          -- must not throw the rest away. A plain boot has no name to share:
+          -- two of them both start with the same stub line and both have to run.
+          if entry.plain_boot then
+            plain_n = plain_n + 1
+            entry.name = "boot patch_" .. n
+            if plain_n > 1 then entry.name = entry.name .. " #" .. plain_n end
+            plain[#plain + 1] = entry
+          elseif entry.kind == "options" then
             options[#options + 1] = entry
           else
             by_name[entry.kind .. ":" .. entry.name] = entry
@@ -173,6 +222,7 @@ local function discover()
     if entry.kind == "guest" or entry.kind == "boot" then guests[#guests + 1] = entry
     else addons[#addons + 1] = entry end
   end
+  for _, entry in ipairs(plain) do guests[#guests + 1] = entry end
   local function order(a, b)
     if a.patch ~= b.patch then return a.patch < b.patch end
     return a.name < b.name
@@ -180,8 +230,8 @@ local function discover()
   table.sort(addons, order)
   table.sort(guests, order)
   table.sort(options, order)
-  say(string.format("%s: %d patch archives, %d addons, %d boot scripts, %d option files",
-    dir, opened, #addons, #guests, #options))
+  say(string.format("%s: %d patch archives, %d addons, %d boot scripts (%d plain), %d option files",
+    dir, opened, #addons, #guests, #plain, #options))
   return addons, guests, options
 end
 
@@ -324,12 +374,19 @@ end
 -- to put something on screen. Anything else logs and returns nil.
 menu_api = (function()
   local settings, groups, group_of, rows = {}, {}, {}, {}
-  local open, selected, scroll, capture = false, 1, 0, nil
+  local open, capture = false, nil
+  -- Two panes. focus is "mods" or "opts". A category with more than many_at
+  -- options starts folded. choice remembers what was opened or closed.
+  local view = {
+    focus = "mods", mod = 1, row = 1, mod_scroll = 0, opt_scroll = 0,
+    choice = {}, keys = { until_at = {}, block = {} }, fresh = false,
+    many_at = 18, delay = 0.4, every = 0.09,
+    ptr = { left = false, right = false },
+  }
   local gui, gui_world, drawn, draw_failed = nil, nil, {}, false
   local boxes = {}
   local screen_noted = false
   local key_ids = nil
-  local mouse_was_down = false
   local held, index_of, just = {}, {}, {}
   local saved_input = nil
   local FONT = "core/performance_hud/debug"
@@ -673,35 +730,310 @@ menu_api = (function()
     return tostring(row.value)
   end
 
-  local function lines()
+  function view.fold_id(title, n)
+    local s = string.gsub(tostring(title), "[%c]", " ")
+    if #s > 72 then s = string.sub(s, 1, 72) end
+    if n > 1 then s = s .. " " .. tostring(n) end
+    return s
+  end
+
+  function view.is_shut(owner, id, many)
+    local key = owner .. "|" .. id
+    local mem = view.choice[key]
+    if mem ~= nil then return mem end
+    local saved = stored(owner, "fold." .. id, nil)
+    if type(saved) == "boolean" then
+      view.choice[key] = saved
+      return saved
+    end
+    return many
+  end
+
+  function view.set_shut(owner, id, shut, many)
+    view.choice[owner .. "|" .. id] = shut
+    if shut == many then store(owner, "fold." .. id, nil) else store(owner, "fold." .. id, shut) end
+  end
+
+  function view.set_fold(owner, title, shut)
+    local g = group_of[owner]
+    local many = g ~= nil and #g.rows > view.many_at
+    view.set_shut(owner, view.fold_id(title, 1), shut and true or false, many)
+  end
+
+  -- One mod's rows. A heading that is not a subheading folds the rows under
+  -- it, up to the next heading of that kind. Subheadings stay inside it.
+  -- Rows before the first heading stay on screen. spec.fold = false does not fold.
+  function view.options(g)
     local out = {}
-    for i = 1, #groups do
-      local g = groups[i]
-      out[#out + 1] = { kind = "title", title = g.title }
-      local sub = false
-      for j = 1, #g.rows do
-        local row = g.rows[j]
-        local heading = row.spec.heading
-        if type(heading) == "string" and heading ~= "" then
-          sub = row.spec.sub == true
-          out[#out + 1] = { kind = "heading", title = heading, sub = sub }
+    if type(g) ~= "table" then return out end
+    local many = #g.rows > view.many_at
+    local fold, sub, seen = nil, false, {}
+    for i = 1, #g.rows do
+      local row = g.rows[i]
+      local heading = row.spec.heading
+      local has = type(heading) == "string" and heading ~= ""
+      local is_sub = has and row.spec.sub == true
+      local folds = has and not is_sub and row.spec.fold ~= false
+      if folds then
+        -- The same category stamped on every row is still one category.
+        if not (fold and fold.title == heading) then
+          seen[heading] = (seen[heading] or 0) + 1
+          local id = view.fold_id(heading, seen[heading])
+          fold = {
+            kind = "fold", title = heading, id = id, owner = g.owner,
+            shut = view.is_shut(g.owner, id, many), n = 0, many = many,
+          }
+          out[#out + 1] = fold
         end
-        out[#out + 1] = { kind = "row", row = row, sub = sub }
+        sub = false
+      elseif has then
+        if not is_sub then fold = nil end
+        if not (fold and fold.shut) then
+          out[#out + 1] = { kind = "head", title = heading, sub = is_sub }
+        end
+        sub = is_sub
+      end
+      if fold then fold.n = fold.n + 1 end
+      if not (fold and fold.shut) then
+        out[#out + 1] = { kind = "row", row = row, sub = sub, fold = fold }
       end
     end
     return out
   end
 
-  local function move(dir)
-    local list = lines()
-    if #list == 0 then return end
-    local i = selected
-    for _ = 1, #list do
-      i = i + dir
-      if i < 1 then i = #list end
-      if i > #list then i = 1 end
-      if list[i].kind == "row" then selected = i return end
+  function view.layout(owner)
+    local list = view.options(group_of[owner])
+    local out = {}
+    for i = 1, #list do
+      local it = list[i]
+      if it.kind == "fold" then
+        out[#out + 1] = { kind = "fold", title = it.title, shut = it.shut, n = it.n }
+      elseif it.kind == "head" then
+        out[#out + 1] = { kind = "head", title = it.title, sub = it.sub and true or false }
+      else
+        out[#out + 1] = { kind = "row", id = it.row.id }
+      end
     end
+    return out
+  end
+
+  function view.current()
+    if #groups == 0 then return nil end
+    if view.mod < 1 or view.mod > #groups then view.mod = 1 end
+    return groups[view.mod]
+  end
+
+  function view.step_list(list, index, dir)
+    local n = #list
+    if n == 0 then return index end
+    local i = index
+    for _ = 1, n do
+      i = i + dir
+      if i < 1 then i = n end
+      if i > n then i = 1 end
+      local it = list[i]
+      if it and (it.kind == "row" or it.kind == "fold") then return i end
+    end
+    return index
+  end
+
+  function view.shift_mod(dir)
+    local n = #groups
+    if n == 0 then return end
+    view.mod = view.mod + dir
+    if view.mod < 1 then view.mod = n end
+    if view.mod > n then view.mod = 1 end
+    view.row, view.opt_scroll = 1, 0
+  end
+
+  function view.enter_opts()
+    view.focus = "opts"
+    local list = view.options(view.current())
+    view.row = view.step_list(list, 0, 1)
+    if view.row < 1 then view.row = 1 end
+    view.opt_scroll = 0
+  end
+
+  function view.key_state()
+    return { until_at = {}, block = {} }
+  end
+
+  -- "press" on the first frame, "rep" after a pause and then on a short
+  -- interval, false while it is early or blocked. Real time, so a slow
+  -- frame does not turn one press into a run. Letting go clears a block.
+  function view.key_fire(state, cmd, down, now)
+    if not down then
+      state.until_at[cmd] = nil
+      state.block[cmd] = nil
+      return false
+    end
+    if state.block[cmd] then return false end
+    local due = state.until_at[cmd]
+    if due == nil then
+      state.until_at[cmd] = now + view.delay
+      return "press"
+    end
+    if now >= due - 1e-6 then
+      state.until_at[cmd] = now + view.every
+      return "rep"
+    end
+    return false
+  end
+
+  function view.key_block(state, cmd)
+    state.block[cmd] = true
+    state.until_at[cmd] = math.huge
+  end
+
+  function view.should_nudge(ty, nchoices, kind)
+    if kind ~= "press" and kind ~= "rep" then return false end
+    if kind == "rep" and (ty == "toggle" or nchoices == 2) then return false end
+    return ty == "toggle" or ty == "choice" or ty == "slider" or ty == "color"
+  end
+
+  function view.to_mods()
+    view.focus = "mods"
+  end
+
+  function view.screen(S)
+    local Gui = S and S.Gui
+    if type(Gui) == "table" and type(Gui.resolution) == "function" then
+      local ok, rw, rh = pcall(Gui.resolution)
+      if ok and type(rw) == "number" and type(rh) == "number" and rw > 200 and rh > 200 then return rw, rh end
+    end
+    local A = S and S.Application
+    if type(A) == "table" and type(A.back_buffer_size) == "function" then
+      local ok, bw, bh = pcall(A.back_buffer_size)
+      if ok and type(bw) == "number" and type(bh) == "number" and bw > 200 and bh > 200 then return bw, bh end
+    end
+    return 1920, 1080
+  end
+
+  function view.axis_xy(S, name)
+    local M = S and S.Mouse
+    if type(M) ~= "table" or type(M.axis_index) ~= "function" or type(M.axis) ~= "function" then return nil end
+    local ok, ix = pcall(M.axis_index, name)
+    if not ok or ix == nil or type(S.Vector3) ~= "table" or type(S.Vector3.to_elements) ~= "function" then return nil end
+    local ok2, v = pcall(M.axis, ix)
+    if not ok2 or v == nil then return nil end
+    local ok3, x, y = pcall(S.Vector3.to_elements, v)
+    if ok3 and type(x) == "number" and type(y) == "number" then return x, y end
+    return nil
+  end
+
+  function view.button_down(S, name)
+    local M = S and S.Mouse
+    if type(M) ~= "table" or type(M.button_index) ~= "function" or type(M.button) ~= "function" then return false end
+    local ok, ix = pcall(M.button_index, name)
+    if not ok or ix == nil then return false end
+    local ok2, v = pcall(M.button, ix)
+    return ok2 and ((type(v) == "number" and v > 0.5) or v == true)
+  end
+
+  -- Holding the look axis still is what stops the camera. A mod that already
+  -- held it (the dead zone is already huge) is left alone.
+  function view.grab(S, on)
+    local p = view.ptr
+    local M = S and S.Mouse
+    if type(M) ~= "table" or type(M.set_dead_zone) ~= "function" or type(M.dead_zone) ~= "function" then return end
+    if not on then
+      local saved = p.held
+      p.held = nil
+      if saved then pcall(M.set_dead_zone, saved.ix, saved.mode, saved.size) end
+      return
+    end
+    if p.held or p.nocur then return end
+    local ok, ix = pcall(M.axis_index, "mouse")
+    if not ok or ix == nil then return end
+    local ok2, mode, size = pcall(M.dead_zone, ix)
+    if not ok2 or type(size) ~= "number" then return end
+    if size >= 100000 then p.borrowed = true return end
+    if pcall(M.set_dead_zone, ix, 1, 917351) then p.held = { ix = ix, mode = mode, size = size } end
+  end
+
+  function view.cursor_shown(S)
+    local W = S and S.Window
+    if type(W) ~= "table" or type(W.get_main_window) ~= "function" or type(W.show_cursor) ~= "function" then return false end
+    local ok, win = pcall(W.get_main_window)
+    if not ok or win == nil then return false end
+    local ok2, shown = pcall(W.show_cursor, win)
+    return ok2 and shown == true
+  end
+
+  function view.cursor_abs(S, w, h)
+    local x, y = view.axis_xy(S, "cursor")
+    if not x then return nil end
+    local rw, rh = w, h
+    local A = S.Application
+    if type(A) == "table" and type(A.resolution) == "function" then
+      local ok, a, b = pcall(A.resolution)
+      if ok and type(a) == "number" and type(b) == "number" and a > 0 and b > 0 then rw, rh = a, b end
+    end
+    if x < 0 or y < 0 or x > rw or y > rh then return nil end
+    return x * w / rw, y * h / rh
+  end
+
+  -- Our own cursor. The game hides its cursor and recenters it, so a frame
+  -- that lands in the middle, or jumps more than a third of the screen, is
+  -- the recenter and does not move. The look axis is the fallback.
+  function view.track(S, w, h)
+    local p = view.ptr
+    if not p.x then p.x, p.y = w * 0.5, h * 0.5 end
+    local shown = view.cursor_shown(S)
+    local moved = false
+    if shown then
+      view.grab(S, false)
+      local x, y = view.cursor_abs(S, w, h)
+      if x then p.x, p.y, moved = x, y, true end
+      p.lx, p.ly = nil, nil
+    else
+      if not p.nocur then view.grab(S, true) end
+      local x, y = view.cursor_abs(S, w, h)
+      if x then
+        p.bad, p.ever = 0, true
+        local px, py = p.lx, p.ly
+        p.lx, p.ly = x, y
+        if px then
+          local dx, dy = x - px, y - py
+          local mid = math.abs(x - w / 2) <= 3 and math.abs(y - h / 2) <= 3
+          local jump = math.abs(dx) > w / 3 or math.abs(dy) > h / 3
+          if (dx ~= 0 or dy ~= 0) and not mid and not jump then
+            moved = true
+            p.x = math.max(0, math.min(w - 1, p.x + dx))
+            p.y = math.max(0, math.min(h - 1, p.y + dy))
+          end
+        end
+      else
+        p.bad = (p.bad or 0) + 1
+        if p.bad >= 10 then
+          view.grab(S, false)
+          p.nocur, p.bad = true, 0
+        end
+      end
+      if not moved then
+        local dx, dy = view.axis_xy(S, "mouse")
+        if dx and (dx ~= 0 or dy ~= 0) then
+          local k = h / 1080
+          p.x = math.max(0, math.min(w - 1, p.x + dx * k))
+          p.y = math.max(0, math.min(h - 1, p.y - dy * k))
+        end
+      end
+    end
+    local l, r = view.button_down(S, "left"), view.button_down(S, "right")
+    local click, rclick = l and not p.left, r and not p.right
+    p.left, p.right = l, r
+    local _, wy = view.axis_xy(S, "wheel")
+    return click, rclick, type(wy) == "number" and wy or 0
+  end
+
+  function view.under_box()
+    local x, y = view.ptr.x, view.ptr.y
+    if not x or not y then return nil end
+    for i = #boxes, 1, -1 do
+      local b = boxes[i]
+      if x >= b.x and x <= b.x + b.w and y >= b.y and y <= b.y + b.h then return b end
+    end
+    return nil
   end
 
   local function nudge(row, dir)
@@ -807,30 +1139,6 @@ menu_api = (function()
     end
   end
 
-  local function cursor_xy(S)
-    local M = S and S.Mouse
-    if type(M) ~= "table" or type(M.axis_index) ~= "function" or type(M.axis) ~= "function" then return nil end
-    local ok, idx = pcall(M.axis_index, "cursor")
-    if not ok or idx == nil then return nil end
-    local ok2, v = pcall(M.axis, idx)
-    if not ok2 or v == nil or type(S.Vector3) ~= "table" or type(S.Vector3.to_elements) ~= "function" then return nil end
-    local ok3, x, y = pcall(S.Vector3.to_elements, v)
-    if ok3 and type(x) == "number" and type(y) == "number" then return x, y end
-    return nil
-  end
-
-  local function mouse_click(S)
-    local M = S and S.Mouse
-    if type(M) ~= "table" or type(M.button_index) ~= "function" or type(M.button) ~= "function" then return false end
-    local ok, idx = pcall(M.button_index, "left")
-    if not ok or idx == nil then return false end
-    local ok2, v = pcall(M.button, idx)
-    local down = ok2 and ((type(v) == "number" and v > 0.5) or v == true)
-    local click = down and not mouse_was_down
-    mouse_was_down = down and true or false
-    return click
-  end
-
   local function combo_from(keyname)
     local mods = {}
     if mod_down("ctrl") then mods[#mods + 1] = "ctrl" end
@@ -841,7 +1149,6 @@ menu_api = (function()
   end
 
   local menu_frame = 0
-  local nav_held = {}
   local runtime
   local menu_was = false
   local function update(dt)
@@ -871,20 +1178,18 @@ menu_api = (function()
     if binding_down(menu_key(), true) then
       open = not open
       if open then
-        local list = lines()
-        if not (list[selected] and list[selected].kind == "row") then
-          for i = 1, #list do
-            if list[i].kind == "row" then selected = i break end
-          end
-        end
+        view.fresh = true
+        if view.mod < 1 or view.mod > #groups then view.mod = 1 end
       else
         capture = nil
-        nav_held = {}
+        view.keys = view.key_state()
+        view.grab(stingray(), false)
       end
       suppress(open)
       return
     end
     if not open then
+      if view.ptr.held then view.grab(stingray(), false) end
       -- Keep the keys until the one that closed the menu is up, then throw
       -- away anything the chat box would type (Enter becomes a newline).
       local still = false
@@ -893,44 +1198,146 @@ menu_api = (function()
       if not still then suppress(false) end
       return
     end
-    local list = lines()
-    if selected > #list then selected = #list end
-    if selected < 1 then selected = 1 end
-    local row = list[selected] and list[selected].row
-    -- One command per press. The engine names an arrow both "down" and
-    -- "down arrow", and acting on both jumped a row, which is the first row
-    -- of the next section.
-    local down, cmds = {}, {}
-    for name in pairs(just) do down[name] = true end
-    for _, name in ipairs(pressed_names()) do down[name] = true end
-    for name in pairs(down) do
-      if not nav_held[name] then
-        local cmd = command_for(name)
-        if cmd then cmds[cmd] = true end
+    -- Both names of one arrow ("down" and "down arrow") are one command.
+    -- A hold repeats after a pause. A hold that opened a mod or a category
+    -- does nothing more until the key is let go.
+    local down = {}
+    local function note(name)
+      local cmd = command_for(name)
+      if cmd then down[cmd] = true end
+    end
+    for name in pairs(just) do note(name) end
+    local pressed = pressed_names()
+    for i = 1, #pressed do note(pressed[i]) end
+    if view.fresh then
+      view.fresh = false
+      for cmd in pairs(down) do view.key_block(view.keys, cmd) end
+    end
+    local now = os.clock()
+    if type(now) ~= "number" then now = menu_frame * 0.016 end
+    local function fired(cmd)
+      return view.key_fire(view.keys, cmd, down[cmd] == true, now)
+    end
+    local up, dn = fired("up"), fired("down")
+    local left, right = fired("left"), fired("right")
+    local back = fired("back")
+    local function moving(ev) return ev == "press" or ev == "rep" end
+    if fired("close") == "press" then
+      if view.focus == "opts" then
+        view.to_mods()
+        view.key_block(view.keys, "close")
+      else
+        open, capture = false, nil
+        view.keys = view.key_state()
+        view.fresh = true
+        view.grab(stingray(), false)
       end
     end
-    nav_held = down
-    if cmds.up then move(-1) end
-    if cmds.down then move(1) end
-    -- Enter is the game's chat key. Nothing in Lua can swallow that press,
-    -- so a key row rebinds with Right and Enter does not activate a row.
-    if cmds.left and row and row.spec.type ~= "key" and row.spec.type ~= "button" then nudge(row, -1) end
-    if cmds.right and row then
-      if row.spec.type == "key" or row.spec.type == "button" then activate(row) else nudge(row, 1) end
-    end
-    if cmds.close then open, capture, nav_held = false, nil, {} end
-    if cmds.back and row and row.spec.type == "key" and not row.spec.menu then set_value(row, "off", true) end
-    local S = stingray()
-    if S and mouse_click(S) then
-      local x, y = cursor_xy(S)
-      if x and y then
-        for i = 1, #boxes do
-          local b = boxes[i]
-          if x >= b.x and x <= b.x + b.w and y >= b.y and y <= b.y + b.h then
-            selected = b.index
-            activate(b.row)
-            break
+    if open and view.focus == "mods" then
+      if moving(up) and not moving(dn) then view.shift_mod(-1)
+      elseif moving(dn) and not moving(up) then view.shift_mod(1) end
+      if right == "press" then
+        view.enter_opts()
+        view.key_block(view.keys, "right")
+      end
+    elseif open then
+      local list = view.options(view.current())
+      if view.row > #list then view.row = #list end
+      if view.row < 1 then view.row = 1 end
+      local it = list[view.row]
+      if it and it.kind == "head" then
+        view.row = view.step_list(list, view.row, 1)
+        it = list[view.row]
+      end
+      if it and it.kind == "fold" then
+        if right == "press" and it.shut then
+          view.set_shut(it.owner, it.id, false, it.many)
+          view.key_block(view.keys, "right")
+        elseif right == "press" then
+          view.row = view.step_list(list, view.row, 1)
+          view.key_block(view.keys, "right")
+        elseif left == "press" and not it.shut then
+          view.set_shut(it.owner, it.id, true, it.many)
+          view.key_block(view.keys, "left")
+        elseif left == "press" then
+          view.focus = "mods"
+          view.key_block(view.keys, "left")
+        end
+      elseif it and it.kind == "row" then
+        local ty = it.row.spec.type
+        if left == "press" and (ty == "key" or ty == "button") then
+          if it.fold then
+            for j = view.row, 1, -1 do
+              if list[j] == it.fold then view.row = j break end
+            end
+            view.set_shut(it.fold.owner, it.fold.id, true, it.fold.many)
+          else
+            view.focus = "mods"
           end
+          view.key_block(view.keys, "left")
+        elseif right == "press" and (ty == "key" or ty == "button") then
+          activate(it.row)
+          if ty == "button" then view.key_block(view.keys, "right") end
+        else
+          local dir, kind = 0, false
+          if right == "press" or right == "rep" then dir, kind = 1, right
+          elseif left == "press" or left == "rep" then dir, kind = -1, left end
+          local nchoices = ty == "choice" and #it.row.spec.choices or 0
+          if view.should_nudge(ty, nchoices, kind) then nudge(it.row, dir) end
+        end
+      end
+      if back == "press" then
+        if it and it.kind == "row" and it.row.spec.type == "key" and not it.row.spec.menu then
+          set_value(it.row, "off", true)
+        else
+          view.to_mods()
+        end
+      end
+      if view.focus == "opts" then
+        list = view.options(view.current())
+        if moving(up) and not moving(dn) then view.row = view.step_list(list, view.row, -1)
+        elseif moving(dn) and not moving(up) then view.row = view.step_list(list, view.row, 1) end
+      end
+    end
+    local S = stingray()
+    if open and S then
+      local w, h = view.screen(S)
+      local click, rclick, wheel = view.track(S, w, h)
+      if rclick then view.to_mods() end
+      if not rclick and math.abs(wheel) >= 0.25 then
+        local dir = wheel > 0 and -1 or 1
+        local steps = math.floor(math.abs(wheel) + 0.5)
+        if steps < 1 then steps = 1 elseif steps > 4 then steps = 4 end
+        local b = view.under_box()
+        local pane = b and b.pane or view.focus
+        if pane == "mods" then
+          view.to_mods()
+          for _ = 1, steps do view.shift_mod(dir) end
+        else
+          view.focus = "opts"
+          local list = view.options(view.current())
+          for _ = 1, steps do view.row = view.step_list(list, view.row, dir) end
+        end
+      end
+      if click and not rclick then
+        local b = view.under_box()
+        if b and b.pane == "mods" and b.index >= 1 and b.index <= #groups then
+          view.mod = b.index
+          view.to_mods()
+        elseif b and b.pane == "opts" and b.kind == "fold" then
+          view.focus = "opts"
+          view.set_shut(b.owner, b.id, not b.shut, b.many)
+          local list = view.options(view.current())
+          for j = 1, #list do
+            if list[j].kind == "fold" and list[j].id == b.id then view.row = j break end
+          end
+        elseif b and b.pane == "opts" and b.kind == "row" and b.row then
+          view.focus = "opts"
+          local list = view.options(view.current())
+          for j = 1, #list do
+            if list[j].kind == "row" and list[j].row == b.row then view.row = j break end
+          end
+          if b.row.spec.type ~= "slider" then activate(b.row) end
         end
       end
     end
@@ -967,6 +1374,7 @@ menu_api = (function()
     -- This is the options menu's own GUI. A copy left allocated hangs the
     -- renderer on quit, so it goes while the world is still here. Mods' GUIs
     -- are not this one and are left for the game.
+    view.grab(stingray(), false)
     drop_gui()
     if runtime then runtime.drive("shutdown") end
     open, capture = false, nil
@@ -1031,31 +1439,30 @@ menu_api = (function()
       flush()
     end
     local scale = math.min(w / 1920, h / 1080)
-    if scale < 0.75 then scale = 0.75 end
-    local list = lines()
-    local window = 16
-    if selected < scroll + 1 then scroll = selected - 1 end
-    if selected > scroll + window then scroll = selected - window end
-    if scroll < 0 then scroll = 0 end
-    local shown = math.min(window, math.max(0, #list - scroll))
-    local row_h = math.max(32, math.floor(34 * scale))
-    local hint = nil
-    local picked = list[selected]
-    if picked and picked.kind == "row" and type(picked.row.spec.hint) == "string" and picked.row.spec.hint ~= "" then
-      hint = picked.row.spec.hint
-      if #hint > 90 then hint = string.sub(hint, 1, 87) .. "..." end
-    end
-    local panel_w = math.min(w - 80, math.max(640, math.floor(860 * scale)))
-    local panel_h = row_h + shown * row_h + (hint and row_h or 0) + math.floor(16 * scale)
-    local x = math.floor((w - panel_w) / 2)
-    local bottom = math.floor((h - panel_h) / 2)
-    local top = bottom + panel_h
+    if scale < 0.85 then scale = 0.85 end
+    if scale > 1.1 then scale = 1.1 end
+    local row_h = math.max(24, math.floor(28 * scale))
+    local gap = math.floor(10 * scale)
+    -- The game keeps drawing over the top and the left: the ship's name, and
+    -- the pause menu's tabs once Esc has shown its cursor. Our box starts
+    -- below and to the right of that, and it does not cover the whole screen.
+    local game_menu = view.cursor_shown(S)
+    local inset_l = math.floor((game_menu and 250 or 110) * scale)
+    local inset_r = math.floor(48 * scale)
+    local inset_t = math.floor((game_menu and 228 or 140) * scale)
+    local inset_b = math.floor(112 * scale)
+    local box_w = w - inset_l - inset_r
+    local cap_w = math.floor(w * 0.72)
+    if box_w > cap_w then box_w = cap_w end
+    local margin = w - inset_r - box_w
     local bg = color(S, 210, 12, 14, 16)
     local fg = color(S, 255, 236, 232, 214)
     local dim = color(S, 255, 160, 156, 140)
     local hi = color(S, 255, 255, 196, 64)
+    local edge = color(S, 90, 255, 196, 64)
+    local fill = color(S, 46, 255, 196, 64)
     local function rect(px, py, pw, ph, c, layer)
-      if c == nil then return end
+      if c == nil or pw <= 0 or ph <= 0 then return end
       local ok, id = pcall(S.Gui.rect, gui, S.Vector3(px, py, layer), S.Vector2(pw, ph), c)
       if ok and id ~= nil then drawn[#drawn + 1] = { "destroy_rect", id } end
     end
@@ -1064,27 +1471,156 @@ menu_api = (function()
       local ok, id = pcall(S.Gui.text, gui, tostring(str), FONT, size, FONT, S.Vector3(px, py, 50), c)
       if ok and id ~= nil then drawn[#drawn + 1] = { "destroy_text", id } end
     end
+    local function fit(str, size, room)
+      str = tostring(str)
+      local maxc = math.max(4, math.floor(room / math.max(7, size * 0.55)))
+      if #str <= maxc then return str end
+      if maxc < 4 then return string.sub(str, 1, maxc) end
+      return string.sub(str, 1, maxc - 2) .. ".."
+    end
+    local function follow(scroll, index, n, visible)
+      if index < scroll + 1 then scroll = index - 1 end
+      if index > scroll + visible then scroll = index - visible end
+      if scroll < 0 then scroll = 0 end
+      local maxs = math.max(0, n - visible)
+      if scroll > maxs then scroll = maxs end
+      return scroll
+    end
+    local head_h = row_h + math.floor(6 * scale)
+    local foot_h = row_h
+    local top = h - inset_t
+    local bottom = inset_b
+    local pane_top = top - head_h
+    local pane_bottom = bottom + foot_h + math.floor(6 * scale)
+    local pane_h = math.max(row_h * 4, pane_top - pane_bottom)
+    local inner = box_w
+    local left_w = math.floor(inner * 0.30)
+    if left_w < math.floor(200 * scale) then left_w = math.floor(200 * scale) end
+    if left_w > inner - math.floor(280 * scale) then left_w = math.floor(inner * 0.34) end
+    local right_x = margin + left_w + gap
+    local right_w = margin + box_w - right_x
+    local title_h = row_h
+    local visible = math.max(3, math.floor((pane_h - title_h - math.floor(8 * scale)) / row_h))
+    local g = view.current()
+    local opts = view.options(g)
+    if #opts == 0 then view.row = 1
+    elseif view.row > #opts then view.row = #opts
+    elseif view.row < 1 then view.row = 1 end
+    if view.focus == "mods" then view.opt_scroll = 0 end
+    view.mod_scroll = follow(view.mod_scroll, view.mod, #groups, visible)
+    view.opt_scroll = follow(view.opt_scroll, view.row, #opts, visible)
+    local size = math.floor(15 * scale)
+    local function keys_line()
+      if view.focus == "mods" then return "Right opens. Click a setting to edit it. Wheel scrolls." end
+      local it = opts[view.row]
+      if it and it.kind == "fold" then
+        if it.shut then return "Right opens this category. Esc or right-click goes back to the mods." end
+        return "Left folds this category. Esc or right-click goes back to the mods."
+      end
+      if it and it.kind == "row" then
+        local ty = it.row.spec.type
+        if ty == "key" then return "Right rebinds. Backspace clears it. Esc goes back to the mods." end
+        if ty == "button" then return "Right runs it. Esc or right-click goes back to the mods." end
+        return "Left and right change it. Esc or right-click goes back to the mods."
+      end
+      return "Esc or right-click goes back to the mods."
+    end
+    local hint = nil
+    local picked = view.focus == "opts" and opts[view.row]
+    if picked and picked.kind == "row" and type(picked.row.spec.hint) == "string" and picked.row.spec.hint ~= "" then
+      hint = picked.row.spec.hint
+      if #hint > 110 then hint = string.sub(hint, 1, 107) .. "..." end
+    end
     boxes = {}
-    rect(x, bottom, panel_w, panel_h, bg, 40)
-    text("Ordnance    " .. string.upper(menu_key()) .. " closes    click or arrows    right rebinds", x + 16 * scale, top - row_h, math.floor(18 * scale), fg)
-    for i = 1, shown do
-      local item = list[scroll + i]
-      local y = top - row_h - i * row_h
-      if item.kind == "title" or item.kind == "heading" then
-        local indent = (item.sub and 36 or 20) * scale
-        local size = math.floor((item.sub and 16 or 18) * scale)
-        text(item.title, x + indent, y, size, item.kind == "title" and hi or dim)
+    local veil = color(S, 150, 8, 10, 12)
+    rect(margin - math.floor(8 * scale), bottom - math.floor(4 * scale), box_w + math.floor(16 * scale), top - bottom + math.floor(8 * scale), veil, 30)
+    text("Ordnance", margin, top - row_h, size, hi)
+    local close_s = string.upper(menu_key()) .. " closes"
+    text(close_s, margin + box_w - #close_s * size * 0.55, top - row_h, size, fg)
+    rect(margin, pane_bottom, left_w, pane_h, bg, 40)
+    rect(right_x, pane_bottom, right_w, pane_h, bg, 40)
+    local function pane_title(px, pw, title, note)
+      text(fit(title, size, pw * 0.62), px + 12 * scale, pane_top - row_h, size, hi)
+      if note then text(note, px + pw - 12 * scale - #note * size * 0.55, pane_top - row_h, size, dim) end
+      rect(px + 8 * scale, pane_top - row_h - 4 * scale, pw - 16 * scale, math.max(1, math.floor(scale)), edge, 42)
+    end
+    pane_title(margin, left_w, "Mods", tostring(#groups))
+    pane_title(right_x, right_w, g and g.title or "Options", view.focus == "mods" and "Right opens" or "Esc back")
+    local function track(px, pw, scroll, n)
+      if n <= visible then return end
+      local track_h = visible * row_h
+      local track_y = pane_top - title_h - math.floor(8 * scale) - track_h
+      local thumb = math.max(row_h * 0.5, track_h * visible / n)
+      local travel = math.max(0, track_h - thumb)
+      local t = scroll / math.max(1, n - visible)
+      rect(px + pw - math.floor(8 * scale), track_y, math.max(3, math.floor(3 * scale)), track_h, color(S, 50, 255, 196, 64), 42)
+      rect(px + pw - math.floor(8 * scale), track_y + travel * (1 - t), math.max(3, math.floor(3 * scale)), thumb, hi, 43)
+    end
+    local function row_y(i)
+      return pane_top - title_h - math.floor(8 * scale) - i * row_h
+    end
+    local function over_row(x, y, rw, rh)
+      local px, py = view.ptr.x, view.ptr.y
+      return px ~= nil and px >= x and px <= x + rw and py >= y and py <= y + rh
+    end
+    local hover = color(S, 28, 255, 196, 64)
+    local mod_from = view.mod_scroll
+    for i = 1, math.min(visible, math.max(0, #groups - mod_from)) do
+      local index = mod_from + i
+      local mg = groups[index]
+      local y = row_y(i)
+      local on = index == view.mod
+      local hot = over_row(margin, y - 4, left_w, row_h)
+      if on and view.focus == "mods" then rect(margin + 6, y - 4, left_w - 14, row_h, fill, 41)
+      elseif hot then rect(margin + 6, y - 4, left_w - 14, row_h, hover, 41) end
+      if on then rect(margin + 4, y - 4, math.max(3, math.floor(4 * scale)), row_h, hi, 43) end
+      local name_c = on and hi or fg
+      text(fit(mg.title, size, left_w - 28 * scale), margin + 16 * scale, y, size, name_c)
+      boxes[#boxes + 1] = { x = margin, y = y - 4, w = left_w, h = row_h, pane = "mods", index = index }
+    end
+    track(margin, left_w, view.mod_scroll, #groups)
+    local opt_from = view.opt_scroll
+    local value_x = right_x + math.floor(right_w * 0.58)
+    for i = 1, math.min(visible, math.max(0, #opts - opt_from)) do
+      local index = opt_from + i
+      local item = opts[index]
+      local y = row_y(i)
+      local on = view.focus == "opts" and index == view.row
+      local hot = item.kind ~= "head" and over_row(right_x, y - 4, right_w, row_h)
+      if on and item.kind ~= "head" then rect(right_x + 6, y - 4, right_w - 16, row_h, fill, 41)
+      elseif hot then rect(right_x + 6, y - 4, right_w - 16, row_h, hover, 41) end
+      if item.kind == "fold" then
+        local mark = item.shut and "+" or "-"
+        local label = mark .. "  " .. item.title
+        if item.shut then label = label .. "  (" .. tostring(item.n) .. ")" end
+        text(fit(label, size, right_w - 36 * scale), right_x + 16 * scale, y, size, on and hi or fg)
+        boxes[#boxes + 1] = {
+          x = right_x, y = y - 4, w = right_w, h = row_h, pane = "opts", kind = "fold",
+          index = index, owner = item.owner, id = item.id, shut = item.shut, many = item.many,
+        }
+      elseif item.kind == "head" then
+        local indent = (item.sub and 40 or 24) * scale
+        text(fit(item.title, math.floor(size * 0.9), right_w - indent - 20 * scale), right_x + indent, y, math.floor(size * 0.9), dim)
       else
-        local mark = (scroll + i == selected) and "> " or "  "
+        local indent = (item.sub and 48 or 28) * scale
         local label = item.row.spec.label or item.row.id
-        local indent = (item.sub and 36 or 20) * scale
-        if scroll + i == selected then rect(x + 8, y - 4, panel_w - 16, row_h, color(S, 50, 255, 196, 64), 41) end
-        text(mark .. label, x + indent, y, math.floor(18 * scale), fg)
-        text(show(item.row), x + panel_w - 220 * scale, y, math.floor(18 * scale), dim)
-        boxes[#boxes + 1] = { x = x, y = y - 4, w = panel_w, h = row_h, index = scroll + i, row = item.row }
+        text(fit(label, size, value_x - right_x - indent - 8), right_x + indent, y, size, fg)
+        text(fit(show(item.row), size, right_x + right_w - value_x - 16 * scale), value_x, y, size, dim)
+        boxes[#boxes + 1] = {
+          x = right_x, y = y - 4, w = right_w, h = row_h, pane = "opts", kind = "row",
+          index = index, row = item.row,
+        }
       end
     end
-    if hint then text(hint, x + 16 * scale, bottom + 8 * scale, math.floor(16 * scale), dim) end
+    track(right_x, right_w, view.opt_scroll, #opts)
+    local foot = hint or keys_line()
+    text(fit(foot, math.floor(14 * scale), box_w), margin, bottom + 4 * scale, math.floor(14 * scale), dim)
+    local px, py = view.ptr.x, view.ptr.y
+    if px and py then
+      local s = math.max(7, math.floor(9 * scale))
+      rect(px - 1, py - s, 2, s * 2, hi, 60)
+      rect(px - s, py - 1, s * 2, 2, hi, 60)
+    end
   end
 
   -- World, unit watch, and screen drawing for a mod that used to ask Chef.
@@ -3180,7 +3716,7 @@ menu_api = (function()
 
   local function chef_for(owner)
     local chef = {
-      version = "ordnance-loader-1", api = 1, loader = "ordnance", loader_version = "0.4.6",
+      version = "ordnance-loader-1", api = 1, loader = "ordnance", loader_version = "0.4.7b",
       options = option_sets[owner] or {},
     }
     local caps = {
@@ -3556,6 +4092,15 @@ menu_api = (function()
 
   local function blocking() return open or capture ~= nil end
 
+  if rawget(_G, "ORDNANCE_MENU_TEST") == true then
+    rawset(_G, "ORDNANCE_MENU", {
+      chef_for = chef_for,
+      layout = function(owner) return view.layout(owner) end,
+      set_fold = function(owner, title, shut) view.set_fold(owner, title, shut) end,
+      key_state = view.key_state, key_fire = view.key_fire, key_block = view.key_block,
+      should_nudge = view.should_nudge,
+    })
+  end
   return { chef_for = chef_for, adopt = runtime.adopt, update = update, render = render, use_options = use_options, describe = describe, release = release, blocking = blocking, emit = function(event, ...) if runtime and runtime.emit then runtime.emit(event, ...) end end }
 end)()
 

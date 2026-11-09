@@ -23,6 +23,7 @@
     import { buildProfileShare, planProfileImport, uniqueProfileName } from "$lib/utils/profileShare";
     import { readProfileShare, writeProfileShare } from "$lib/utils/commands";
     import { fitConfig } from "$lib/utils/profileEntries";
+    import { categoryColor, inkOn } from "$lib/utils/categoryGroups";
     import type { Config } from "$lib/models/profile";
 
     const { t } = useLocalization();
@@ -52,6 +53,15 @@
         ));
         if (!name) return;
         profilesStore.add(name);
+        await profilesStore.save();
+    }
+
+    async function onSetProfileColor(index: number, color: string) {
+        const next = color.trim();
+        if (!/^#[0-9a-fA-F]{6}$/.test(next)) return;
+        const current = profilesStore.profiles[index]?.Color ?? "";
+        if (current.toLowerCase() === next.toLowerCase()) return;
+        profilesStore.setColor(index, next);
         await profilesStore.save();
     }
 
@@ -204,27 +214,46 @@
 
         <div class="flex-1 overflow-y-auto flex flex-col gap-0.5">
             {#each profilesStore.profiles as profile, i (i)}
+                {@const color = categoryColor(profile.Color, i)}
+                {@const nameColor = inkOn(color) === "#18181b" ? color : "#e4e4e7"}
                 <div
                     class="group flex flex-row items-center gap-1 px-1 py-1 rounded-md cursor-pointer transition border border-transparent
                         {i === profilesStore.activeProfile
-                        ? 'bg-zinc-800 border-amber-400/40'
+                        ? 'bg-zinc-800'
                         : 'hover:bg-zinc-800'}"
+                    style="box-shadow: inset 3px 0 0 {color};{i === profilesStore.activeProfile ? ` background-color: color-mix(in srgb, ${color} 18%, #27272a);` : ''}"
                     role="button"
                     tabindex="0"
                     onclick={() => onSwitchProfile(i)}
                     onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") onSwitchProfile(i); }}
                 >
                     <span
-                        class="w-7 h-7 rounded-md bg-amber-400 text-zinc-900 text-xs font-bold flex items-center justify-center shrink-0"
+                        class="w-7 h-7 rounded-md text-xs font-bold flex items-center justify-center shrink-0"
+                        style="background-color: {color}; color: {inkOn(color)}"
                     >
                         {initials(profile.Name)}
                     </span>
-                    <span
-                        class="flex-1 truncate text-sm
-                            {i === profilesStore.activeProfile ? 'text-yellow-300' : 'text-zinc-300'}"
-                    >
+                    <span class="flex-1 truncate text-sm" style:color={nameColor}>
                         {profile.Name}
                     </span>
+                    <label
+                        class="relative w-4 h-4 rounded-sm border border-zinc-600 shrink-0 cursor-pointer
+                            {i === profilesStore.activeProfile ? '' : 'opacity-0 group-hover:opacity-100'}"
+                        style="background-color: {color}"
+                        title={t("sidebar.profiles.color.tip")}
+                    >
+                        <input
+                            type="color"
+                            class="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                            value={color}
+                            aria-label={t("sidebar.profiles.color.tip")}
+                            onclick={(e) => e.stopPropagation()}
+                            onchange={(e) => {
+                                const input = e.currentTarget as HTMLInputElement;
+                                onSetProfileColor(i, input.value);
+                            }}
+                        />
+                    </label>
                     <button
                         class="w-6 h-6 p-1 rounded-md text-zinc-500 hover:text-yellow-300 hover:bg-zinc-700 transition
                             {i === profilesStore.activeProfile ? '' : 'opacity-0 group-hover:opacity-100'}"

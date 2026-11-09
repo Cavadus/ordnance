@@ -102,6 +102,35 @@ pub async fn delete_category(state: State<'_, AppState>, guid: String) -> TAResu
     .into_ta_result()
 }
 
+fn is_hex_color(color: &str) -> bool {
+    let bytes = color.as_bytes();
+    bytes.len() == 7
+        && bytes[0] == b'#'
+        && bytes[1..].iter().all(|b| b.is_ascii_hexdigit())
+}
+
+/// Set a category's color (`#rrggbb`).
+#[tauri::command]
+pub async fn set_category_color(
+    state: State<'_, AppState>,
+    guid: String,
+    color: String,
+) -> TAResult<Categories> {
+    let _data_op = state.data_op().into_ta_result()?;
+    let guid = Uuid::parse_str(&guid)
+        .map_err(|_| anyhow::anyhow!("{guid:?} isn't a valid category GUID"))?;
+    update_categories(&state.base_path, move |categories| {
+        anyhow::ensure!(is_hex_color(&color), "A category color has to look like #eab308.");
+        anyhow::ensure!(
+            categories.set_color(guid, color).is_some(),
+            "No category with that GUID exists."
+        );
+        Ok(())
+    })
+    .await
+    .into_ta_result()
+}
+
 /// Assign a mod to a category (`category_guid = None` clears it).
 /// `mod_guid` is the mod's manifest GUID string.
 #[tauri::command]

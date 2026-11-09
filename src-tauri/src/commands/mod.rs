@@ -721,6 +721,8 @@ fn fold_boot_scripts(
         let text = boot_source(&path).unwrap_or_default();
         let declaration = is_declared_addon(&text);
         if !declaration && !boot_deploy::is_text_boot_script(&path) {
+            // More than one resource, so it is not concatenated into the
+            // boot. The loader starts a plain boot script in it at launch.
             rest.push(triplet);
             continue;
         }
@@ -1427,6 +1429,8 @@ mod tests {
             directory: dir.path().to_path_buf(),
             sources: Vec::new(),
             display_name: None,
+            installed_at: None,
+            updated_at: None,
         };
         (dir, r#mod)
     }
@@ -1452,6 +1456,8 @@ mod tests {
             directory: dir.path().to_path_buf(),
             sources: Vec::new(),
             display_name: None,
+            installed_at: None,
+            updated_at: None,
         };
         let config = Config::Legacy { guid: Uuid::nil(), enabled: true, selected: 0 };
 
@@ -1474,6 +1480,8 @@ mod tests {
             directory: dir.path().to_path_buf(),
             sources: Vec::new(),
             display_name: None,
+            installed_at: None,
+            updated_at: None,
         };
         let config = Config::Legacy { guid: Uuid::nil(), enabled: true, selected: 0 };
 
@@ -1534,7 +1542,7 @@ mod tests {
             "sub_options_v1.json",
         )
         .unwrap();
-        let r#mod = Mod { manifest, directory: dir.path().to_path_buf(), sources: Vec::new() , display_name: None};
+        let r#mod = Mod { manifest, directory: dir.path().to_path_buf(), sources: Vec::new(), display_name: None, installed_at: None, updated_at: None };
         let guid = r#mod.guid();
 
         // A profile saved by the popup: Half sway for core, no sway for primaries.
@@ -1594,6 +1602,8 @@ mod tests {
             directory: PathBuf::from("/nonexistent"),
             sources: Vec::new(),
             display_name: None,
+            installed_at: None,
+            updated_at: None,
         };
         let mods = vec![r#mod];
 
@@ -1643,6 +1653,8 @@ mod tests {
             directory: PathBuf::from("/nonexistent"),
             sources: Vec::new(),
             display_name: None,
+            installed_at: None,
+            updated_at: None,
         };
         let config = Config::V2 {
             guid,
@@ -2014,6 +2026,8 @@ mod tests {
             directory: dir.to_path_buf(),
             sources: Vec::new(),
             display_name: None,
+            installed_at: None,
+            updated_at: None,
         };
         (r#mod, Config::Legacy { guid, enabled: true, selected: 0 })
     }
@@ -2143,6 +2157,8 @@ mod tests {
             directory: dir.to_path_buf(),
             sources: Vec::new(),
             display_name: None,
+            installed_at: None,
+            updated_at: None,
         };
         let config = Config::Legacy { guid, enabled: true, selected: 0 };
         (r#mod, config)

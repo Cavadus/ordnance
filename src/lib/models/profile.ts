@@ -28,6 +28,8 @@ export type Config = ConfigLegacy | ConfigV1 | ConfigV2;
 export type ProfileV1 = {
     Version: "V1";
     Name: string;
+    /** `#rrggbb`. Missing or empty on files written before profile colors. */
+    Color?: string;
     Configs: Config[];
 };
 

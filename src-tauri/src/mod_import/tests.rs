@@ -1268,6 +1268,8 @@ fn import_keeps_a_carried_install_time() {
     let carried = OriginSidecar {
         sources: vec![Source { provider: "ayakamods".into(), id: Some("4101".into()), url: None, version: Some("2026-09-29".into()) }],
         installed_at: 1_790_700_000,
+        first_installed_at: 0,
+        updated_at: 0,
         installed_files: vec![InstalledFile { provider: "ayakamods".into(), uploaded_at: Some(1_790_677_379), ..Default::default() }],
         skipped_versions: Vec::new(),
         imported_archive: None,
@@ -1287,6 +1289,8 @@ fn import_keeps_a_carried_install_time() {
         directory: folder,
         sources: Vec::new(),
         display_name: None,
+        installed_at: None,
+        updated_at: None,
     };
     let sidecar = sidecar_for(&item, &installed, None);
     assert_eq!(sidecar.installed_at, 1_790_700_000);
